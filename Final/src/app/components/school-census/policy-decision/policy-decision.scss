@@ -1,0 +1,50 @@
+.policy-page-header,
+.policy-stat {
+  background: var(--custom-white);
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  margin-block-end: 1.5rem;
+}
+
+.policy-page-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.policy-stat {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  min-height: 108px;
+  padding: 1rem;
+}
+
+.policy-stat-icon {
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 46px;
+  height: 46px;
+  justify-content: center;
+  width: 46px;
+
+  i {
+    font-size: 1.25rem;
+  }
+}
+
+.policy-result {
+  background: var(--default-background, #f8f9fb);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+@media (max-width: 767.98px) {
+  .policy-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

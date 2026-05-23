@@ -1,0 +1,96 @@
+<div class="school-census-page">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h4 class="mb-1">Demandes à valider</h4>
+      <p class="text-muted mb-0">Contrôle hiérarchique des préfectures, sous-préfectures, écoles et enseignants.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <select class="form-select form-select-sm" [(ngModel)]="statusFilter" (change)="load()">
+        <option value="SUBMITTED">À valider</option>
+        <option value="APPROVED">Validées</option>
+        <option value="REJECTED">Rejetées</option>
+      </select>
+      <button type="button" class="btn btn-primary btn-sm" (click)="load()" [disabled]="loading">Actualiser</button>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="alert alert-danger">{{ error }}</div>
+  }
+
+  <div class="card custom-card">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Demandeur</th>
+            <th>Statut</th>
+            <th>Date</th>
+            <th>Motif / commentaire</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (request of requests; track request.id) {
+            <tr>
+              <td>
+                <span class="fw-semibold">{{ entityLabel(request.entityType) }}</span>
+                <div class="text-muted small">{{ request.entityId }}</div>
+              </td>
+              <td>
+                <span>{{ request.requestedBy?.fullName || 'Utilisateur' }}</span>
+                <div class="text-muted small">{{ request.requestedBy?.role }}</div>
+              </td>
+              <td>
+                <span class="badge bg-primary-transparent">{{ statusLabel(request.status) }}</span>
+              </td>
+              <td>{{ request.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+              <td class="validation-note">
+                @if (request.status === 'SUBMITTED') {
+                  <input
+                    class="form-control form-control-sm"
+                    [(ngModel)]="reasonById[request.id]"
+                    placeholder="Motif si rejet"
+                  />
+                } @else {
+                  <span class="text-muted">{{ request.reason || '-' }}</span>
+                }
+              </td>
+              <td class="text-end">
+                @if (request.status === 'SUBMITTED') {
+                  <div class="btn-list justify-content-end">
+                    <button
+                      type="button"
+                      class="btn btn-success btn-sm"
+                      (click)="approve(request)"
+                      [disabled]="processingId === request.id"
+                    >
+                      Valider
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-danger btn-sm"
+                      (click)="reject(request)"
+                      [disabled]="processingId === request.id"
+                    >
+                      Rejeter
+                    </button>
+                  </div>
+                } @else {
+                  <span class="text-muted small">{{ request.reviewedAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="text-center text-muted py-4">
+                {{ loading ? 'Chargement...' : 'Aucune demande trouvée.' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

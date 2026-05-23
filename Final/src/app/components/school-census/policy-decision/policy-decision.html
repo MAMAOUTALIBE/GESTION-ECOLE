@@ -1,0 +1,310 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="policy-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Pilotage ministériel</p>
+        <h3 class="fw-semibold mb-1">Pouvoir décisionnel</h3>
+        <p class="text-muted mb-0">
+          Cohortes par niveau · Index d'équité GPI · Simulation d'impact d'investissement.
+        </p>
+      </div>
+      <button class="btn btn-outline-primary" type="button" (click)="loadDashboard()" [disabled]="loadingDashboard">
+        <i class="ri-refresh-line me-1"></i>Actualiser
+      </button>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-warning">{{ error }}</div>
+    </div>
+  }
+
+  <!-- ================================================================ -->
+  <!-- Cohort summary KPIs                                              -->
+  <!-- ================================================================ -->
+  <div class="col-xxl-3 col-xl-6 col-md-6">
+    <div class="policy-stat">
+      <span class="policy-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-group-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Effectif total scolarisé</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(cohort?.totalStudents) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-6 col-md-6">
+    <div class="policy-stat">
+      <span class="policy-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-restart-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Redoublants estimés</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(cohort?.totalRepeaters) }}</h4>
+        <span class="text-muted fs-12">{{ formatPercent(cohort?.repeaterRate) }} du total</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-6 col-md-6">
+    <div class="policy-stat">
+      <span class="policy-stat-icon" [ngClass]="(equity?.nationalGpi ?? 0) >= 0.97 ? 'bg-success-transparent text-success' : 'bg-danger-transparent text-danger'">
+        <i class="ri-women-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">GPI national (parité)</p>
+        <h4 class="fw-semibold mb-0" [ngClass]="gpiClass(equity?.nationalGpi ?? 0)">{{ equity?.nationalGpi ?? '—' }}</h4>
+        <span class="text-muted fs-12">cible : 1.00</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-6 col-md-6">
+    <div class="policy-stat">
+      <span class="policy-stat-icon" [ngClass]="(equity?.nationalGirlsToiletsCoverage ?? 0) >= 80 ? 'bg-success-transparent text-success' : 'bg-danger-transparent text-danger'">
+        <i class="ri-water-flash-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Couverture toilettes filles</p>
+        <h4 class="fw-semibold mb-0">{{ equity?.nationalGirlsToiletsCoverage ?? 0 }}%</h4>
+        <span class="text-muted fs-12">élec : {{ equity?.nationalElectricityCoverage ?? 0 }}% · eau : {{ equity?.nationalWaterCoverage ?? 0 }}%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- Cohorte par niveau                                               -->
+  <!-- ================================================================ -->
+  <div class="col-xl-7">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Cohorte par niveau · {{ cohort?.schoolYearName ?? 'Année active' }}</h3>
+        <span class="text-muted fs-12">Effectif & redoublants estimés (heuristique âge attendu + 1)</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Niveau</th>
+                <th class="text-end">Inscrits</th>
+                <th class="text-end">Garçons</th>
+                <th class="text-end">Filles</th>
+                <th class="text-end">Redoublants</th>
+                <th class="text-end">Âge moyen</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (level of cohortRows(); track level.level) {
+                <tr>
+                  <td class="fw-semibold">{{ level.level }}</td>
+                  <td class="text-end">{{ formatNumber(level.enrolled) }}</td>
+                  <td class="text-end">{{ formatNumber(level.male) }}</td>
+                  <td class="text-end">{{ formatNumber(level.female) }}</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="level.repeaters > 0 ? 'bg-warning-transparent text-warning' : 'bg-success-transparent text-success'">
+                      {{ formatNumber(level.repeaters) }}
+                    </span>
+                  </td>
+                  <td class="text-end">{{ level.averageAge ?? '—' }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-4">
+                    @if (loadingDashboard) {
+                      Chargement de la cohorte...
+                    } @else {
+                      Aucune donnée de cohorte disponible.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- Index d'équité par région                                        -->
+  <!-- ================================================================ -->
+  <div class="col-xl-5">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Équité par région</h3>
+        <span class="text-muted fs-12">GPI · Couverture toilettes filles · Électricité · Eau</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Région</th>
+                <th class="text-end">GPI</th>
+                <th class="text-end">Toilettes ♀</th>
+                <th class="text-end">Élec.</th>
+                <th class="text-end">Eau</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of equityRows(); track row.territoryId) {
+                <tr>
+                  <td class="fw-semibold">{{ row.territoryName }}</td>
+                  <td class="text-end" [ngClass]="gpiClass(row.genderParityIndex)">{{ row.genderParityIndex }}</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="coverageClass(row.girlsToiletsCoverage)">{{ row.girlsToiletsCoverage }}%</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="coverageClass(row.electricityCoverage)">{{ row.electricityCoverage }}%</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="coverageClass(row.waterCoverage)">{{ row.waterCoverage }}%</span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">
+                    @if (loadingDashboard) {
+                      Chargement de l'index d'équité...
+                    } @else {
+                      Aucune donnée d'équité disponible.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- Simulateur de politique                                          -->
+  <!-- ================================================================ -->
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Simulateur de politique</h3>
+          <span class="text-muted fs-12">
+            Estime l'impact d'un programme d'investissement (écoles · enseignants · infrastructures cibles)
+          </span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-primary" type="button" (click)="simulate()" [disabled]="loadingSimulation">
+            <i class="ri-play-fill me-1"></i>Simuler
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="resetScenario()">
+            <i class="ri-refresh-line me-1"></i>Réinitialiser
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-3">
+          <div class="col-xl-2 col-md-4">
+            <label class="form-label">+ Écoles</label>
+            <input class="form-control" type="number" min="0" max="10000" [(ngModel)]="scenario.addSchools" />
+          </div>
+          <div class="col-xl-2 col-md-4">
+            <label class="form-label">+ Enseignants</label>
+            <input class="form-control" type="number" min="0" max="100000" [(ngModel)]="scenario.addTeachers" />
+          </div>
+          <div class="col-xl-2 col-md-4">
+            <label class="form-label">+ Salles de classe</label>
+            <input class="form-control" type="number" min="0" max="100000" [(ngModel)]="scenario.addClassrooms" />
+          </div>
+          <div class="col-xl-2 col-md-4">
+            <label class="form-label">Cible toilettes ♀ (%)</label>
+            <input class="form-control" type="number" min="0" max="100" [(ngModel)]="scenario.targetGirlsToiletsCoverage" />
+          </div>
+          <div class="col-xl-2 col-md-4">
+            <label class="form-label">Cible électricité (%)</label>
+            <input class="form-control" type="number" min="0" max="100" [(ngModel)]="scenario.targetElectricityCoverage" />
+          </div>
+          <div class="col-xl-2 col-md-4">
+            <label class="form-label">Horizon (années)</label>
+            <input class="form-control" type="number" min="1" max="20" [(ngModel)]="scenario.horizonYears" />
+          </div>
+        </div>
+      </div>
+
+      @if (loadingSimulation) {
+        <div class="card-body text-center text-muted">
+          Calcul de la simulation en cours...
+        </div>
+      }
+
+      @if (simulation && !loadingSimulation) {
+        <div class="card-body border-bottom">
+          <div class="row gy-3">
+            <div class="col-xl-4 col-md-6">
+              <div class="policy-result">
+                <span class="text-muted fs-12">Élèves additionnels couverts</span>
+                <h4 class="fw-semibold mb-0">{{ formatNumber(simulation.estimatedAdditionalStudentsCovered) }}</h4>
+              </div>
+            </div>
+            <div class="col-xl-4 col-md-6">
+              <div class="policy-result">
+                <span class="text-muted fs-12">Coût total estimé</span>
+                <h4 class="fw-semibold mb-0 text-primary">{{ formatCurrencyUSD(simulation.estimatedCostUSD) }}</h4>
+              </div>
+            </div>
+            <div class="col-xl-4 col-md-6">
+              <div class="policy-result">
+                <span class="text-muted fs-12">Horizon temporel</span>
+                <h4 class="fw-semibold mb-0">{{ simulation.horizonYears }} an(s)</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body p-0 border-bottom">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Indicateur</th>
+                  <th class="text-end">Baseline</th>
+                  <th class="text-end">Scénario</th>
+                  <th class="text-end">Δ</th>
+                  <th class="text-end">Δ %</th>
+                  <th>Interprétation</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (delta of simulation.deltas; track delta.metric) {
+                  <tr>
+                    <td class="fw-semibold">{{ delta.metric }}</td>
+                    <td class="text-end">{{ formatNumber(delta.baseline) }}</td>
+                    <td class="text-end">{{ formatNumber(delta.scenario) }}</td>
+                    <td class="text-end" [ngClass]="deltaClass(delta.interpretation)">
+                      {{ delta.delta > 0 ? '+' : '' }}{{ delta.delta }}
+                    </td>
+                    <td class="text-end" [ngClass]="deltaClass(delta.interpretation)">
+                      {{ delta.deltaPct ?? '—' }}{{ delta.deltaPct !== null ? '%' : '' }}
+                    </td>
+                    <td [ngClass]="deltaClass(delta.interpretation)">{{ delta.interpretation }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <h5 class="fw-semibold mb-2">Hypothèses & sources</h5>
+          <ul class="mb-0 ps-3">
+            @for (note of simulation.notes; track note) {
+              <li class="text-muted fs-13">{{ note }}</li>
+            }
+          </ul>
+        </div>
+      } @else if (!loadingSimulation) {
+        <div class="card-body text-center text-muted py-5">
+          Renseigne un scénario et clique sur <strong>Simuler</strong> pour voir l'impact projeté.
+        </div>
+      }
+    </div>
+  </div>
+</div>

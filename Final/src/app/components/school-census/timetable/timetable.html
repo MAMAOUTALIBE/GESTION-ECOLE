@@ -1,0 +1,263 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="timetable-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Administration scolaire</p>
+        <h3 class="fw-semibold mb-1">Emplois du temps</h3>
+        <p class="text-muted mb-0">
+          Planification hebdomadaire des cours par classe, enseignant, salle et statut de publication.
+        </p>
+      </div>
+      <div class="timetable-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/calendar">
+          <i class="ri-calendar-event-line me-1"></i>Calendrier
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-warning">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="timetable-stat">
+      <span class="timetable-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-time-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Créneaux</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.slots) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="timetable-stat">
+      <span class="timetable-stat-icon bg-info-transparent text-info">
+        <i class="ri-door-open-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Classes couvertes</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.classes) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="timetable-stat">
+      <span class="timetable-stat-icon bg-success-transparent text-success">
+        <i class="ri-check-double-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Publication</p>
+        <h4 class="fw-semibold mb-0">{{ totals.publicationRate }}%</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="timetable-stat">
+      <span class="timetable-stat-icon" [ngClass]="totals.conflicts ? 'bg-danger-transparent text-danger' : 'bg-secondary-transparent text-secondary'">
+        <i class="ri-error-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Conflits</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.conflicts) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Charge par jour</h3>
+      </div>
+      <div class="card-body">
+        <div class="day-list">
+          @for (day of daySummaries; track day.value) {
+            <button
+              class="day-item"
+              type="button"
+              [class.active]="selectedDay === day.value"
+              (click)="selectedDay = selectedDay === day.value ? '' : day.value"
+            >
+              <span class="day-code">{{ day.short }}</span>
+              <span class="day-content">
+                <span class="d-flex align-items-center justify-content-between gap-2">
+                  <span class="fw-semibold">{{ day.label }}</span>
+                  <span class="badge bg-primary-transparent text-primary">{{ formatNumber(day.hours) }} h</span>
+                </span>
+                <span class="text-muted fs-12">
+                  {{ formatNumber(day.slots) }} créneau(x) · {{ formatNumber(day.conflicts) }} conflit(s)
+                </span>
+              </span>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Matières principales</h3>
+      </div>
+      <div class="card-body">
+        <div class="subject-list">
+          @for (subject of subjectSummaries; track subject.subject) {
+            <div class="subject-item">
+              <span class="subject-icon bg-info-transparent text-info">
+                <i class="ri-book-open-line"></i>
+              </span>
+              <div class="flex-fill">
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                  <span class="fw-semibold">{{ subject.subject }}</span>
+                  <span>{{ formatNumber(subject.hours) }} h</span>
+                </div>
+                <div class="progress progress-xs mt-2" role="progressbar">
+                  <div class="progress-bar" [style.width.%]="totals.weeklyHours ? (subject.hours / totals.weeklyHours) * 100 : 0"></div>
+                </div>
+              </div>
+            </div>
+          } @empty {
+            <p class="text-muted mb-0">Aucune matière affichée.</p>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Planning hebdomadaire</h3>
+          <span class="text-muted fs-12">
+            {{ filteredSlots.length }} ligne(s) · {{ formatNumber(totals.teachers) }} enseignant(s) · {{ formatNumber(totals.weeklyHours) }} h
+          </span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Classe, matière, enseignant..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId" (change)="onRegionChange()">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Établissement</label>
+            <select class="form-select" [(ngModel)]="selectedSchoolId" (change)="onSchoolChange()">
+              <option value="">Tous</option>
+              @for (school of filteredSchools; track school.id) {
+                <option [value]="school.id">{{ school.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Classe</label>
+            <select class="form-select" [(ngModel)]="selectedClassRoomId">
+              <option value="">Toutes</option>
+              @for (classRoom of availableClassRooms; track classRoom.id) {
+                <option [value]="classRoom.id">{{ classRoom.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6">
+            <label class="form-label">Jour</label>
+            <select class="form-select" [(ngModel)]="selectedDay">
+              <option value="">Tous</option>
+              @for (day of days; track day.value) {
+                <option [value]="day.value">{{ day.short }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="published">Publié</option>
+              <option value="draft">Brouillon</option>
+              <option value="conflict">Conflit</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Jour</th>
+                <th>Horaire</th>
+                <th>Classe</th>
+                <th>Matière</th>
+                <th>Enseignant</th>
+                <th>Salle</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (slot of filteredSlots; track slot.id) {
+                <tr>
+                  <td>
+                    <span class="fw-semibold">{{ dayLabel(slot.day) }}</span>
+                    <div class="text-muted fs-12">{{ slot.schoolName }}</div>
+                  </td>
+                  <td>{{ slot.startTime }} - {{ slot.endTime }}</td>
+                  <td>
+                    <div>{{ slot.classRoomName }}</div>
+                    <span class="text-muted fs-12">{{ slot.level }} · {{ slot.region }}</span>
+                  </td>
+                  <td>{{ slot.subjectName }}</td>
+                  <td>{{ slot.teacherName }}</td>
+                  <td>{{ slot.roomName }}</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(slot.status)">
+                      {{ statusLabel(slot.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des emplois du temps...
+                    } @else {
+                      Aucun créneau ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

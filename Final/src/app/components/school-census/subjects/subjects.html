@@ -1,0 +1,178 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="subjects-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Administration scolaire</p>
+        <h3 class="fw-semibold mb-1">Matières, niveaux et coefficients</h3>
+        <p class="text-muted mb-0">
+          Référentiel utilisé pour les évaluations, moyennes, bulletins et examens.
+        </p>
+      </div>
+      <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+        <i class="ri-refresh-line me-1"></i>Actualiser
+      </button>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-3 col-md-6">
+    <div class="subjects-stat">
+      <span class="subjects-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-book-open-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Matières</p>
+        <h4 class="fw-semibold mb-0">{{ totals.subjects }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="subjects-stat">
+      <span class="subjects-stat-icon bg-info-transparent text-info">
+        <i class="ri-stairs-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Niveaux</p>
+        <h4 class="fw-semibold mb-0">{{ totals.levels }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="subjects-stat">
+      <span class="subjects-stat-icon bg-success-transparent text-success">
+        <i class="ri-scales-3-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Coef. moyen</p>
+        <h4 class="fw-semibold mb-0">{{ formatCoefficient(totals.averageCoefficient) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="subjects-stat">
+      <span class="subjects-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-filter-3-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Affichées</p>
+        <h4 class="fw-semibold mb-0">{{ totals.visible }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Nouvelle matière</h3>
+      </div>
+      <div class="card-body">
+        @if (!canManageSubjects) {
+          <div class="alert alert-warning py-2">
+            Votre rôle ne permet pas de créer une matière.
+          </div>
+        }
+        <form [formGroup]="form" (ngSubmit)="createSubject()">
+          <div class="row gy-3">
+            <div class="col-md-4">
+              <label class="form-label">Code</label>
+              <input class="form-control text-uppercase" formControlName="code" placeholder="MATH" />
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Matière</label>
+              <input class="form-control" formControlName="name" placeholder="Mathématiques" />
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Niveau</label>
+              <input class="form-control" formControlName="level" placeholder="Primaire, Collège, Lycée..." />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Coef.</label>
+              <input type="number" min="0.1" step="0.1" class="form-control" formControlName="coefficient" />
+            </div>
+            <div class="col-12 d-grid">
+              <button class="btn btn-primary" type="submit" [disabled]="form.invalid || saving || !canManageSubjects">
+                @if (saving) {
+                  Enregistrement...
+                } @else {
+                  Créer la matière
+                }
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <h3 class="card-title mb-0">Référentiel des matières</h3>
+        <span class="badge bg-primary-transparent">{{ filteredSubjects.length }} ligne(s)</span>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Code, matière, niveau..." />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Niveau</label>
+            <select class="form-select" [(ngModel)]="selectedLevel">
+              <option value="">Tous les niveaux</option>
+              @for (level of levels; track level) {
+                <option [value]="level">{{ level }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-md-2 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Matière</th>
+                <th>Niveau</th>
+                <th class="text-end">Coefficient</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (subject of filteredSubjects; track subject.id) {
+                <tr>
+                  <td>
+                    <span class="badge bg-light text-default">{{ subject.code }}</span>
+                  </td>
+                  <td class="fw-semibold">{{ subject.name }}</td>
+                  <td>{{ subject.level || 'Tous niveaux' }}</td>
+                  <td class="text-end fw-semibold">{{ formatCoefficient(subject.coefficient) }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des matières...
+                    } @else {
+                      Aucune matière trouvée.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

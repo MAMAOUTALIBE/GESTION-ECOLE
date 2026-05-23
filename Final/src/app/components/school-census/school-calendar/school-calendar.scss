@@ -1,0 +1,59 @@
+.calendar-page-header,
+.calendar-stat {
+  background: var(--custom-white);
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  margin-block-end: 1.5rem;
+}
+
+.calendar-page-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.calendar-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.calendar-stat {
+  align-items: center;
+  display: flex;
+  gap: 0.875rem;
+  min-height: 108px;
+  padding: 1rem;
+}
+
+.calendar-stat-icon {
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 42px;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.calendar-progress {
+  height: 6px;
+  width: 110px;
+}
+
+@media (max-width: 767.98px) {
+  .calendar-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .calendar-header-actions {
+    width: 100%;
+  }
+
+  .calendar-header-actions .btn {
+    flex: 1 1 150px;
+  }
+}

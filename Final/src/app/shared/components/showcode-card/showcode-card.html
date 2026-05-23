@@ -1,0 +1,51 @@
+<div class="card custom-card custom-component" [ngClass]="classCard()">
+  <div class="card-header justify-content-between" [ngClass]="classHeader()">
+    <div class="card-title" [innerHTML]="title()"></div>
+
+    @if(showCodeArray.length){
+    <div class="prism-toggle">
+      <label class="form-switch float-end my-0 show-code-switch">
+        <button class="btn btn-sm btn-primary-light" (click)="toggleShowCode()">
+          {{ toggleStatus ? 'Hide Code' : 'Show Code' }}
+          <i class="ri-code-{{toggleStatus ? 's-slash-line' : 'line'}} ms-2 d-inline-block align-middle"></i>
+        </button>
+      </label>
+    </div>
+    }
+  </div>
+
+  @if(!toggleStatus){
+  <div class="card-body" [ngClass]="classbody()">
+    <ng-content></ng-content>
+  </div>
+  }
+  @else {
+  <div class="card-footer border-top-0 p-0">
+    <figure class="highlight clip-widget custom-tabs" id="avatar1">
+      <div class="d-flex justify-content-between align-items-center px-3 mb-2  pt-3">
+        <ul ngbNav #nav1="ngbNav" [activeId]="0" class="nav nav-pills nav-style-3   ps-3">
+          @for (item of showCodeArray; track $index) {
+          <li [ngbNavItem]="$index">
+            <a ngbNavLink>{{item?.key | uppercase}}</a>
+            <ng-template ngbNavContent>
+              <pre class="language-html"><code class="language-html" >
+                                {{item?.value}}
+                            </code></pre>
+            </ng-template>
+          </li>
+          }
+        </ul>
+        <button type="button" class="btn btn-sm btn-success" (click)="copyCode(activeTab)">
+          @if (copied()) {
+          Copied <i class="ri-check-line ms-1"></i>
+          } @else {
+          Copy <i class="ri-file-copy-line ms-1"></i>
+          }
+        </button>
+      </div>
+
+      <div [ngbNavOutlet]="nav1" class="p-3"></div>
+    </figure>
+  </div>
+  }
+</div>

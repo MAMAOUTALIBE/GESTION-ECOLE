@@ -1,0 +1,17 @@
+
+<div class="page">
+    <app-header />
+    <app-sidebar appHoverEffectSidebar />
+    <!-- Start::app-content -->
+    <div class="main-content app-content" (click)="clickOnBody()">
+        <div class="container-fluid">
+            <!-- Page Header -->
+        <app-page-header />
+            <!-- Page Header Close -->
+            <router-outlet />
+        </div>
+    </div>
+    <app-footer />
+    <app-tab-to-top />
+</div>
+<div #responsiveoverlay id="responsive-overlay" (click)="clearToggle()"></div>

@@ -1,0 +1,168 @@
+<div class="row">
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Génération des bulletins</h3>
+      </div>
+      <div class="card-body">
+        @if (error) {
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        }
+
+        @if (!canGenerateReportCards) {
+          <div class="alert alert-info py-2">Votre rôle permet la consultation des bulletins.</div>
+        }
+
+        <div class="row gy-3">
+          <div class="col-12">
+            <label class="form-label">Année scolaire</label>
+            <select class="form-select" [(ngModel)]="selectedSchoolYearId" (change)="syncPeriodForYear()">
+              @for (schoolYear of schoolYears; track schoolYear.id) {
+                <option [value]="schoolYear.id">{{ schoolYear.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Période</label>
+            <select class="form-select" [(ngModel)]="selectedPeriodId">
+              @for (period of periods; track period.id) {
+                <option [value]="period.id">{{ period.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Classe</label>
+            <select class="form-select" [(ngModel)]="selectedClassRoomId">
+              <option value="">Toutes les classes accessibles</option>
+              @for (classRoom of classRooms; track classRoom.id) {
+                <option [value]="classRoom.id">{{ classRoom.name }} · {{ classRoom.school?.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12 d-grid">
+            <button
+              class="btn btn-primary"
+              type="button"
+              [disabled]="!canGenerateReportCards || !selectedSchoolYearId || !selectedPeriodId || generating"
+              (click)="generateReportCards()"
+            >
+              @if (generating) {
+                Génération...
+              } @else {
+                Générer les bulletins
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="report-summary-grid">
+      <div class="report-summary-item">
+        <span>Bulletins</span>
+        <strong>{{ reportTotals.reportCards }}</strong>
+      </div>
+      <div class="report-summary-item">
+        <span>Moyenne</span>
+        <strong>{{ reportTotals.average }}</strong>
+      </div>
+      <div class="report-summary-item">
+        <span>Validés</span>
+        <strong>{{ reportTotals.validated }}</strong>
+      </div>
+      <div class="report-summary-item">
+        <span>En attente</span>
+        <strong>{{ reportTotals.pending }}</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Bulletins</h3>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="badge bg-primary-transparent">{{ filteredReportCards.length }} / {{ reportCards.length }}</span>
+          <button class="btn btn-sm btn-outline-primary" type="button" [disabled]="!filteredReportCards.length" (click)="exportCsv()">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-sm btn-outline-success" type="button" [disabled]="!filteredReportCards.length" (click)="exportExcel()">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" [disabled]="!filteredReportCards.length" (click)="printReport()">
+            <i class="ri-printer-line me-1"></i>PDF
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <label class="form-label">Recherche</label>
+        <input class="form-control" [(ngModel)]="searchTerm" placeholder="Élève, matricule, école, code bulletin" />
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Élève</th>
+                <th>Classe</th>
+                <th>Période</th>
+                <th>Résultat</th>
+                <th>Vérification</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (card of filteredReportCards; track card.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ card.student.fullName }}</div>
+                    <span class="text-muted fs-12">{{ card.student.uniqueCode }} · {{ card.student.school.name }}</span>
+                  </td>
+                  <td>
+                    <div>{{ card.classRoom?.name || card.student.classRoom?.name || 'Sans classe' }}</div>
+                    <span class="text-muted fs-12">{{ card.classRoom?.school?.region?.name || card.student.school.region?.name }}</span>
+                  </td>
+                  <td>
+                    <div>{{ card.period.name }}</div>
+                    <span class="text-muted fs-12">{{ card.schoolYear.name }}</span>
+                  </td>
+                  <td>
+                    <div class="fw-semibold">{{ card.average ?? 'N/A' }} / 20</div>
+                    <span class="text-muted fs-12">
+                      @if (card.rank) {
+                        Rang {{ card.rank }} / {{ card.totalStudents || 'N/A' }}
+                      } @else {
+                        Rang non calculé
+                      }
+                    </span>
+                  </td>
+                  <td>
+                    <code>{{ card.verificationCode }}</code>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(card.status)">{{ card.status }}</span>
+                    @if (canGenerateReportCards && card.status !== 'VALIDATED') {
+                      <button class="btn btn-sm btn-outline-success ms-2" type="button" (click)="validateReportCard(card)">
+                        Valider
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des bulletins...
+                    } @else {
+                      Aucun bulletin disponible pour les filtres sélectionnés.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

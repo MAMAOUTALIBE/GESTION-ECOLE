@@ -1,0 +1,38 @@
+<div class="school-census-page">
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h4 class="mb-1">Notifications</h4>
+      <p class="text-muted mb-0">Suivi des validations, rejets et alertes administratives.</p>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm" (click)="load()" [disabled]="loading">Actualiser</button>
+  </div>
+
+  @if (error) {
+    <div class="alert alert-danger">{{ error }}</div>
+  }
+
+  <div class="card custom-card">
+    <div class="list-group list-group-flush">
+      @for (notification of notifications; track notification.id) {
+        <button
+          type="button"
+          class="list-group-item list-group-item-action text-start"
+          [class.is-unread]="!notification.isRead"
+          (click)="markRead(notification)"
+        >
+          <div class="d-flex justify-content-between gap-3">
+            <div>
+              <div class="fw-semibold">{{ notification.title }}</div>
+              <div class="text-muted">{{ notification.message }}</div>
+            </div>
+            <span class="text-muted small">{{ notification.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+        </button>
+      } @empty {
+        <div class="text-center text-muted py-4">
+          {{ loading ? 'Chargement...' : 'Aucune notification.' }}
+        </div>
+      }
+    </div>
+  </div>
+</div>

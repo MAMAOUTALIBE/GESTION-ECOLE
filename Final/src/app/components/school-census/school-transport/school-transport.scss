@@ -1,0 +1,101 @@
+.transport-page-header,
+.transport-stat {
+  background: var(--custom-white);
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  margin-block-end: 1.5rem;
+}
+
+.transport-page-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.transport-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.transport-stat {
+  align-items: center;
+  display: flex;
+  gap: 0.875rem;
+  min-height: 108px;
+  padding: 1rem;
+}
+
+.transport-stat-icon,
+.transport-mode-icon {
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 42px;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.transport-mode-list,
+.transport-risk-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.transport-mode-item,
+.transport-risk-item {
+  background: transparent;
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  color: inherit;
+  display: flex;
+  gap: 0.875rem;
+  padding: 0.875rem;
+  text-align: start;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+  width: 100%;
+}
+
+.transport-mode-item {
+  align-items: flex-start;
+}
+
+.transport-risk-item {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.transport-mode-item.active,
+.transport-mode-item:hover,
+.transport-risk-item.active,
+.transport-risk-item:hover {
+  background: rgba(var(--primary-rgb), 0.05);
+  border-color: rgba(var(--primary-rgb), 0.35);
+}
+
+.transport-mode-content {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 767.98px) {
+  .transport-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .transport-header-actions {
+    width: 100%;
+  }
+
+  .transport-header-actions .btn {
+    flex: 1 1 150px;
+  }
+}

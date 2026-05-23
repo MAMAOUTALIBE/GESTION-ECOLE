@@ -1,0 +1,75 @@
+"""Observability primitives — request id propagation, structured logging
+binding, and business-level Prometheus counters.
+
+These are deliberately separate from ``app/core/celery_app.py`` and the
+plain ``loguru`` config so the wiring in ``main.py`` stays a one-liner.
+"""
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+from uuid import uuid4
+
+from fastapi import Request, Response
+from loguru import logger
+from prometheus_client import Counter
+from starlette.middleware.base import BaseHTTPMiddleware
+
+# ---------------------------------------------------------------------
+# Business-level Prometheus counters (aggregated across all instances)
+# ---------------------------------------------------------------------
+# Auth
+auth_login_total = Counter(
+    "gestionee_auth_login_total",
+    "Login attempts grouped by outcome",
+    labelnames=("result",),  # success | invalid | inactive
+)
+
+# QR scans (attendance)
+attendance_scan_total = Counter(
+    "gestionee_attendance_scan_total",
+    "Attendance scan attempts grouped by outcome",
+    labelnames=("result",),  # ok | duplicate | not_found | forbidden
+)
+
+# Notifications
+notification_dispatch_total = Counter(
+    "gestionee_notification_dispatch_total",
+    "Parent communication dispatch attempts",
+    labelnames=("channel", "result"),  # channel ∈ SMS|WHATSAPP|..., result ∈ ok|failed
+)
+
+# Imports
+import_commit_total = Counter(
+    "gestionee_import_commit_total",
+    "Mass-import commit attempts grouped by kind + result",
+    labelnames=("kind", "result"),  # kind ∈ students|teachers|schools, result ∈ ok|failed
+)
+
+
+# ---------------------------------------------------------------------
+# Request ID middleware — propagates X-Request-Id and binds it to loguru
+# ---------------------------------------------------------------------
+REQUEST_ID_HEADER = "X-Request-Id"
+
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Attach a request id to every request and echo it back to the client.
+
+    * If the caller already sent ``X-Request-Id``, keep it (gateway / LB friendly)
+    * Otherwise mint a fresh uuid4 hex
+    * The id is also stored on ``request.state.request_id`` and bound to loguru
+      via ``logger.bind(request_id=...)`` for the duration of the request — any
+      `logger.info(...)` call inside the handler picks it up automatically.
+    """
+
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        rid = request.headers.get(REQUEST_ID_HEADER) or uuid4().hex
+        request.state.request_id = rid
+        with logger.contextualize(request_id=rid):
+            response = await call_next(request)
+        response.headers[REQUEST_ID_HEADER] = rid
+        return response

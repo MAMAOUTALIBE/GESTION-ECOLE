@@ -1,0 +1,189 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="personnel-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Personnel</p>
+        <h3 class="fw-semibold mb-1">Affectations enseignants</h3>
+        <p class="text-muted mb-0">
+          Rattachez les enseignants aux classes de leur établissement.
+        </p>
+      </div>
+      <div class="personnel-header-actions">
+        <a class="btn btn-primary" routerLink="/school-census/teachers">
+          <i class="ri-user-add-line me-1"></i>Enseignants
+        </a>
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-3 col-md-6">
+    <div class="personnel-stat">
+      <span class="personnel-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-briefcase-4-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Enseignants</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.teachers) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="personnel-stat">
+      <span class="personnel-stat-icon bg-success-transparent text-success">
+        <i class="ri-team-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Affectés</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.assigned) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="personnel-stat">
+      <span class="personnel-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-user-unfollow-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Sans classe</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.unassigned) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="personnel-stat">
+      <span class="personnel-stat-icon bg-info-transparent text-info">
+        <i class="ri-node-tree"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Affectations</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.assignments) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-5">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Enseignants</h3>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-md-7">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Nom, matricule, matière..." />
+          </div>
+          <div class="col-md-5">
+            <label class="form-label">École</label>
+            <select class="form-select" [(ngModel)]="selectedSchoolId" (ngModelChange)="onSchoolChange()">
+              @for (school of schools; track school.id) {
+                <option [value]="school.id">{{ school.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line me-1"></i>Réinitialiser
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="teacher-list">
+          @for (teacher of filteredTeachers; track teacher.id) {
+            <button
+              class="teacher-list-item"
+              type="button"
+              [class.active]="teacher.id === selectedTeacherId"
+              (click)="selectTeacher(teacher)"
+            >
+              <div>
+                <div class="fw-semibold">{{ teacher.fullName }}</div>
+                <span class="text-muted fs-12">{{ teacher.uniqueCode }} · {{ teacher.subject || 'Matière N/A' }}</span>
+              </div>
+              <div class="text-end">
+                <div class="fw-semibold">{{ teacher.classes?.length || 0 }}</div>
+                <span class="text-muted fs-12">classe(s)</span>
+              </div>
+            </button>
+          } @empty {
+            <div class="text-center text-muted py-4">
+              @if (loading) {
+                Chargement des enseignants...
+              } @else {
+                Aucun enseignant dans ce filtre.
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-7">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Classes affectées</h3>
+          <span class="text-muted fs-12">
+            @if (selectedTeacher) {
+              {{ selectedTeacher.fullName }} · {{ selectedTeacher.school.name }}
+            } @else {
+              Sélectionnez un enseignant
+            }
+          </span>
+        </div>
+        <span class="badge bg-primary-transparent">{{ selectedClassRoomIds.length }} sélectionnée(s)</span>
+      </div>
+      <div class="card-body">
+        @if (selectedTeacher) {
+          <div class="assignment-grid">
+            @for (classRoom of availableClasses; track classRoom.id) {
+              <label class="assignment-card">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  [checked]="isClassSelected(classRoom.id)"
+                  (change)="toggleClass(classRoom.id, $any($event.target).checked)"
+                />
+                <span>
+                  <span class="fw-semibold d-block">{{ classRoom.name }}</span>
+                  <span class="text-muted fs-12">
+                    {{ classRoom.level || 'Niveau N/A' }} ·
+                    {{ classRoom.studentsCount || 0 }} élève(s) ·
+                    {{ classRoom.teachersCount || 0 }} enseignant(s)
+                  </span>
+                </span>
+              </label>
+            } @empty {
+              <div class="text-center text-muted py-4">Aucune classe déclarée pour cet établissement.</div>
+            }
+          </div>
+
+          <div class="d-flex flex-wrap justify-content-end gap-2 mt-4">
+            <button class="btn btn-outline-secondary" type="button" (click)="selectTeacher(selectedTeacher)">
+              Annuler
+            </button>
+            <button class="btn btn-primary" type="button" [disabled]="saving" (click)="saveAssignments()">
+              @if (saving) {
+                Enregistrement...
+              } @else {
+                Enregistrer les affectations
+              }
+            </button>
+          </div>
+        } @else {
+          <div class="text-center text-muted py-5">Aucun enseignant sélectionné.</div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

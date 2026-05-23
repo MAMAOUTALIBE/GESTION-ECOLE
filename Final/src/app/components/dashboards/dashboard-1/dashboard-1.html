@@ -1,0 +1,357 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="dashboard-hero">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Plateforme nationale GESTION-EE</p>
+        <h3 class="fw-semibold mb-1">Pilotage national du système éducatif</h3>
+        <p class="text-muted mb-0">
+          Vue consolidée par région, préfecture, commune et établissement.
+        </p>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" routerLink="/school-census/students">
+          <i class="ri-user-add-line me-1"></i>Élève
+        </a>
+        <a class="btn btn-outline-primary" routerLink="/school-census/teachers">
+          <i class="ri-briefcase-4-line me-1"></i>Enseignant
+        </a>
+        <a class="btn btn-outline-info" routerLink="/school-census/map">
+          <i class="ri-map-pin-line me-1"></i>Carte
+        </a>
+        <a class="btn btn-outline-secondary" routerLink="/school-census/attendance">
+          <i class="ri-qr-scan-2-line me-1"></i>Scanner
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-12">
+    <div class="national-filter-bar">
+      <div class="filter-field">
+        <label class="form-label">Région</label>
+        <select class="form-select" [(ngModel)]="filters.regionId" (ngModelChange)="onRegionChange()">
+          <option value="">Toutes les régions</option>
+          @for (region of regions; track region.id) {
+            <option [value]="region.id">{{ region.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="form-label">Préfecture</label>
+        <select class="form-select" [(ngModel)]="filters.prefecture" (ngModelChange)="onPrefectureChange()">
+          <option value="">Toutes les préfectures</option>
+          @for (prefecture of availablePrefectures; track prefecture) {
+            <option [value]="prefecture">{{ prefecture }}</option>
+          }
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="form-label">Commune</label>
+        <select class="form-select" [(ngModel)]="filters.commune" (ngModelChange)="onCommuneChange()">
+          <option value="">Toutes les communes</option>
+          @for (commune of availableCommunes; track commune) {
+            <option [value]="commune">{{ commune }}</option>
+          }
+        </select>
+      </div>
+      <div class="filter-field filter-field-wide">
+        <label class="form-label">Établissement</label>
+        <select class="form-select" [(ngModel)]="filters.schoolId" (ngModelChange)="loadDashboard()">
+          <option value="">Tous les établissements</option>
+          @for (school of availableSchools; track school.id) {
+            <option [value]="school.id">{{ school.name }}</option>
+          }
+        </select>
+      </div>
+      <button class="btn btn-outline-secondary filter-reset" type="button" (click)="resetFilters()">
+        <i class="ri-refresh-line"></i>
+      </button>
+    </div>
+  </div>
+
+  @for (data of cards; track data.title) {
+    <div class="col-xl-3 col-lg-6 col-md-6 col-xs-12">
+      <div class="card sales-card">
+        <div class="row">
+          <spk-dashboards-card
+            [title]="data.title"
+            [value]="data.value"
+            [status]="data.status"
+            [sales]="data.sales"
+            [textcolor]="data.textcolor"
+            [Bgcolor]="data.Bgcolor"
+            [direction]="data.direction"
+            [icon]="data.icon"
+            [iconBg]="data.iconBg"
+          />
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (dashboard; as data) {
+    @for (metric of ministryMetrics; track metric.label) {
+      <div class="col-xxl-3 col-xl-6 col-md-6">
+        <div class="metric-tile">
+          <span class="metric-icon" [ngClass]="metricClass(metric.color)">
+            <i [class]="metric.icon"></i>
+          </span>
+          <div>
+            <p class="text-muted mb-1">{{ metric.label }}</p>
+            <h4 class="fw-semibold mb-1">{{ metric.value }}</h4>
+            <span class="fs-12 text-muted">{{ metric.detail }}</span>
+          </div>
+        </div>
+      </div>
+    }
+
+    <div class="col-xl-8">
+      <div class="card custom-card overflow-hidden">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div>
+            <h3 class="card-title mb-0">Couverture par région</h3>
+            <span class="text-muted fs-12">Répartition des élèves et enseignants recensés</span>
+          </div>
+          <span class="badge bg-primary-transparent">{{ data.totals.regions }} région(s)</span>
+        </div>
+        <div class="card-body">
+          <spk-apexcharts id="school-census-region-chart" [chartOptions]="regionChart" />
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card custom-card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Alertes opérationnelles</h3>
+        </div>
+        <div class="card-body">
+          @for (alert of data.operationalAlerts; track alert.title) {
+            <div class="alert dashboard-alert mb-3" [ngClass]="alertClass(alert.level)">
+              <div class="fw-semibold">{{ alert.title }}</div>
+              <div class="fs-12">{{ alert.description }}</div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-12">
+      <div class="card custom-card">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div>
+            <h3 class="card-title mb-0">Lecture territoriale</h3>
+            <span class="text-muted fs-12">
+              {{ formatNumber(data.territory.prefectures) }} préfectures ·
+              {{ formatNumber(data.territory.communes) }} communes ·
+              {{ data.territory.gpsCoverageRate }}% des écoles géolocalisées
+            </span>
+          </div>
+          <div class="btn-group btn-group-sm" role="group" aria-label="Territoire">
+            <button
+              class="btn"
+              type="button"
+              [ngClass]="territoryMode === 'prefecture' ? 'btn-primary' : 'btn-outline-primary'"
+              (click)="setTerritoryMode('prefecture')"
+            >
+              Préfectures
+            </button>
+            <button
+              class="btn"
+              type="button"
+              [ngClass]="territoryMode === 'commune' ? 'btn-primary' : 'btn-outline-primary'"
+              (click)="setTerritoryMode('commune')"
+            >
+              Communes
+            </button>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Territoire</th>
+                  <th>Région</th>
+                  <th class="text-end">Écoles</th>
+                  <th class="text-end">Élèves</th>
+                  <th class="text-end">Enseignants</th>
+                  <th class="text-end">Ratio</th>
+                  <th class="text-end">GPS</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (territory of territoryRows; track territory.id) {
+                  <tr>
+                    <td class="fw-semibold">{{ territory.name }}</td>
+                    <td>{{ territory.region.name }}</td>
+                    <td class="text-end">{{ formatNumber(territory.schools) }}</td>
+                    <td class="text-end fw-semibold">{{ formatNumber(territory.students) }}</td>
+                    <td class="text-end">{{ formatNumber(territory.teachers) }}</td>
+                    <td class="text-end">{{ formatRatio(territory.studentsPerTeacher) }}</td>
+                    <td class="text-end">
+                      <span
+                        class="badge"
+                        [ngClass]="territory.gpsCoverageRate >= 90 ? 'bg-success-transparent text-success' : 'bg-warning-transparent text-warning'"
+                      >
+                        {{ territory.gpsCoverageRate }}%
+                      </span>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="7" class="text-center text-muted py-4">Aucune donnée territoriale.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card custom-card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Capacité des classes</h3>
+        </div>
+        <div class="card-body">
+          <div class="d-flex align-items-end justify-content-between mb-3">
+            <div>
+              <p class="text-muted mb-1">Taux de remplissage</p>
+              <h3 class="fw-semibold mb-0">{{ data.capacity.classCapacity ? data.capacity.fillRate + '%' : 'N/A' }}</h3>
+            </div>
+            <span class="badge bg-secondary-transparent">
+              {{ formatNumber(data.capacity.assignedStudents) }} /
+              {{ data.capacity.classCapacity ? formatNumber(data.capacity.classCapacity) : 'capacité non renseignée' }}
+            </span>
+          </div>
+          <div class="progress mb-3" style="height: 8px">
+            <div
+              class="progress-bar"
+              role="progressbar"
+              [style.width.%]="data.capacity.fillRate > 100 ? 100 : data.capacity.fillRate"
+              [attr.aria-valuenow]="data.capacity.fillRate"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            ></div>
+          </div>
+          <div class="d-flex justify-content-between py-2 border-bottom">
+            <span class="text-muted">Classes surchargées</span>
+            <span class="fw-semibold">{{ formatNumber(data.capacity.overloadedClasses) }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-2">
+            <span class="text-muted">Élèves sans classe</span>
+            <span class="fw-semibold">{{ formatNumber(data.capacity.studentsWithoutClass) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card custom-card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Qualité des données</h3>
+        </div>
+        <div class="card-body">
+          @for (item of qualityItems; track item.label) {
+            <div class="quality-row">
+              <span class="metric-icon metric-icon-sm" [ngClass]="metricClass(item.color)">
+                <i [class]="item.icon"></i>
+              </span>
+              <div class="flex-fill">
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                  <span class="fw-semibold">{{ item.label }}</span>
+                  <span class="fw-semibold">{{ item.value }}</span>
+                </div>
+                <span class="text-muted fs-12">{{ item.detail }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card custom-card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h3 class="card-title mb-0">Derniers pointages</h3>
+          <a routerLink="/school-census/attendance" class="btn btn-sm btn-outline-primary">Voir</a>
+        </div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            @for (record of recentAttendances; track record.id) {
+              <div class="list-group-item border-0">
+                <div class="d-flex align-items-center">
+                  <span class="avatar avatar-sm bg-success-transparent text-success me-3">
+                    <i class="ri-checkbox-circle-line"></i>
+                  </span>
+                  <div class="flex-fill">
+                    <h6 class="mb-0">{{ record.person?.fullName }}</h6>
+                    <span class="text-muted fs-12">
+                      {{ record.personType === 'STUDENT' ? 'Élève' : 'Enseignant' }} ·
+                      {{ record.scannedAt | date: 'HH:mm' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            } @empty {
+              <div class="text-center text-muted py-4">Aucun pointage aujourd’hui.</div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-8">
+      <div class="card custom-card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Écoles les plus chargées</h3>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>École</th>
+                  <th>Région</th>
+                  <th class="text-end">Élèves</th>
+                  <th class="text-end">Enseignants</th>
+                  <th class="text-end">Classes</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (school of data.topSchools; track school.id) {
+                  <tr>
+                    <td>
+                      <div class="fw-semibold">{{ school.name }}</div>
+                      <span class="text-muted fs-12">{{ school.code }}</span>
+                    </td>
+                    <td>{{ school.region.name }}</td>
+                    <td class="text-end fw-semibold">{{ formatNumber(school.students) }}</td>
+                    <td class="text-end">{{ formatNumber(school.teachers) }}</td>
+                    <td class="text-end">{{ formatNumber(school.classes) }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-4">Aucune école recensée.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  } @else if (loading) {
+    <div class="col-xl-12">
+      <div class="text-center text-muted py-5">Chargement du tableau de bord...</div>
+    </div>
+  }
+</div>

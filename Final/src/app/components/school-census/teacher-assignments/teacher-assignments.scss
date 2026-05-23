@@ -1,0 +1,107 @@
+.personnel-page-header,
+.personnel-stat {
+  background: var(--custom-white);
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  margin-block-end: 1.5rem;
+}
+
+.personnel-page-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.personnel-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.personnel-stat {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  min-height: 108px;
+  padding: 1rem;
+}
+
+.personnel-stat-icon {
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 46px;
+  height: 46px;
+  justify-content: center;
+  width: 46px;
+}
+
+.personnel-stat-icon i {
+  font-size: 1.25rem;
+}
+
+.teacher-list {
+  max-height: 560px;
+  overflow: auto;
+}
+
+.teacher-list-item {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-block-end: 1px solid var(--default-border);
+  color: inherit;
+  display: flex;
+  gap: 0.875rem;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  text-align: start;
+  width: 100%;
+}
+
+.teacher-list-item:hover,
+.teacher-list-item.active {
+  background: var(--default-background);
+}
+
+.assignment-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.assignment-card {
+  align-items: flex-start;
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  gap: 0.75rem;
+  min-height: 82px;
+  padding: 0.875rem;
+}
+
+.assignment-card:hover {
+  border-color: var(--primary-color);
+}
+
+@media (max-width: 767.98px) {
+  .personnel-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .personnel-header-actions {
+    width: 100%;
+  }
+
+  .personnel-header-actions .btn {
+    flex: 1 1 150px;
+  }
+
+  .assignment-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,225 @@
+<div class="row">
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Nouvel élève</h3>
+      </div>
+      <div class="card-body">
+        @if (error) {
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="createStudent()">
+          <div class="row gy-3">
+            <div class="col-md-6">
+              <label class="form-label">Prénom</label>
+              <input class="form-control" formControlName="firstName" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Nom</label>
+              <input class="form-control" formControlName="lastName" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Genre</label>
+              <select class="form-select" formControlName="gender">
+                <option value="FEMALE">Fille</option>
+                <option value="MALE">Garçon</option>
+                <option value="OTHER">Autre</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Date de naissance</label>
+              <input type="date" class="form-control" formControlName="birthDate" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Photo d'identité (URL)</label>
+              <input class="form-control" formControlName="photoUrl" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">École</label>
+              <select class="form-select" formControlName="schoolId" (change)="onSchoolChange()">
+                @for (school of schools; track school.id) {
+                  <option [value]="school.id">{{ school.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Classe</label>
+              <select class="form-select" formControlName="classRoomId">
+                <option value="">Non affecté</option>
+                @for (classRoom of classRooms; track classRoom.id) {
+                  <option [value]="classRoom.id">{{ classRoom.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Parent/tuteur</label>
+              <input class="form-control" formControlName="guardianName" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Téléphone tuteur</label>
+              <input class="form-control" formControlName="guardianPhone" />
+            </div>
+            <div class="col-12 d-grid">
+              <button class="btn btn-primary" type="submit" [disabled]="form.invalid || saving">
+                @if (saving) {
+                  Enregistrement...
+                } @else {
+                  Enregistrer et générer le QR
+                }
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    @if (selectedPerson) {
+      <div class="card custom-card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">QR code</h3>
+        </div>
+        <div class="card-body text-center">
+          <div class="qr-preview mx-auto mb-3" [innerHTML]="selectedQr"></div>
+          <h6 class="mb-1">{{ selectedPerson.fullName }}</h6>
+          <p class="text-muted mb-0">{{ selectedPerson.uniqueCode }}</p>
+          <a class="btn btn-sm btn-primary mt-3" [routerLink]="['/school-census/students', selectedPerson.id]">
+            <i class="ri-printer-line me-1"></i>Carte scolaire
+          </a>
+        </div>
+      </div>
+    }
+
+    @if (transferPerson) {
+      <div class="card custom-card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Transfert élève</h3>
+        </div>
+        <div class="card-body">
+          <div class="fw-semibold mb-2">{{ transferPerson.fullName }}</div>
+          <form [formGroup]="transferForm" (ngSubmit)="transferStudent()">
+            <div class="row gy-3">
+              <div class="col-12">
+                <label class="form-label">École de destination</label>
+                <select class="form-select" formControlName="toSchoolId" (change)="onTransferSchoolChange()">
+                  @for (school of schools; track school.id) {
+                    <option [value]="school.id">{{ school.name }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Classe de destination</label>
+                <select class="form-select" formControlName="toClassRoomId">
+                  <option value="">Non affecté</option>
+                  @for (classRoom of transferClassRooms; track classRoom.id) {
+                    <option [value]="classRoom.id">{{ classRoom.name }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Motif</label>
+                <textarea class="form-control" rows="2" formControlName="reason"></textarea>
+              </div>
+              <div class="col-12 d-grid">
+                <button class="btn btn-primary" type="submit" [disabled]="transferForm.invalid || transferring">
+                  @if (transferring) {
+                    Transfert...
+                  } @else {
+                    Valider le transfert
+                  }
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Élèves recensés</h3>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="badge bg-primary-transparent">{{ students.length }} dossiers</span>
+          <button class="btn btn-sm btn-outline-primary" type="button" [disabled]="!students.length" (click)="exportCsv()">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-sm btn-outline-success" type="button" [disabled]="!students.length" (click)="exportExcel()">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" [disabled]="!students.length" (click)="printReport()">
+            <i class="ri-printer-line me-1"></i>PDF
+          </button>
+          <button class="btn btn-sm btn-primary" type="button" [disabled]="!students.length || printingCards" (click)="printCards()">
+            <i class="ri-id-card-line me-1"></i>
+            @if (printingCards) {
+              Préparation...
+            } @else {
+              Cartes
+            }
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Identifiant</th>
+                <th>Élève</th>
+                <th>École</th>
+                <th>Classe</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (student of students; track student.id) {
+                <tr>
+                  <td class="fw-semibold">{{ student.uniqueCode }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ student.fullName }}</div>
+                    <span class="text-muted fs-12">{{ student.gender }}</span>
+                  </td>
+                  <td>{{ student.school.name }}</td>
+                  <td>{{ student.classRoom?.name || 'Non affecté' }}</td>
+                  <td>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                      <select class="form-select form-select-sm class-action-select" #classAssign [value]="student.classRoom?.id || ''">
+                        <option value="">Non affecté</option>
+                        @for (classRoom of classesForSchool(student.school.id); track classRoom.id) {
+                          <option [value]="classRoom.id">{{ classRoom.name }}</option>
+                        }
+                      </select>
+                      <button
+                        class="btn btn-sm btn-outline-success"
+                        type="button"
+                        [disabled]="assigningStudentId === student.id"
+                        (click)="assignClass(student, classAssign.value)"
+                      >
+                        <i class="ri-team-line me-1"></i>Affecter
+                      </button>
+                      <button class="btn btn-sm btn-outline-primary" type="button" (click)="showQr(student)">
+                        <i class="ri-qr-code-line me-1"></i>QR
+                      </button>
+                      <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/school-census/students', student.id]">
+                        <i class="ri-user-search-line me-1"></i>Détails
+                      </a>
+                      <button class="btn btn-sm btn-outline-warning" type="button" (click)="prepareTransfer(student)">
+                        <i class="ri-arrow-left-right-line me-1"></i>Transfert
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">Aucun élève enregistré.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

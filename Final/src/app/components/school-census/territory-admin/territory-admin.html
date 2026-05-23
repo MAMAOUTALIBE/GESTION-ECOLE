@@ -1,0 +1,237 @@
+<div class="row">
+  <div class="col-12">
+    <div class="territory-overview">
+      <div class="territory-stat">
+        <span>Régions</span>
+        <strong>{{ territoryTotals.regions }}</strong>
+      </div>
+      <div class="territory-stat">
+        <span>Préfectures</span>
+        <strong>{{ territoryTotals.prefectures }}</strong>
+      </div>
+      <div class="territory-stat">
+        <span>Sous-préfectures</span>
+        <strong>{{ territoryTotals.subPrefectures }}</strong>
+      </div>
+      <div class="territory-stat">
+        <span>Validés</span>
+        <strong>{{ territoryTotals.approved }}</strong>
+      </div>
+      <div class="territory-stat">
+        <span>À valider</span>
+        <strong>{{ territoryTotals.pending }}</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-3">
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Nouvelle préfecture</h3>
+      </div>
+      <div class="card-body">
+        @if (!canCreatePrefecture) {
+          <div class="alert alert-info py-2">Votre rôle permet la consultation des préfectures.</div>
+        }
+
+        <form [formGroup]="prefectureForm" (ngSubmit)="createPrefecture()">
+          <div class="row gy-3">
+            <div class="col-12">
+              <label class="form-label">Région</label>
+              <select class="form-select" formControlName="regionId" [disabled]="!canCreatePrefecture">
+                @for (region of regions; track region.id) {
+                  <option [value]="region.id">{{ region.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Nom</label>
+              <input class="form-control" formControlName="name" [readonly]="!canCreatePrefecture" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Code</label>
+              <input class="form-control text-uppercase" formControlName="code" [readonly]="!canCreatePrefecture" />
+            </div>
+            @if (canCreatePrefecture) {
+              <div class="col-12 d-grid">
+                <button class="btn btn-primary" type="submit" [disabled]="prefectureForm.invalid || savingPrefecture">
+                  {{ savingPrefecture ? 'Enregistrement...' : 'Ajouter la préfecture' }}
+                </button>
+              </div>
+            }
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Nouvelle sous-préfecture</h3>
+      </div>
+      <div class="card-body">
+        @if (!canCreateSubPrefecture) {
+          <div class="alert alert-info py-2">Votre rôle permet la consultation des sous-préfectures.</div>
+        }
+
+        <form [formGroup]="subPrefectureForm" (ngSubmit)="createSubPrefecture()">
+          <div class="row gy-3">
+            <div class="col-12">
+              <label class="form-label">Préfecture</label>
+              <select class="form-select" formControlName="prefectureId" [disabled]="!canCreateSubPrefecture">
+                @for (prefecture of prefectures; track prefecture.id) {
+                  <option [value]="prefecture.id">{{ prefecture.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Nom</label>
+              <input class="form-control" formControlName="name" [readonly]="!canCreateSubPrefecture" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Code</label>
+              <input class="form-control text-uppercase" formControlName="code" [readonly]="!canCreateSubPrefecture" />
+            </div>
+            @if (canCreateSubPrefecture) {
+              <div class="col-12 d-grid">
+                <button class="btn btn-primary" type="submit" [disabled]="subPrefectureForm.invalid || savingSubPrefecture">
+                  {{ savingSubPrefecture ? 'Enregistrement...' : 'Ajouter la sous-préfecture' }}
+                </button>
+              </div>
+            }
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Hiérarchie territoriale</h3>
+        <button class="btn btn-sm btn-outline-primary" type="button" (click)="loadAll()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+      </div>
+      <div class="card-body border-bottom">
+        @if (error) {
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        }
+        @if (success) {
+          <div class="alert alert-success py-2">{{ success }}</div>
+        }
+
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Nom, code, région" />
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Préfecture</label>
+            <select class="form-select" [(ngModel)]="selectedPrefectureId">
+              <option value="">Toutes</option>
+              @for (prefecture of prefectures; track prefecture.id) {
+                <option [value]="prefecture.id">{{ prefecture.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="APPROVED">Validé</option>
+              <option value="SUBMITTED">À valider</option>
+              <option value="REJECTED">Rejeté</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Préfecture</th>
+                <th>Région</th>
+                <th>Statut</th>
+                <th class="text-end">Sous-préfectures</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (prefecture of filteredPrefectures; track prefecture.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ prefecture.name }}</div>
+                    <span class="text-muted fs-12">{{ prefecture.code }}</span>
+                  </td>
+                  <td>{{ prefecture.region?.name || 'Non renseignée' }}</td>
+                  <td>
+                    <span class="badge" [class]="statusClass(prefecture.status)">{{ statusLabel(prefecture.status) }}</span>
+                  </td>
+                  <td class="text-end">{{ prefecture._count?.subPrefectures || 0 }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4" class="text-center text-muted py-4">Aucune préfecture trouvée.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Sous-préfectures</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Sous-préfecture</th>
+                <th>Préfecture</th>
+                <th>Statut</th>
+                <th class="text-end">Écoles</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (subPrefecture of filteredSubPrefectures; track subPrefecture.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ subPrefecture.name }}</div>
+                    <span class="text-muted fs-12">{{ subPrefecture.code }}</span>
+                  </td>
+                  <td>
+                    <div>{{ subPrefecture.prefecture?.name || 'Non renseignée' }}</div>
+                    <span class="text-muted fs-12">{{ subPrefecture.prefecture?.region?.name }}</span>
+                  </td>
+                  <td>
+                    <span class="badge" [class]="statusClass(subPrefecture.status)">{{ statusLabel(subPrefecture.status) }}</span>
+                  </td>
+                  <td class="text-end">{{ subPrefecture._count?.schools || 0 }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4" class="text-center text-muted py-4">Aucune sous-préfecture trouvée.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

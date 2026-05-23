@@ -1,0 +1,87 @@
+.exam-page-header,
+.exam-session-bar,
+.exam-stat {
+  background: var(--custom-white);
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  margin-block-end: 1.5rem;
+}
+
+.exam-page-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.exam-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.exam-session-bar {
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 1rem;
+}
+
+.exam-session {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  color: inherit;
+  display: flex;
+  gap: 0.875rem;
+  padding: 0.875rem;
+  text-align: start;
+}
+
+.exam-session.active,
+.exam-session:hover {
+  background: rgba(var(--primary-rgb), 0.05);
+  border-color: rgba(var(--primary-rgb), 0.35);
+}
+
+.exam-stat {
+  align-items: center;
+  display: flex;
+  gap: 0.875rem;
+  min-height: 108px;
+  padding: 1rem;
+}
+
+.exam-stat-icon,
+.exam-session-icon {
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 42px;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+@media (max-width: 991.98px) {
+  .exam-session-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .exam-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .exam-header-actions {
+    width: 100%;
+  }
+
+  .exam-header-actions .btn {
+    flex: 1 1 150px;
+  }
+}

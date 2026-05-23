@@ -1,0 +1,254 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="budget-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Rapports & outils</p>
+        <h3 class="fw-semibold mb-1">Budget & financements</h3>
+        <p class="text-muted mb-0">
+          Suivi des allocations, engagements, dépenses et écarts par établissement.
+        </p>
+      </div>
+      <div class="budget-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/reports">
+          <i class="ri-file-chart-line me-1"></i>Rapports
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-warning">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="budget-stat">
+      <span class="budget-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-money-dollar-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Budget alloué</p>
+        <h5 class="fw-semibold mb-0">{{ formatCurrency(totals.allocated) }}</h5>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="budget-stat">
+      <span class="budget-stat-icon bg-success-transparent text-success">
+        <i class="ri-wallet-3-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Dépensé</p>
+        <h5 class="fw-semibold mb-0">{{ formatCurrency(totals.spent) }}</h5>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="budget-stat">
+      <span class="budget-stat-icon bg-info-transparent text-info">
+        <i class="ri-contract-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Engagé</p>
+        <h5 class="fw-semibold mb-0">{{ formatCurrency(totals.committed) }}</h5>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="budget-stat">
+      <span class="budget-stat-icon" [ngClass]="totals.remaining < 0 ? 'bg-danger-transparent text-danger' : 'bg-warning-transparent text-warning'">
+        <i class="ri-line-chart-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Taux d’exécution</p>
+        <h4 class="fw-semibold mb-0">{{ totals.executionRate }}%</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Programmes financés</h3>
+      </div>
+      <div class="card-body">
+        <div class="budget-program-list">
+          @for (program of programSummaries; track program.id) {
+            <button
+              class="budget-program-item"
+              type="button"
+              [class.active]="selectedProgram === program.id"
+              (click)="selectedProgram = selectedProgram === program.id ? '' : program.id"
+            >
+              <span class="budget-program-icon" [ngClass]="toneClass(program.color)">
+                <i [class]="program.icon"></i>
+              </span>
+              <span class="budget-program-content">
+                <span class="d-flex align-items-center justify-content-between gap-2">
+                  <span class="fw-semibold">{{ program.title }}</span>
+                  <span class="badge" [ngClass]="toneClass(program.color)">{{ program.executionRate }}%</span>
+                </span>
+                <span class="text-muted fs-12">{{ program.description }}</span>
+                <span class="text-muted fs-12">{{ formatCurrency(program.allocated) }} · {{ formatNumber(program.rows) }} ligne(s)</span>
+              </span>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Sources de financement</h3>
+      </div>
+      <div class="card-body">
+        <div class="budget-source-grid">
+          @for (source of sourceSummaries; track source.id) {
+            <button
+              class="budget-source-item"
+              type="button"
+              [class.active]="selectedSource === source.id"
+              (click)="selectedSource = selectedSource === source.id ? '' : source.id"
+            >
+              <span class="budget-source-icon" [ngClass]="toneClass(source.color)">
+                <i [class]="source.icon"></i>
+              </span>
+              <span>
+                <span class="fw-semibold d-block">{{ source.title }}</span>
+                <span class="text-muted fs-12">{{ formatCurrency(source.allocated) }}</span>
+              </span>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Exécution budgétaire</h3>
+          <span class="text-muted fs-12">
+            {{ filteredRows.length }} ligne(s) · {{ totals.watch }} à surveiller · {{ totals.overrun }} dépassement(s)
+          </span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="École, code, programme..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Programme</label>
+            <select class="form-select" [(ngModel)]="selectedProgram">
+              <option value="">Tous</option>
+              @for (program of programs; track program.id) {
+                <option [value]="program.id">{{ program.title }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Source</label>
+            <select class="form-select" [(ngModel)]="selectedSource">
+              <option value="">Toutes</option>
+              @for (source of sources; track source.id) {
+                <option [value]="source.id">{{ source.title }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="balanced">OK</option>
+              <option value="watch">Alerte</option>
+              <option value="overrun">Dépassement</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Établissement</th>
+                <th>Programme</th>
+                <th>Source</th>
+                <th class="text-end">Alloué</th>
+                <th class="text-end">Dépensé</th>
+                <th class="text-end">Solde</th>
+                <th class="text-end">Exécution</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredRows; track row.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.schoolName }}</div>
+                    <span class="text-muted fs-12">{{ row.code }} · {{ row.region }} · maj {{ row.lastUpdate }}</span>
+                  </td>
+                  <td>{{ programLabel(row.program) }}</td>
+                  <td>{{ sourceLabel(row.source) }}</td>
+                  <td class="text-end">{{ formatCurrency(row.allocated) }}</td>
+                  <td class="text-end">{{ formatCurrency(row.spent) }}</td>
+                  <td class="text-end" [ngClass]="row.remaining < 0 ? 'text-danger' : 'text-success'">
+                    {{ formatCurrency(row.remaining) }}
+                  </td>
+                  <td class="text-end">{{ row.executionRate }}%</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(row.status)">
+                      {{ statusLabel(row.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="8" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des budgets...
+                    } @else {
+                      Aucun budget ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

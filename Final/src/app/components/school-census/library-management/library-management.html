@@ -1,0 +1,343 @@
+# 📊 Fiche Descriptive : Plateforme GESTION-EE (Gestion de l'Écosystème Éducatif)
+
+La plateforme GESTION-EE est un Système d'Information de Gestion de l'Éducation (SIGE) complet, conçu pour centraliser,
+piloter et optimiser la gestion scolaire à l'échelle nationale. Elle offre une visibilité en temps réel sur l'ensemble
+de la pyramide administrative éducative.
+
+## 1. 🚀 Pilotage Stratégique et Analytics
+* **Tableaux de Bord Dynamiques :** Indicateurs Clés de Performance (KPI) nationaux et régionaux (effectifs, ratios,
+géolocalisation).
+* **Aide à la Décision :** Rapports statistiques sur les besoins en infrastructures et en personnel.
+* **Visualisation Territoriale :** Cartographie interactive des établissements scolaires.
+
+## 2. 🏛️ Gestion Administrative et Territoriale
+* **Découpage Administratif :** Gestion structurée des Régions, Préfectures, Communes et Quartiers.
+* **Registre des Établissements :** Création et suivi des écoles (publiques/privées) avec inventaire complet des
+infrastructures (salles, équipements, assainissement).
+* **Circuit de Validation :** Workflow hiérarchique pour l'approbation des nouvelles données ou modifications.
+
+## 3. 🎓 Gestion des Acteurs (Élèves, Enseignants, Parents)
+* **Recensement des Élèves :** Profils détaillés, suivi des parcours scolaires, gestion des transferts et identifiants
+uniques.
+* **Gestion du Personnel :** Dossiers enseignants, diplômes, affectations académiques et suivi de l'ancienneté.
+* **Espace Parents/Tuteurs :** Annuaire et liens familiaux pour la communication école-famille.
+* **Identification Sécurisée :** Génération de cartes d'identité et cartes de présence avec QR Codes.
+
+## 4. 📚 Gestion Académique et Pédagogique
+* **Cycle Scolaire :** Configuration des années, périodes (trimestres/semestres) et des matières par niveau.
+* **Évaluations :** Saisie des notes, calcul automatisé des moyennes, rangs et décisions de fin d'année.
+* **Bulletins Scolaires :** Impression de bulletins de notes PDF sécurisés.
+* **Emploi du Temps :** Planification des cours et gestion de l'occupation des salles.
+* **Bibliothèque :** Catalogue d'ouvrages et suivi des prêts/restitutions.
+
+## ⏱️ 5. Assiduité et Vie Scolaire
+* **Suivi de Présence par QR Code :** Pointage rapide des élèves et enseignants via application mobile.
+* **Discipline :** Suivi du comportement, des absences et des sanctions.
+* **Santé et Social :** Registre de santé scolaire et suivi des programmes de soutien social.
+
+## 🛡️ 6. Sécurité et Administration Système
+* **Gestion des Rôles (RBAC) :** Permissions granulaires selon le profil (Administrateur National, Inspecteur,
+Directeur, Agent).
+* **Audit et Traçabilité :** Journalisation complète de toutes les actions (AuditLogs).
+* **Interopérabilité :** Exportation des données (Excel, CSV) et génération de documents officiels (PDF).
+
+## 🛠️ Stack Technique
+* **Architecture :** Découpage Backend (API REST) et Frontend (Single Page Application).
+* **Backend :** NestJS, Prisma ORM, PostgreSQL.
+* **Frontend :** Angular, Angular Material.
+* **Sécurité :** JWT (JSON Web Tokens), Role-based Access Control.<div class="row">
+  <div class="col-xl-12">
+    <div class="library-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Pédagogie</p>
+        <h3 class="fw-semibold mb-1">Bibliothèque & manuels</h3>
+        <p class="text-muted mb-0">
+          Suivi des stocks, prêts, retours, retards et déficits de manuels par établissement.
+        </p>
+      </div>
+      <div class="library-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/resources">
+          <i class="ri-stack-line me-1"></i>Ressources
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+  <div class="col-xl-12">
+    <div class="alert alert-warning">{{ error }}</div>
+  </div>
+  }
+
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="library-stat">
+      <span class="library-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-book-2-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Manuels en stock</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.stock) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="library-stat">
+      <span class="library-stat-icon bg-success-transparent text-success">
+        <i class="ri-bookmark-3-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Prêts actifs</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.loaned) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="library-stat">
+      <span class="library-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-percent-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Couverture</p>
+        <h4 class="fw-semibold mb-0">{{ totals.coverageRate }}%</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="library-stat">
+      <span class="library-stat-icon"
+        [ngClass]="totals.shortage ? 'bg-danger-transparent text-danger' : 'bg-info-transparent text-info'">
+        <i class="ri-error-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Déficit</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.missing) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Statut des stocks</h3>
+      </div>
+      <div class="card-body">
+        <div class="library-status-list">
+          @for (item of statusSummaries; track item.status) {
+          <button class="library-status-item" type="button" [class.active]="selectedStatus === item.status"
+            (click)="toggleStatus(item.status)">
+            <span class="badge" [ngClass]="item.className">{{ item.label }}</span>
+            <span class="fw-semibold">{{ formatNumber(item.count) }}</span>
+          </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Déficits par matière</h3>
+      </div>
+      <div class="card-body">
+        <div class="library-subject-list">
+          @for (subject of topSubjects; track subject.subject) {
+          <div class="library-subject-item">
+            <span class="library-subject-icon bg-info-transparent text-info">
+              <i class="ri-book-open-line"></i>
+            </span>
+            <div class="flex-fill">
+              <div class="d-flex align-items-center justify-content-between gap-2">
+                <span class="fw-semibold">{{ subject.subject }}</span>
+                <span class="text-danger">{{ formatNumber(subject.missing) }}</span>
+              </div>
+              <div class="progress progress-xs mt-2" role="progressbar">
+                <div class="progress-bar"
+                  [style.width.%]="subject.required ? (subject.stock / subject.required) * 100 : 0"></div>
+              </div>
+            </div>
+          </div>
+          } @empty {
+          <p class="text-muted mb-0">Aucun déficit affiché.</p>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Inventaire des manuels</h3>
+          <span class="text-muted fs-12">
+            {{ filteredInventoryRows.length }} affichée(s) sur {{ formatNumber(inventoryTotal) }} · {{
+            formatNumber(totals.damaged) }} abîmé(s) · {{ formatNumber(totals.lateLoans) }} retard(s)
+          </span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportInventory('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportInventory('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportInventory('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" (ngModelChange)="onRemoteFilterChange()"
+              placeholder="École, titre, matière..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId" (ngModelChange)="onRegionChange()">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+              <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Établissement</label>
+            <select class="form-select" [(ngModel)]="selectedSchoolId" (ngModelChange)="onRemoteFilterChange()">
+              <option value="">Tous</option>
+              @for (school of filteredSchools; track school.id) {
+              <option [value]="school.id">{{ school.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Matière</label>
+            <select class="form-select" [(ngModel)]="selectedSubject">
+              <option value="">Toutes</option>
+              @for (subject of subjects; track subject) {
+              <option [value]="subject">{{ subject }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Prêts</label>
+            <select class="form-select" [(ngModel)]="selectedLoanStatus" (ngModelChange)="onRemoteFilterChange()">
+              <option value="">Tous</option>
+              <option value="borrowed">Empruntés</option>
+              <option value="late">Retards</option>
+              <option value="returned">Retournés</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Établissement</th>
+                <th>Manuel</th>
+                <th class="text-end">Stock</th>
+                <th class="text-end">Prêtés</th>
+                <th class="text-end">Besoin</th>
+                <th class="text-end">Couverture</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredInventoryRows; track row.id) {
+              <tr>
+                <td>
+                  <div class="fw-semibold">{{ row.schoolName }}</div>
+                  <span class="text-muted fs-12">{{ row.code }} · {{ row.region }} · inventaire {{ row.lastInventory
+                    }}</span>
+                </td>
+                <td>
+                  <div>{{ row.title }}</div>
+                  <span class="text-muted fs-12">{{ row.subjectName }} · {{ row.level }}</span>
+                </td>
+                <td class="text-end">{{ formatNumber(row.stock) }}</td>
+                <td class="text-end">{{ formatNumber(row.loaned) }}</td>
+                <td class="text-end">{{ formatNumber(row.required) }}</td>
+                <td class="text-end">{{ row.coverageRate }}%</td>
+                <td class="text-end">
+                  <span class="badge" [ngClass]="statusClass(row.status)">
+                    {{ statusLabel(row.status) }}
+                  </span>
+                </td>
+              </tr>
+              } @empty {
+              <tr>
+                <td colspan="7" class="text-center text-muted py-4">
+                  @if (loading) {
+                  Chargement de la bibliothèque...
+                  } @else {
+                  Aucun manuel ne correspond aux filtres.
+                  }
+                </td>
+              </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <h3 class="card-title mb-0">Prêts récents</h3>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportLoans('csv')">CSV</button>
+          <button class="btn btn-outline-success" type="button" (click)="exportLoans('excel')">Excel</button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportLoans('print')">Imprimer</button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Élève</th>
+                <th>Manuel</th>
+                <th>Emprunt</th>
+                <th>Retour prévu</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (loan of filteredLoanRows.slice(0, 12); track loan.id) {
+              <tr>
+                <td>
+                  <div class="fw-semibold">{{ loan.studentName }}</div>
+                  <span class="text-muted fs-12">{{ loan.uniqueCode }} · {{ loan.className }} · {{ loan.schoolName
+                    }}</span>
+                </td>
+                <td>{{ loan.title }}</td>
+                <td>{{ loan.borrowedAt }}</td>
+                <td>{{ loan.dueAt }}</td>
+                <td class="text-end">
+                  <span class="badge" [ngClass]="loanStatusClass(loan.status)">
+                    {{ loanStatusLabel(loan.status) }}
+                  </span>
+                </td>
+              </tr>
+              } @empty {
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">Aucun prêt affiché.</td>
+              </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

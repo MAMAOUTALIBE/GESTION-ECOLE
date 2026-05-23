@@ -1,0 +1,94 @@
+<div class="square-box">
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+  <div></div>
+</div>
+
+<div class="container">
+  <div class="row justify-content-center align-items-center authentication authentication-basic h-100">
+    <div
+      class="col-xl-5 col-lg-6 col-md-8 col-sm-8 col-xs-10 card-sigin-main mx-auto my-auto py-4 justify-content-center"
+    >
+      <div class="card-sigin">
+        <div class="main-card-signin d-md-flex">
+          <div class="wd-100p">
+            <div class="d-flex mb-4">
+              <img
+                src="./assets/images/brand-logos/toggle-logo.png"
+                class="sign-favicon ht-40"
+                alt="logo"
+              />
+            </div>
+            <div class="main-signup-header">
+              <h2>Recensement scolaire</h2>
+              <h6 class="font-weight-semibold mb-4">Connectez-vous à votre espace sécurisé.</h6>
+
+              @if (error) {
+                <div class="alert alert-danger py-2">{{ error }}</div>
+              }
+
+              <form [formGroup]="loginForm" (ngSubmit)="submit()">
+                <div class="col-xl-12">
+                  <label for="signin-email" class="form-label text-default">Adresse email</label>
+                  <input
+                    type="email"
+                    class="form-control mb-3"
+                    id="signin-email"
+                    placeholder="admin@scolarite.gov.gn"
+                    formControlName="email"
+                    autocomplete="username"
+                  />
+                </div>
+                <div class="col-xl-12 mb-2">
+                  <label for="signin-password" class="form-label text-default d-block">Mot de passe</label>
+                  <div class="input-group">
+                    <input
+                      formControlName="password"
+                      autocomplete="current-password"
+                      [type]="showPassword ? 'text' : 'password'"
+                      class="form-control form-control-lg"
+                      id="signin-password"
+                      placeholder="Mot de passe"
+                    />
+                    <button
+                      class="btn btn-light rounded-start-0 custom-space-button"
+                      type="button"
+                      (click)="toggleVisibility()"
+                    >
+                      <i [class]="showPassword ? 'fe fe-eye' : 'fe fe-eye-off'"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="col-xl-12 d-grid mt-4">
+                  <button
+                    type="submit"
+                    [disabled]="!loginForm.valid || authservice.showLoader"
+                    class="btn btn-lg btn-primary"
+                  >
+                    @if (authservice.showLoader) {
+                      Connexion...
+                    } @else {
+                      Se connecter
+                    }
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

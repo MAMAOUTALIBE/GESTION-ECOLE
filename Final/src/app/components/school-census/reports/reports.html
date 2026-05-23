@@ -1,0 +1,275 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="reports-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Rapports</p>
+        <h3 class="fw-semibold mb-1">Rapports officiels GESTION-EE</h3>
+        <p class="text-muted mb-0">
+          Synthèse exportable des effectifs, territoires, établissements et points de qualité.
+        </p>
+      </div>
+      <div class="reports-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="loadDashboard()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/dashboards/dashboard-1">
+          <i class="ri-dashboard-line me-1"></i>Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-12">
+    <div class="reports-filter-bar">
+      <div class="reports-filter-field">
+        <label class="form-label">Région</label>
+        <select class="form-select" [(ngModel)]="filters.regionId" (ngModelChange)="onRegionChange()">
+          <option value="">Toutes les régions</option>
+          @for (region of regions; track region.id) {
+            <option [value]="region.id">{{ region.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="reports-filter-field">
+        <label class="form-label">Préfecture</label>
+        <select class="form-select" [(ngModel)]="filters.prefecture" (ngModelChange)="onPrefectureChange()">
+          <option value="">Toutes les préfectures</option>
+          @for (prefecture of availablePrefectures; track prefecture) {
+            <option [value]="prefecture">{{ prefecture }}</option>
+          }
+        </select>
+      </div>
+      <div class="reports-filter-field">
+        <label class="form-label">Commune</label>
+        <select class="form-select" [(ngModel)]="filters.commune" (ngModelChange)="onCommuneChange()">
+          <option value="">Toutes les communes</option>
+          @for (commune of availableCommunes; track commune) {
+            <option [value]="commune">{{ commune }}</option>
+          }
+        </select>
+      </div>
+      <div class="reports-filter-field reports-filter-wide">
+        <label class="form-label">Établissement</label>
+        <select class="form-select" [(ngModel)]="filters.schoolId" (ngModelChange)="loadDashboard()">
+          <option value="">Tous les établissements</option>
+          @for (school of availableSchools; track school.id) {
+            <option [value]="school.id">{{ school.name }}</option>
+          }
+        </select>
+      </div>
+      <button class="btn btn-outline-secondary reports-filter-reset" type="button" (click)="resetFilters()">
+        <i class="ri-refresh-line"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="reports-summary">
+      <div>
+        <span class="text-muted fs-12">Périmètre</span>
+        <h5 class="fw-semibold mb-0">{{ reportScope }}</h5>
+      </div>
+      <div>
+        <span class="text-muted fs-12">Généré le</span>
+        <h5 class="fw-semibold mb-0">{{ generatedAt | date: 'dd/MM/yyyy HH:mm' }}</h5>
+      </div>
+      <div>
+        <span class="text-muted fs-12">Lecture territoriale</span>
+        <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Lecture territoriale">
+          <button
+            class="btn"
+            type="button"
+            [ngClass]="territoryMode === 'prefecture' ? 'btn-primary' : 'btn-outline-primary'"
+            (click)="setTerritoryMode('prefecture')"
+          >
+            Préfectures
+          </button>
+          <button
+            class="btn"
+            type="button"
+            [ngClass]="territoryMode === 'commune' ? 'btn-primary' : 'btn-outline-primary'"
+            (click)="setTerritoryMode('commune')"
+          >
+            Communes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @for (kpi of kpis; track kpi.label) {
+    <div class="col-xxl-2 col-xl-4 col-md-6">
+      <div class="report-kpi">
+        <span class="report-kpi-icon" [ngClass]="'bg-' + kpi.color + '-transparent text-' + kpi.color">
+          <i [class]="kpi.icon"></i>
+        </span>
+        <div>
+          <p class="text-muted mb-1">{{ kpi.label }}</p>
+          <h4 class="fw-semibold mb-1">{{ kpi.value }}</h4>
+          <span class="fs-12 text-muted">{{ kpi.detail }}</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (dashboard; as data) {
+    <div class="col-xl-8">
+      <div class="card custom-card">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div>
+            <h3 class="card-title mb-0">Rapport territorial</h3>
+            <span class="text-muted fs-12">
+              {{ formatNumber(data.territory.prefectures) }} préfectures ·
+              {{ formatNumber(data.territory.communes) }} communes ·
+              {{ data.territory.gpsCoverageRate }}% GPS
+            </span>
+          </div>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary" type="button" (click)="exportTerritories('csv')">
+              <i class="ri-file-text-line me-1"></i>CSV
+            </button>
+            <button class="btn btn-outline-success" type="button" (click)="exportTerritories('excel')">
+              <i class="ri-file-excel-2-line me-1"></i>Excel
+            </button>
+            <button class="btn btn-outline-secondary" type="button" (click)="exportTerritories('print')">
+              <i class="ri-printer-line me-1"></i>Imprimer
+            </button>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Territoire</th>
+                  <th>Région</th>
+                  <th class="text-end">Écoles</th>
+                  <th class="text-end">Élèves</th>
+                  <th class="text-end">Enseignants</th>
+                  <th class="text-end">Ratio</th>
+                  <th class="text-end">GPS</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (territory of territoryRows; track territory.id) {
+                  <tr>
+                    <td class="fw-semibold">{{ territory.name }}</td>
+                    <td>{{ territory.region.name }}</td>
+                    <td class="text-end">{{ formatNumber(territory.schools) }}</td>
+                    <td class="text-end fw-semibold">{{ formatNumber(territory.students) }}</td>
+                    <td class="text-end">{{ formatNumber(territory.teachers) }}</td>
+                    <td class="text-end">{{ formatRatio(territory.studentsPerTeacher) }}</td>
+                    <td class="text-end">
+                      <span
+                        class="badge"
+                        [ngClass]="territory.gpsCoverageRate >= 90 ? 'bg-success-transparent text-success' : 'bg-warning-transparent text-warning'"
+                      >
+                        {{ territory.gpsCoverageRate }}%
+                      </span>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                      @if (loading) {
+                        Chargement du rapport territorial...
+                      } @else {
+                        Aucune donnée territoriale.
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card custom-card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Contrôles qualité</h3>
+        </div>
+        <div class="card-body">
+          @for (row of qualityRows; track row.label) {
+            <div class="quality-row">
+              <span class="quality-row-icon" [ngClass]="statusClass(row.status)">
+                <i class="ri-shield-check-line"></i>
+              </span>
+              <div class="flex-fill">
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                  <span class="fw-semibold">{{ row.label }}</span>
+                  <span class="badge" [ngClass]="statusClass(row.status)">{{ formatNumber(row.value) }}</span>
+                </div>
+                <p class="text-muted fs-12 mb-0">{{ row.action }}</p>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-12">
+      <div class="card custom-card">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div>
+            <h3 class="card-title mb-0">Établissements à fort effectif</h3>
+            <span class="text-muted fs-12">Liste consolidée pour contrôle et arbitrage des capacités.</span>
+          </div>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary" type="button" (click)="exportTopSchools('csv')">
+              <i class="ri-file-text-line me-1"></i>CSV
+            </button>
+            <button class="btn btn-outline-success" type="button" (click)="exportTopSchools('excel')">
+              <i class="ri-file-excel-2-line me-1"></i>Excel
+            </button>
+            <button class="btn btn-outline-secondary" type="button" (click)="exportTopSchools('print')">
+              <i class="ri-printer-line me-1"></i>Imprimer
+            </button>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Établissement</th>
+                  <th>Code</th>
+                  <th>Région</th>
+                  <th class="text-end">Élèves</th>
+                  <th class="text-end">Enseignants</th>
+                  <th class="text-end">Classes</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (school of topSchools; track school.id) {
+                  <tr>
+                    <td class="fw-semibold">{{ school.name }}</td>
+                    <td>
+                      <span class="badge bg-light text-default">{{ school.code }}</span>
+                    </td>
+                    <td>{{ school.region.name }}</td>
+                    <td class="text-end fw-semibold">{{ formatNumber(school.students) }}</td>
+                    <td class="text-end">{{ formatNumber(school.teachers) }}</td>
+                    <td class="text-end">{{ formatNumber(school.classes) }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="6" class="text-center text-muted py-4">Aucun établissement à afficher.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</div>

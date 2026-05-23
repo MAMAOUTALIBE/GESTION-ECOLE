@@ -1,0 +1,234 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="md-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Cabinet ministériel</p>
+        <h3 class="fw-semibold mb-1">Tableau de bord du Ministre</h3>
+        <p class="text-muted mb-0">
+          Détection précoce du décrochage · Forecasts 5 ans · Anomalies · Placement écoles · Assistant IA
+        </p>
+      </div>
+      <button class="btn btn-outline-primary" type="button" (click)="refresh()" [disabled]="loading">
+        <i class="ri-refresh-line me-1"></i>Actualiser
+      </button>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-warning">{{ error }}</div>
+    </div>
+  }
+
+  <!-- KPIs résumé -->
+  <div class="col-xl-3 col-md-6">
+    <div class="md-stat">
+      <span class="md-stat-icon bg-danger-transparent text-danger"><i class="ri-error-warning-line"></i></span>
+      <div>
+        <p class="text-muted mb-1">Élèves en décrochage</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(dropout?.critical) }}<span class="fs-12 text-muted"> critique</span></h4>
+        <span class="fs-12 text-muted">{{ formatNumber(dropout?.high) }} à risque élevé · {{ formatNumber(dropout?.total) }} suivis</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="md-stat">
+      <span class="md-stat-icon bg-primary-transparent text-primary"><i class="ri-line-chart-line"></i></span>
+      <div>
+        <p class="text-muted mb-1">Effectif projeté à 5 ans</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(forecast?.totalForecasted) }}</h4>
+        <span class="fs-12 text-muted">croissance {{ forecast?.annualGrowthPct }}%/an · base {{ formatNumber(forecast?.totalCurrent) }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="md-stat">
+      <span class="md-stat-icon bg-warning-transparent text-warning"><i class="ri-alert-line"></i></span>
+      <div>
+        <p class="text-muted mb-1">Anomalies détectées</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(anomalies.length) }}</h4>
+        <span class="fs-12 text-muted">notes / présences / surcharges</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="md-stat">
+      <span class="md-stat-icon bg-info-transparent text-info"><i class="ri-map-pin-2-line"></i></span>
+      <div>
+        <p class="text-muted mb-1">Préfectures recommandées</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(recommendations.length) }}</h4>
+        <span class="fs-12 text-muted">pour nouvelles écoles</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top élèves à risque -->
+  <div class="col-xl-7">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">🚨 Top 10 élèves à risque de décrochage</h3>
+        <span class="text-muted fs-12">Score 0-100 basé sur absentéisme, infrastructure, ratio classe</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Élève</th>
+                <th>École</th>
+                <th class="text-end">Score</th>
+                <th>Niveau</th>
+                <th>Drivers</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of dropout?.rows ?? []; track row.studentId) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.studentName }}</div>
+                    <span class="text-muted fs-12">{{ row.uniqueCode }} · {{ row.classLevel ?? '—' }}</span>
+                  </td>
+                  <td>{{ row.schoolName }}</td>
+                  <td class="text-end fw-semibold">{{ row.riskScore }}</td>
+                  <td>
+                    <span class="badge" [ngClass]="riskBadgeClass(row.riskLevel)">{{ row.riskLevel }}</span>
+                  </td>
+                  <td>
+                    <div class="fs-11 text-muted">
+                      @for (d of row.drivers; track d) {
+                        <div>· {{ d }}</div>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="5" class="text-center text-muted py-4">
+                  @if (loading) { Chargement... } @else { Aucun élève en alerte. }
+                </td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Anomalies + recommendations -->
+  <div class="col-xl-5">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">⚠ Anomalies détectées (audit ML)</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Sujet</th>
+                <th class="text-end">Sévérité</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of anomalies; track $index) {
+                <tr>
+                  <td><span class="fs-12 text-muted">{{ a.type }}</span></td>
+                  <td>
+                    <div class="fw-semibold">{{ a.label }}</div>
+                    <span class="fs-11 text-muted">{{ a.detail }}</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="severityClass(a.severity)">{{ a.severity }}</span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="3" class="text-center text-muted py-3">Aucune anomalie.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">📍 Recommandations placement écoles</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Préfecture</th>
+                <th class="text-end">Écoles actuelles</th>
+                <th class="text-end">Coût</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of recommendations; track r.prefectureId) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ r.prefectureName }}</div>
+                    <span class="fs-11 text-muted">{{ r.regionName }}</span>
+                  </td>
+                  <td class="text-end">{{ r.currentSchoolCount }}</td>
+                  <td class="text-end fw-semibold text-primary">${{ formatNumber(r.estimatedCostUSD) }}</td>
+                </tr>
+              } @empty {
+                <tr><td colspan="3" class="text-center text-muted py-3">—</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Assistant LLM -->
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">🤖 Assistant ministériel</h3>
+        <span class="text-muted fs-12">
+          Pose une question en français — l'assistant interroge la base et te répond avec les vrais chiffres
+        </span>
+      </div>
+      <div class="card-body">
+        @if (conversation.length === 0) {
+          <div class="text-muted fs-13 mb-3">
+            Exemples : « Quels sont les indicateurs nationaux ? » · « Quelles régions ont des écoles en surcharge ? » · « Combien d'élèves sont en risque de décrochage ? »
+          </div>
+        }
+        <div class="md-chat">
+          @for (msg of conversation; track $index) {
+            <div class="md-chat-msg" [class.md-chat-user]="msg.who === 'user'" [class.md-chat-ai]="msg.who === 'ai'">
+              <div class="md-chat-bubble" [innerHTML]="msg.text"></div>
+              @if (msg.tools && msg.tools.length) {
+                <div class="md-chat-tools fs-11 text-muted mt-1">
+                  Outils utilisés : {{ msg.tools.join(', ') }}
+                </div>
+              }
+            </div>
+          }
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <input
+            class="form-control"
+            type="text"
+            placeholder="Pose ta question..."
+            [(ngModel)]="question"
+            (keyup.enter)="ask()"
+            [disabled]="asking"
+          />
+          <button class="btn btn-primary" type="button" (click)="ask()" [disabled]="asking || !question.trim()">
+            @if (asking) {
+              <span><i class="ri-loader-4-line spinning"></i> Réflexion...</span>
+            } @else {
+              <span><i class="ri-send-plane-line me-1"></i> Envoyer</span>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

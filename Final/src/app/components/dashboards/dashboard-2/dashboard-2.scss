@@ -1,0 +1,83 @@
+.academic-dashboard-header,
+.academic-kpi {
+  background: var(--custom-white);
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  margin-block-end: 1.5rem;
+}
+
+.academic-dashboard-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.academic-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.academic-kpi {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  min-height: 116px;
+  padding: 1rem;
+}
+
+.academic-kpi-icon {
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 46px;
+  height: 46px;
+  justify-content: center;
+  width: 46px;
+}
+
+.academic-kpi-icon i {
+  font-size: 1.25rem;
+}
+
+.validation-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-block-start: 0.5rem;
+}
+
+.validation-row,
+.subject-row,
+.risk-row {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.subject-row,
+.risk-row {
+  padding: 0.75rem 0;
+}
+
+.subject-row + .subject-row,
+.risk-row + .risk-row {
+  border-block-start: 1px solid var(--default-border);
+}
+
+@media (max-width: 767.98px) {
+  .academic-dashboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .academic-header-actions {
+    width: 100%;
+  }
+
+  .academic-header-actions .btn {
+    flex: 1 1 160px;
+  }
+}

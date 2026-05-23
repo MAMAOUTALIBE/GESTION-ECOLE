@@ -1,0 +1,188 @@
+<div class="row">
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Nouvel enseignant</h3>
+      </div>
+      <div class="card-body">
+        @if (error) {
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="createTeacher()">
+          <div class="row gy-3">
+            <div class="col-md-6">
+              <label class="form-label">Prénom</label>
+              <input class="form-control" formControlName="firstName" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Nom</label>
+              <input class="form-control" formControlName="lastName" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Genre</label>
+              <select class="form-select" formControlName="gender">
+                <option value="FEMALE">Femme</option>
+                <option value="MALE">Homme</option>
+                <option value="OTHER">Autre</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Date de naissance</label>
+              <input type="date" class="form-control" formControlName="birthDate" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Photo de profil (URL)</label>
+              <input class="form-control" formControlName="photoUrl" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">École</label>
+              <select class="form-select" formControlName="schoolId" (change)="onSchoolChange()">
+                @for (school of schools; track school.id) {
+                  <option [value]="school.id">{{ school.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Classes affectées</label>
+              <select class="form-select" multiple size="4" (change)="onCreateClassesChange($event)">
+                @for (classRoom of classRooms; track classRoom.id) {
+                  <option [value]="classRoom.id">{{ classRoom.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Téléphone</label>
+              <input class="form-control" formControlName="phone" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Matière</label>
+              <input class="form-control" formControlName="subject" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Diplôme</label>
+              <input class="form-control" formControlName="diploma" />
+            </div>
+            <div class="col-12 d-grid">
+              <button class="btn btn-primary" type="submit" [disabled]="form.invalid || saving">
+                @if (saving) {
+                  Enregistrement...
+                } @else {
+                  Enregistrer et générer le QR
+                }
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    @if (selectedPerson) {
+      <div class="card custom-card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">QR code</h3>
+        </div>
+        <div class="card-body text-center">
+          <div class="qr-preview mx-auto mb-3" [innerHTML]="selectedQr"></div>
+          <h6 class="mb-1">{{ selectedPerson.fullName }}</h6>
+          <p class="text-muted mb-0">{{ selectedPerson.uniqueCode }}</p>
+          <a class="btn btn-sm btn-primary mt-3" [routerLink]="['/school-census/teachers', selectedPerson.id]">
+            <i class="ri-printer-line me-1"></i>Carte enseignant
+          </a>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Enseignants recensés</h3>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="badge bg-primary-transparent">{{ teachers.length }} dossiers</span>
+          <button class="btn btn-sm btn-outline-primary" type="button" [disabled]="!teachers.length" (click)="exportCsv()">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-sm btn-outline-success" type="button" [disabled]="!teachers.length" (click)="exportExcel()">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" [disabled]="!teachers.length" (click)="printReport()">
+            <i class="ri-printer-line me-1"></i>PDF
+          </button>
+          <button class="btn btn-sm btn-primary" type="button" [disabled]="!teachers.length || printingCards" (click)="printCards()">
+            <i class="ri-id-card-line me-1"></i>
+            @if (printingCards) {
+              Préparation...
+            } @else {
+              Cartes
+            }
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Identifiant</th>
+                <th>Enseignant</th>
+                <th>École</th>
+                <th>Matière</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (teacher of teachers; track teacher.id) {
+                <tr>
+                  <td class="fw-semibold">{{ teacher.uniqueCode }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ teacher.fullName }}</div>
+                    <span class="text-muted fs-12">{{ teacher.phone || 'Téléphone non renseigné' }}</span>
+                  </td>
+                  <td>{{ teacher.school.name }}</td>
+                  <td>
+                    <div>{{ teacher.subject || 'Non renseignée' }}</div>
+                    @if (teacher.classes?.length) {
+                      <div class="text-muted fs-12">
+                        @for (classRoom of teacher.classes; track classRoom.id) {
+                          <span>{{ classRoom.name }}</span>@if (!$last) { <span>, </span> }
+                        }
+                      </div>
+                    }
+                  </td>
+                  <td>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                      <select class="form-select form-select-sm class-action-select" multiple size="2" #teacherClassAssign>
+                        @for (classRoom of classesForSchool(teacher.school.id); track classRoom.id) {
+                          <option [value]="classRoom.id" [selected]="hasTeacherClass(teacher, classRoom.id)">{{ classRoom.name }}</option>
+                        }
+                      </select>
+                      <button
+                        class="btn btn-sm btn-outline-success"
+                        type="button"
+                        [disabled]="assigningTeacherId === teacher.id"
+                        (click)="assignClasses(teacher, selectedClassIds(teacherClassAssign))"
+                      >
+                        <i class="ri-team-line me-1"></i>Affecter
+                      </button>
+                      <button class="btn btn-sm btn-outline-primary" type="button" (click)="showQr(teacher)">
+                        <i class="ri-qr-code-line me-1"></i>QR
+                      </button>
+                      <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/school-census/teachers', teacher.id]">
+                        <i class="ri-user-search-line me-1"></i>Détails
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">Aucun enseignant enregistré.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

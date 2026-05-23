@@ -1,0 +1,176 @@
+<div class="row">
+  <div class="col-12">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+      <a class="btn btn-outline-secondary btn-sm" [routerLink]="listPath">
+        <i class="ri-arrow-left-line me-1"></i>Retour
+      </a>
+      @if (person) {
+        <button class="btn btn-primary btn-sm" type="button" (click)="printCard()">
+          <i class="ri-printer-line me-1"></i>Imprimer la carte
+        </button>
+      }
+    </div>
+  </div>
+</div>
+
+@if (loading) {
+  <div class="card custom-card">
+    <div class="card-body text-muted">Chargement...</div>
+  </div>
+} @else if (error) {
+  <div class="alert alert-danger">{{ error }}</div>
+} @else if (person) {
+  <div class="row">
+    <div class="col-xl-8">
+      <div class="card custom-card">
+        <div class="card-header">
+          <div>
+            <span class="badge bg-primary-transparent mb-2">{{ typeLabel }}</span>
+            <h3 class="card-title mb-0">{{ person.fullName }}</h3>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="d-flex align-items-start gap-3 flex-wrap">
+            @if (person.photoUrl) {
+              <img class="profile-photo" [src]="person.photoUrl" [alt]="person.fullName" />
+            } @else {
+              <div class="profile-avatar">
+                {{ person.firstName.charAt(0) }}{{ person.lastName.charAt(0) }}
+              </div>
+            }
+
+            <div class="profile-grid flex-fill">
+              <span>Matricule</span>
+              <strong>{{ person.uniqueCode }}</strong>
+              <span>Genre</span>
+              <strong>{{ genderLabel(person.gender) }}</strong>
+              <span>Date de naissance</span>
+              <strong>{{ dateLabel(person.birthDate) }}</strong>
+              <span>École</span>
+              <strong>{{ person.school.name }}</strong>
+              <span>Région</span>
+              <strong>{{ person.school.region?.name || 'Non renseignée' }}</strong>
+
+              @if (personType === 'STUDENT') {
+                <span>Classe</span>
+                <strong>{{ person.classRoom?.name || 'Non affecté' }}</strong>
+                <span>Tuteur</span>
+                <strong>{{ person.guardianName || 'Non renseigné' }}</strong>
+                <span>Téléphone tuteur</span>
+                <strong>{{ person.guardianPhone || 'Non renseigné' }}</strong>
+              } @else {
+                <span>Matière</span>
+                <strong>{{ person.subject || 'Non renseignée' }}</strong>
+                <span>Classes</span>
+                <strong>
+                  @if (person.classes?.length) {
+                    @for (classRoom of person.classes; track classRoom.id) {
+                      <span>{{ classRoom.name }}</span>@if (!$last) { <span>, </span> }
+                    }
+                  } @else {
+                    Non affecté
+                  }
+                </strong>
+                <span>Diplôme</span>
+                <strong>{{ person.diploma || 'Non renseigné' }}</strong>
+                <span>Téléphone</span>
+                <strong>{{ person.phone || 'Non renseigné' }}</strong>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      @if (personType === 'STUDENT' && person.transferHistory?.length) {
+        <div class="card custom-card">
+          <div class="card-header">
+            <h3 class="card-title mb-0">Historique des transferts</h3>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Départ</th>
+                    <th>Destination</th>
+                    <th>Motif</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (transfer of person.transferHistory; track transfer.id) {
+                    <tr>
+                      <td>{{ dateLabel(transfer.transferredAt) }}</td>
+                      <td>
+                        <div>{{ transfer.fromSchool.name }}</div>
+                        <span class="text-muted fs-12">{{ transfer.fromClassRoom?.name || 'Non affecté' }}</span>
+                      </td>
+                      <td>
+                        <div>{{ transfer.toSchool.name }}</div>
+                        <span class="text-muted fs-12">{{ transfer.toClassRoom?.name || 'Non affecté' }}</span>
+                      </td>
+                      <td>{{ transfer.reason || 'Non renseigné' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card custom-card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Carte QR</h3>
+        </div>
+        <div class="card-body">
+          <div id="school-census-print-card" class="school-id-card">
+            <div class="school-id-card__header">
+              <div class="school-id-card__kicker">GESTION-EE</div>
+              <div class="school-id-card__title">
+                Carte {{ personType === 'STUDENT' ? 'scolaire' : 'enseignant' }}
+              </div>
+            </div>
+
+            <div class="school-id-card__body">
+              @if (person.photoUrl) {
+                <img class="school-id-card__photo" [src]="person.photoUrl" [alt]="person.fullName" />
+              } @else {
+                <div class="school-id-card__avatar">
+                  {{ person.firstName.charAt(0) }}{{ person.lastName.charAt(0) }}
+                </div>
+              }
+
+              <div>
+                <div class="school-id-card__name">{{ person.fullName }}</div>
+                <div class="school-id-card__meta">
+                  <div>{{ typeLabel }}</div>
+                  <div>{{ person.school.name }}</div>
+                  @if (person.classRoom) {
+                    <div>{{ person.classRoom.name }}</div>
+                    @if (person.classRoom.schoolYear) {
+                      <div>{{ person.classRoom.schoolYear }}</div>
+                    }
+                  }
+                  @if (person.subject) {
+                    <div>{{ person.subject }}</div>
+                  }
+                </div>
+                <div class="school-id-card__code">{{ person.uniqueCode }}</div>
+              </div>
+
+              <div class="school-id-card__qr" [innerHTML]="qrSvg"></div>
+            </div>
+
+            <div class="school-id-card__footer">
+              <span>{{ person.school.region?.name || 'Région non renseignée' }}</span>
+              <span>QR: matricule unique</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+}

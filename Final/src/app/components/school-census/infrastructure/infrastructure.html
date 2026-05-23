@@ -1,0 +1,257 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="infrastructure-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Recensement scolaire</p>
+        <h3 class="fw-semibold mb-1">Infrastructures scolaires</h3>
+        <p class="text-muted mb-0">
+          Suivi des salles, services essentiels, équipements et priorités de réhabilitation.
+        </p>
+      </div>
+      <div class="infrastructure-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/schools">
+          <i class="ri-school-line me-1"></i>Écoles
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-3 col-md-6">
+    <div class="infrastructure-stat">
+      <span class="infrastructure-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-school-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Établissements</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.schools) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="infrastructure-stat">
+      <span class="infrastructure-stat-icon bg-info-transparent text-info">
+        <i class="ri-door-open-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Salles utilisables</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.usableClassrooms) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="infrastructure-stat">
+      <span class="infrastructure-stat-icon bg-success-transparent text-success">
+        <i class="ri-drop-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Couverture eau</p>
+        <h4 class="fw-semibold mb-0">{{ totals.waterCoverage }}%</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="infrastructure-stat">
+      <span class="infrastructure-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-alarm-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Critiques</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.critical) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Registre des infrastructures</h3>
+          <span class="text-muted fs-12">{{ filteredRows.length }} établissement(s) affiché(s)</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="École, code, préfecture..." />
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="good">Conformes</option>
+              <option value="watch">À surveiller</option>
+              <option value="critical">Critiques</option>
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Service</label>
+            <select class="form-select" [(ngModel)]="selectedService">
+              <option value="">Tous</option>
+              <option value="water">Avec eau</option>
+              <option value="missing-water">Sans eau</option>
+              <option value="electricity">Avec électricité</option>
+              <option value="missing-electricity">Sans électricité</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-12 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Établissement</th>
+                <th>Territoire</th>
+                <th class="text-end">Salles</th>
+                <th class="text-end">Tables</th>
+                <th class="text-end">Services</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredRows; track row.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.schoolName }}</div>
+                    <span class="text-muted fs-12">{{ row.code }}</span>
+                  </td>
+                  <td>
+                    <div>{{ row.region }}</div>
+                    <span class="text-muted fs-12">{{ row.prefecture }} · {{ row.commune }}</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="fw-semibold">{{ row.usableClassrooms }}</span>
+                    <span class="text-muted">/ {{ row.classrooms }}</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="fw-semibold">{{ formatNumber(row.desks) }}</span>
+                    <span class="text-muted fs-12 d-block">{{ row.students ? ((row.desks / row.students) * 100).toFixed(0) : 0 }}%</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="service-pill" [ngClass]="row.water ? 'bg-success-transparent text-success' : 'bg-danger-transparent text-danger'">
+                      <i class="ri-drop-line"></i>
+                    </span>
+                    <span class="service-pill ms-1" [ngClass]="row.electricity ? 'bg-success-transparent text-success' : 'bg-warning-transparent text-warning'">
+                      <i class="ri-flashlight-line"></i>
+                    </span>
+                    <span class="service-pill ms-1 bg-info-transparent text-info">
+                      {{ row.latrines }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(row.status)">
+                      {{ statusLabel(row.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des infrastructures...
+                    } @else {
+                      Aucune infrastructure ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Synthèse équipements</h3>
+      </div>
+      <div class="card-body">
+        <div class="summary-row">
+          <span class="text-muted">Salles à réhabiliter</span>
+          <span class="fw-semibold">{{ formatNumber(totals.repairClassrooms) }}</span>
+        </div>
+        <div class="summary-row">
+          <span class="text-muted">Tables-bancs</span>
+          <span class="fw-semibold">{{ formatNumber(totals.desks) }}</span>
+        </div>
+        <div class="summary-row">
+          <span class="text-muted">Couverture tables</span>
+          <span class="fw-semibold">{{ totals.deskCoverage }}%</span>
+        </div>
+        <div class="summary-row">
+          <span class="text-muted">Couverture électricité</span>
+          <span class="fw-semibold">{{ totals.electricityCoverage }}%</span>
+        </div>
+        <div class="progress mt-3" style="height: 8px">
+          <div class="progress-bar" role="progressbar" [style.width.%]="totals.deskCoverage > 100 ? 100 : totals.deskCoverage"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Actions prioritaires</h3>
+      </div>
+      <div class="card-body">
+        @for (row of filteredRows.slice(0, 5); track row.id) {
+          <div class="priority-item">
+            <span class="priority-icon" [ngClass]="statusClass(row.status)">
+              <i class="ri-tools-line"></i>
+            </span>
+            <div>
+              <div class="fw-semibold">{{ row.schoolName }}</div>
+              <p class="text-muted fs-12 mb-0">
+                @if (!row.water) {
+                  Eau à installer
+                } @else if (row.usableClassrooms < row.classrooms) {
+                  Salle à réhabiliter
+                } @else if (!row.electricity) {
+                  Électricité à compléter
+                } @else {
+                  Suivi régulier
+                }
+              </p>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

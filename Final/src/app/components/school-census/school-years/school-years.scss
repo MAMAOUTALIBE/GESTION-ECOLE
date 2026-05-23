@@ -1,0 +1,50 @@
+.admin-page-header,
+.admin-stat {
+  background: var(--custom-white);
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  margin-block-end: 1.5rem;
+}
+
+.admin-page-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.admin-stat {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  min-height: 108px;
+  padding: 1rem;
+}
+
+.admin-stat-icon {
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 46px;
+  height: 46px;
+  justify-content: center;
+  width: 46px;
+}
+
+.admin-stat-icon i {
+  font-size: 1.25rem;
+}
+
+.period-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+@media (max-width: 767.98px) {
+  .admin-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

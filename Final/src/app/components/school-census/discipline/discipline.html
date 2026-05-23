@@ -1,0 +1,223 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="discipline-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Vie scolaire</p>
+        <h3 class="fw-semibold mb-1">Discipline & incidents</h3>
+        <p class="text-muted mb-0">
+          Suivi des signalements, médiations, sanctions et accompagnements éducatifs.
+        </p>
+      </div>
+      <div class="discipline-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/students">
+          <i class="ri-graduation-cap-line me-1"></i>Élèves
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="discipline-stat">
+      <span class="discipline-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-flag-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Incidents</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.incidents) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="discipline-stat">
+      <span class="discipline-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-folder-open-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Ouverts</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.open) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="discipline-stat">
+      <span class="discipline-stat-icon bg-info-transparent text-info">
+        <i class="ri-discuss-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Médiation</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.mediation) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="discipline-stat">
+      <span class="discipline-stat-icon bg-success-transparent text-success">
+        <i class="ri-checkbox-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Résolus</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.resolved) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="discipline-stat">
+      <span class="discipline-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-error-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Graves</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.highSeverity) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="discipline-stat">
+      <span class="discipline-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-alarm-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Retards</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.overdue) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Registre disciplinaire</h3>
+          <span class="text-muted fs-12">{{ filteredRows.length }} signalement(s) affiché(s)</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Élève, code, école, action..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Type</label>
+            <select class="form-select" [(ngModel)]="selectedType">
+              <option value="">Tous</option>
+              @for (type of incidentTypes; track type.value) {
+                <option [value]="type.value">{{ type.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="open">Ouvert</option>
+              <option value="mediation">Médiation</option>
+              <option value="resolved">Résolu</option>
+              <option value="escalated">Escaladé</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6">
+            <label class="form-label">Gravité</label>
+            <select class="form-select" [(ngModel)]="selectedSeverity">
+              <option value="">Tous</option>
+              <option value="high">Élevée</option>
+              <option value="medium">Moyenne</option>
+              <option value="low">Faible</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Élève</th>
+                <th>Établissement</th>
+                <th>Type</th>
+                <th>Action</th>
+                <th class="text-end">Gravité</th>
+                <th class="text-end">Ouvert</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredRows; track row.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.studentName }}</div>
+                    <span class="text-muted fs-12">{{ row.uniqueCode }}</span>
+                  </td>
+                  <td>
+                    <div>{{ row.schoolName }}</div>
+                    <span class="text-muted fs-12">{{ row.className }} · {{ row.region }}</span>
+                  </td>
+                  <td>{{ typeLabel(row.type) }}</td>
+                  <td>{{ row.action }}</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="severityClass(row.severity)">
+                      {{ severityLabel(row.severity) }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <span class="fw-semibold">{{ row.daysOpen }} j</span>
+                    <span class="text-muted fs-12 d-block">{{ row.reportedAt }}</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(row.status)">
+                      {{ statusLabel(row.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des incidents...
+                    } @else {
+                      Aucun signalement ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

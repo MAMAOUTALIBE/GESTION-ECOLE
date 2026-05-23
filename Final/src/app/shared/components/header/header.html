@@ -1,0 +1,460 @@
+<!-- app-header -->
+<header class="app-header">
+  <!-- Start::main-header-container -->
+  <div class="main-header-container container-fluid">
+    <!-- Start::header-content-left -->
+    <div class="header-content-left align-items-center">
+
+      <!-- Start::header-element -->
+      <div class="header-element">
+        <div class="horizontal-logo">
+          <a [routerLink]="['/dashboards/dashboard-1']" class="header-logo">
+            <img src="./assets/images/brand-logos/desktop-logo.png" alt="logo" class="desktop-logo">
+            <img src="./assets/images/brand-logos/toggle-logo.png" alt="logo" class="toggle-logo">
+            <img src="./assets/images/brand-logos/desktop-dark.png" alt="logo" class="desktop-dark">
+            <img src="./assets/images/brand-logos/toggle-dark.png" alt="logo" class="toggle-dark">
+            <img src="./assets/images/brand-logos/desktop-white.png" alt="logo" class="desktop-white">
+            <img src="./assets/images/brand-logos/toggle-white.png" alt="logo" class="toggle-white">
+          </a>
+        </div>
+      </div>
+      <!-- End::header-element -->
+
+      <!-- Start::header-element -->
+      <div class="header-element">
+        <!-- Start::header-link -->
+        <a (click)="toggleSidebar()" aria-label="Hide Sidebar"
+          class="sidemenu-toggle header-link animated-arrow hor-toggle horizontal-navtoggle" data-bs-toggle="sidebar"
+          href="javascript:void(0);"><span></span></a>
+        <!-- End::header-link -->
+      </div>
+      <!-- End::header-element -->
+      <div class="header-element header-search d-md-block d-none custom-header-searchInput  ms-3 ">
+        <!-- Start::header-link -->
+        <div class="autoComplete_wrapper" role="combobox" aria-owns="autoComplete_list_1" aria-haspopup="true"
+          aria-expanded="false">
+          <input type="text" class="header-search-bar form-control " id="header-search" placeholder="Search"
+            spellcheck=false autocomplete="off" autocapitalize="off" (click)="SearchHeader()" [(ngModel)]="text"
+            [ngModelOptions]="{ standalone: true }" (keyup)="Search(text)">
+          <a href="javascript:void(0);" class="header-search-icon border-0">
+            <i class="bi bi-search fs-12 mb-1"></i>
+          </a>
+        </div>
+
+        @if(menuItems && menuItems.length > 0) {
+        <div class="search_drop list-group" (click)="clearSearch()">
+          @for(menuItem of menuItems | slice: 0: 5; track $index) {
+          <div class="list-group-item" [routerLink]="menuItem?.path" (click)="clearSearch()">
+            <a [routerLink]="menuItem?.path">
+              <span><i class='fa fa-angle-double-right me-2'></i>{{menuItem?.title}}</span>
+            </a>
+          </div>
+          }
+        </div>
+        }
+        @else{
+        <ng-template>
+          <ul class="ps-2">
+            <li class="p-1 d-flex align-items-center text-muted mb-2 search-app">
+              <a><span><i class='fa fa-angle-double-right me-2'></i>No Search Result Found with
+                  "{{text}}"</span></a>
+            </li>
+          </ul>
+        </ng-template>
+        }
+
+        <!-- End::header-link -->
+      </div>
+
+    </div>
+    <!-- End::header-content-left -->
+
+    <!-- Start::header-content-right -->
+    <div class="header-content-right">
+      <!-- Start::header-element -->
+      <li class="header-element d-md-none d-block">
+        <a (click)="openModal(content)" href="javascript:void(0);" class="header-link" data-bs-toggle="modal"
+          data-bs-target="#header-responsive-search">
+          <!-- Start::header-link-icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="header-link-icon" viewBox="0 0 256 256">
+            <rect width="256" height="256" fill="none" />
+            <circle cx="112" cy="112" r="80" opacity="0.2" />
+            <circle cx="112" cy="112" r="80" fill="none" stroke="currentColor" stroke-linecap="round"
+              stroke-linejoin="round" stroke-width="16" />
+            <line x1="168.57" y1="168.57" x2="224" y2="224" fill="none" stroke="currentColor" stroke-linecap="round"
+              stroke-linejoin="round" stroke-width="16" />
+          </svg>
+          <!-- End::header-link-icon -->
+        </a>
+      </li>
+      <!-- End::header-element -->
+
+      <!-- Start::header-element -->
+      <div ngbDropdown [autoClose]="'outside'" class="header-element country-selector">
+        <!-- Start::header-link|dropdown-toggle -->
+        <a ngbDropdownToggle href="javascript:void(0);" class="header-link dropdown-toggle" data-bs-auto-close="outside"
+          data-bs-toggle="dropdown">
+          <img src="./assets/images/flags/us_flag.jpg" alt="img" class="rounded-circle header-link-icon" />
+        </a>
+        <!-- End::header-link|dropdown-toggle -->
+        <ul ngbDropdownMenu class="main-header-dropdown dropdown-menu dropdown-menu-end cart-dropdown-menu"
+          data-popper-placement="none">
+          @for (lang of languages; track $index) {
+          <li>
+            <a ngbDropdownItem class="dropdown-item d-flex align-items-center" href="javascript:void(0);">
+              <span class="avatar avatar-xs lh-1 me-2">
+                <img [src]="lang.flagSrc" [alt]="lang.name + ' flag'" />
+              </span>
+              {{ lang.name }}
+            </a>
+          </li>
+          }
+
+        </ul>
+      </div>
+      <!-- End::header-element -->
+
+
+      <!-- Start::header-element -->
+      <div class="header-element header-theme-mode">
+        <!-- Start::header-link|layout-setting -->
+        <a href="javascript:void(0);" class="header-link layout-setting">
+          <span class="light-layout" (click)="updateTheme('dark')">
+            <!-- Start::header-link-icon -->
+            <i class="bx bx-moon header-link-icon"></i>
+            <!-- End::header-link-icon -->
+          </span>
+          <span class="dark-layout">
+            <!-- Start::header-link-icon -->
+            <i class="bx bx-sun header-link-icon" (click)="updateTheme('light')"></i>
+            <!-- End::header-link-icon -->
+          </span>
+        </a>
+        <!-- End::header-link|layout-setting -->
+      </div>
+      <!-- End::header-element -->
+
+      <!-- Start::header-element -->
+      <div ngbDropdown [autoClose]="'outside'" display="dynamic" class="header-element cart-dropdown">
+        <!-- Start::header-link|dropdown-toggle -->
+        <a ngbDropdownToggle href="javascript:void(0);" class="header-link dropdown-toggle" data-bs-auto-close="outside"
+          data-bs-toggle="dropdown">
+          <svg xmlns="http://www.w3.org/2000/svg" class="header-link-icon" width="24" height="24" viewBox="0 0 24 24">
+            <path
+              d="M21.822 7.431A1 1 0 0 0 21 7H7.333L6.179 4.23A1.994 1.994 0 0 0 4.333 3H2v2h2.333l4.744 11.385A1 1 0 0 0 10 17h8c.417 0 .79-.259.937-.648l3-8a1 1 0 0 0-.115-.921zM17.307 15h-6.64l-2.5-6h11.39l-2.25 6z" />
+            <circle cx="10.5" cy="19.5" r="1.5" />
+            <circle cx="17.5" cy="19.5" r="1.5" />
+          </svg>
+          <span class="badge bg-warning rounded-pill header-icon-badge" id="cart-icon-badge">{{ cartItemCount }}</span>
+        </a>
+        <!-- End::header-link|dropdown-toggle -->
+        <!-- Start::main-header-dropdown -->
+        <div ngbDropdownMenu class="main-header-dropdown dropdown-menu dropdown-menu-end" data-popper-placement="none">
+          <div class="p-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <p class="mb-0 fs-15 fw-semibold">Actions rapides</p>
+              <span class="badge bg-indigo" id="cart-data">{{ cartItemCount }} module(s)</span>
+            </div>
+          </div>
+          <div>
+            <hr class="dropdown-divider">
+          </div>
+          <ul (click)="handleCardClick($event)" class="list-unstyled mb-0" id="header-cart-items-scroll">
+            <!-- Inside your ngbDropdownMenu -->
+
+            @for (item of cartItems; track $index) {
+            <li ngbDropdownItem class="dropdown-item" [id]="item.id">
+              <div class="d-flex align-items-start cart-dropdown-item">
+                <span class="avatar avatar-rounded bg-primary-transparent text-primary me-3">
+                  <i [class]="item.iconClass"></i>
+                </span>
+
+                <div class="flex-grow-1">
+                  <div class="d-flex align-items-center justify-content-between mb-0">
+                    <div class="mb-0">
+                      <a class="text-muted fs-13" [routerLink]="item.route">
+                        {{ item.name }}
+                      </a>
+                      <div class="fw-semibold text-dark fs-12">
+                        {{ item.detail }}
+                      </div>
+                    </div>
+
+                    <div>
+                      <a href="javascript:void(0);" class="header-cart-remove float-end dropdown-item-close me-2"
+                        (click)="removeRow(item.id)">
+                        <i class="fe fe-trash-2 text-danger"></i>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </li>
+            }
+          </ul>
+          @if (!isCartEmpty) {
+          <div
+            class="p-2 bg-primary-transparent d-flex justify-content-between align-items-center empty-header-item border-top">
+            <div class="">
+              <a [routerLink]="['/school-census/map']" class="btn btn-sm btn-primary btn-w-xs">Voir</a>
+            </div>
+            <div>
+              <span class="text-dark fw-semibold">Recensement scolaire</span>
+            </div>
+          </div>
+          }
+          <div class="p-5 empty-item" [class.d-none]="!isCartEmpty">
+            <div class="text-center">
+              <span class="avatar avatar-xl avatar-rounded bg-warning-transparent">
+                <i class="ri-apps-2-line fs-2"></i>
+              </span>
+              <h6 class="fw-bold mb-1 mt-3">Aucune action rapide</h6>
+              <span class="mb-3 fw-normal fs-13 d-block">Les modules restent disponibles dans le menu.</span>
+              <a [routerLink]="['/school-census/map']" class="btn btn-primary btn-wave btn-sm m-1"
+                data-abc="true">Carte scolaire <i class="bi bi-arrow-right ms-1"></i></a>
+            </div>
+          </div>
+        </div>
+        <!-- End::main-header-dropdown -->
+      </div>
+      <!-- End::header-element -->
+
+      <!-- Start::header-element -->
+      <div ngbDropdown [autoClose]="'outside'" class="header-element notifications-dropdown">
+        <!-- Start::header-link|dropdown-toggle -->
+        <a ngbDropdownToggle href="javascript:void(0);" class="header-link dropdown-toggle d-xl-block d-none"
+          (click)="loadWorkflowNotifications()"
+          data-bs-toggle="dropdown" data-bs-auto-close="outside" id="messageDropdown" aria-expanded="false">
+          <i class="bx bx-bell header-link-icon"></i>
+          <span class="badge bg-secondary rounded-pill header-icon-badge pulse pulse-secondary"
+            id="notification-icon-badge">{{ notificationCount }}</span>
+        </a>
+        <!-- End::header-link|dropdown-toggle -->
+        <!-- Start::main-header-dropdown -->
+        <div ngbDropdownMenu id="notificationitemclose" class="main-header-dropdown dropdown-menu dropdown-menu-end"
+          data-popper-placement="none">
+          <div class="p-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <p class="mb-0 fs-17 fw-semibold">Notifications</p>
+              <span class="badge bg-secondary-transparent" id="notifiation-data">{{ notificationCount }} non lue(s)</span>
+            </div>
+          </div>
+          <div class="dropdown-divider"></div>
+          <overlay-scrollbars [defer]>
+            <ul class="list-unstyled mb-0" id="header-notification-scroll" (click)="handleCardClick($event)">
+              @for (item of notifications; track item.id) {
+              <li class="dropdown-item p-3">
+                <div class="d-flex align-items-start">
+                  <div class="pe-3">
+                    <span class="avatar rounded-3" [class]="notificationBgClass(item)">
+                      <i [class]="notificationIcon(item)"></i>
+                    </span>
+                  </div>
+
+                  <div class="flex-grow-1 d-flex align-items-center justify-content-between">
+                    <div>
+                      <p class="mb-0 fw-semibold">
+                        <a>{{ item.title }}</a>
+                      </p>
+                      <span class="d-block text-muted fw-normal fs-12 header-notification-text">
+                        {{ item.message }}
+                      </span>
+                      <span class="text-muted fw-normal fs-12 header-notification-text">
+                        {{ notificationDate(item) }}
+                      </span>
+                    </div>
+
+                    <div>
+                      <a href="javascript:void(0);" class="min-w-fit-content text-muted me-1 dropdown-item-close1"
+                        (click)="markWorkflowNotificationRead(item)">
+                        <i class="ti ti-check fs-16"></i>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </li>
+              }
+            </ul>
+          </overlay-scrollbars>
+          @if (!isNotifyEmpty) {
+          <div class="p-2 empty-header-item1 border-top">
+            <div class="d-grid">
+              <a [routerLink]="['/school-census/notifications']" class="btn btn-primary btn-sm">Voir toutes</a>
+            </div>
+          </div>
+          }
+          <div class="p-5 empty-item1" [class.d-none]="!isNotifyEmpty">
+            <div class="text-center">
+              <span class="avatar avatar-xl avatar-rounded bg-secondary-transparent">
+                <i class="ri-notification-off-line fs-2"></i>
+              </span>
+              <h6 class="fw-semibold mt-3">Aucune notification</h6>
+            </div>
+          </div>
+        </div>
+        <!-- End::main-header-dropdown -->
+      </div>
+      <!-- End::header-element -->
+
+      <!-- Start::header-element -->
+      <div ngbDropdown class="header-element header-shortcuts-dropdown d-md-block d-none">
+        <a ngbDropdownToggle href="javascript:void(0);" class="header-link dropdown-toggle" data-bs-toggle="dropdown"
+          data-bs-auto-close="outside" id="notificationDropdown" aria-expanded="false">
+          <svg xmlns="http://www.w3.org/2000/svg" class="header-link-icon" height="24px" viewBox="0 0 24 24"
+            width="24px" fill="#000000">
+            <path d="M0 0h24v24H0V0z" fill="none" />
+            <path
+              d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z" />
+          </svg>
+        </a>
+        <!-- Start::main-header-dropdown -->
+        <div ngbDropdownMenu class="main-header-dropdown header-shortcuts-dropdown dropdown-menu pb-0 dropdown-menu-end"
+          aria-labelledby="notificationDropdown">
+          <div class="p-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <p class="mb-0 fs-17 fw-semibold">Modules</p>
+            </div>
+          </div>
+          <div class="dropdown-divider mb-0"></div>
+          <div class="main-header-shortcuts p-2" id="header-shortcut-scroll">
+            <div class="row g-2">
+              @for (app of apps; track app.name) {
+              <div class="col-4">
+                <a [routerLink]="app.route">
+                  <div class="text-center p-3 related-app">
+                    <span class="avatar avatar-sm avatar-rounded bg-primary-transparent text-primary">
+                      <i [class]="app.iconClass"></i>
+                    </span>
+                    <span class="d-block fs-12">{{ app.name }}</span>
+                  </div>
+                </a>
+              </div>
+              }
+            </div>
+          </div>
+          <div class="p-3 border-top">
+            <div class="d-grid">
+              <a [routerLink]="['/school-census/map']" class="btn btn-primary">Carte scolaire</a>
+            </div>
+          </div>
+        </div>
+        <!-- End::main-header-dropdown -->
+      </div>
+      <!-- End::header-element -->
+      <!-- Start::header-element -->
+      <div class="header-element header-fullscreen" appFullscreen>
+        <!-- Start::header-link -->
+        <a href="javascript:void(0);" class="header-link" (click)="toggleFullscreen()">
+          <i class="bx bx-fullscreen full-screen-open header-link-icon" [class.d-none]="isFullscreen"></i>
+          <i [class.d-none]="!isFullscreen" class="bx bx-exit-fullscreen full-screen-close header-link-icon d-none"></i>
+
+        </a>
+        <!-- End::header-link -->
+      </div>
+      <!-- End::header-element -->
+
+      <!-- Start::header-element -->
+      <div class="header-element d-md-block d-none">
+        <!-- Start::header-link|switcher-icon -->
+        <a (click)="openNotifications()" class="header-link" data-bs-toggle="offcanvas"
+          data-bs-target="#sidebar-canvas">
+          <svg xmlns="http://www.w3.org/2000/svg" class="header-link-icon" width="24" height="24" viewBox="0 0 24 24">
+            <path d="M4 6h16v2H4zm4 5h12v2H8zm5 5h7v2h-7z" />
+          </svg>
+        </a>
+        <!-- End::header-link|switcher-icon -->
+      </div>
+      <!-- End::header-element -->
+      <!-- Start::header-element -->
+      <div ngbDropdown class="header-element" placement="bottom-end">
+        <!-- Start::header-link|dropdown-toggle -->
+        <a ngbDropdownToggle href="javascript:void(0);" class="header-link dropdown-toggle" id="mainHeaderProfile"
+          data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+            <div class="d-flex align-items-center">
+              <div class="me-sm-2 me-0">
+              <span class="avatar avatar-sm rounded-circle bg-primary-transparent text-primary">
+                {{ authService.currentUser?.fullName?.charAt(0) || 'U' }}
+              </span>
+            </div>
+            <div class="d-xxl-block d-none">
+              <p class="fw-semibold mb-0 lh-1">{{ authService.currentUser?.fullName || 'Utilisateur' }}</p>
+              <span class="op-7 fw-normal d-block fs-11">{{ authService.currentUser?.role || 'Connecté' }}</span>
+            </div>
+          </div>
+        </a>
+        <!-- End::header-link|dropdown-toggle -->
+        <ul ngbDropdownMenu
+          class="main-header-dropdown dropdown-menu pt-0 overflow-hidden header-profile-dropdown dropdown-menu-end"
+          aria-labelledby="mainHeaderProfile">
+          <li>
+            <a href="javascript:void(0)" ngbDropdownItem class="dropdown-item d-flex"
+              [routerLink]="['/dashboards/dashboard-1']"><i class="ti ti-user-circle fs-16 me-2 op-7"></i>Tableau de bord</a>
+          </li>
+          <li>
+            <a ngbDropdownItem class="dropdown-item d-flex" [routerLink]="['/school-census/map']"><i
+                class="ri-map-pin-line fs-16 me-2 op-7"></i>Carte scolaire</a>
+          </li>
+          <li>
+            <a ngbDropdownItem class="dropdown-item d-flex border-block-end" [routerLink]="['/school-census/notifications']"><i
+                class="far fa-bell fs-16 me-2 op-7"></i>Notifications</a>
+          </li>
+          <li>
+            <a ngbDropdownItem class="dropdown-item d-flex" href="javascript:void(0)" (click)="logout()"><i
+                class="far fa-arrow-alt-circle-left fs-16 me-2 op-7"></i>Déconnexion</a>
+          </li>
+        </ul>
+      </div>
+      <!-- End::header-element -->
+
+      <!-- Start::header-element -->
+      <div class="header-element">
+        <!-- Start::header-link|switcher-icon -->
+        <a href="javascript:void(0);" class="header-link switcher-icon" data-bs-toggle="offcanvas"
+          data-bs-target="#switcher-canvas" (click)="toggleSwitcher()">
+          <i class="bx bx-cog header-link-icon"></i>
+        </a>
+        <!-- End::header-link|switcher-icon -->
+      </div>
+      <!-- End::header-element -->
+    </div>
+    <!-- End::header-content-right -->
+  </div>
+  <!-- End::main-header-container -->
+</header>
+<!-- /app-header -->
+
+
+<ng-template #content let-modal>
+
+  <div class="modal-body">
+    <div class="input-group search-modal-input">
+      <input type="text" class="form-control border-end-0" placeholder="Search Anything ..."
+        aria-label="Search Anything ..." aria-describedby="button-addon2" (click)="SearchHeader()" [(ngModel)]="text"
+        [ngModelOptions]="{ standalone: true }" (keyup)="Search(text)">
+      <a class="btn btn-primary" type="button" id="button-addon2"><i class="bi bi-search"></i></a>
+      @if(menuItems && menuItems.length > 0) {
+      <div class="search_drop list-group" (click)="clearSearch()">
+        @for(menuItem of menuItems | slice: 0: 5; track $index) {
+        <div class="list-group-item" [routerLink]="menuItem?.path" (click)="clearSearch()">
+          <a [routerLink]="menuItem?.path">
+            <span><i class='fa fa-angle-double-right me-2'></i>{{menuItem?.title}}</span>
+          </a>
+        </div>
+        }
+      </div>
+      }
+
+      @else{
+      <ng-template>
+        <ul class="ps-2">
+          <li class="p-1 d-flex align-items-center text-muted mb-2 search-app">
+            <a><span><i class='fa fa-angle-double-right me-2'></i>No Search Result Found with
+                "{{text}}"</span></a>
+          </li>
+
+        </ul>
+      </ng-template>
+      }
+    </div>
+  </div>
+</ng-template>

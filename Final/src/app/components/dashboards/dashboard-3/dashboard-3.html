@@ -1,0 +1,208 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="territory-dashboard-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Dashboard 3 · Territoires</p>
+        <h3 class="fw-semibold mb-1">Préfectures, sous-préfectures et couverture GPS</h3>
+        <p class="text-muted mb-0">
+          Vue mockée pour préparer l’intégration Territory et la carte scolaire nationale.
+        </p>
+      </div>
+      <div class="territory-header-actions">
+        <a class="btn btn-primary" routerLink="/school-census/territory">
+          <i class="ri-map-2-line me-1"></i>Territoires
+        </a>
+        <a class="btn btn-outline-primary" routerLink="/school-census/map">
+          <i class="ri-map-pin-line me-1"></i>Carte scolaire
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @for (kpi of kpis; track kpi.label) {
+    <div class="col-xxl-3 col-xl-6 col-md-6">
+      <div class="territory-kpi">
+        <span class="territory-kpi-icon" [ngClass]="'bg-' + kpi.color + '-transparent text-' + kpi.color">
+          <i [class]="kpi.icon"></i>
+        </span>
+        <div>
+          <p class="text-muted mb-1">{{ kpi.label }}</p>
+          <h4 class="fw-semibold mb-0">{{ kpi.value }}</h4>
+          <span class="fs-12 text-muted">{{ kpi.detail }}</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  <div class="col-xl-8">
+    <div class="card custom-card overflow-hidden">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Carte des territoires</h3>
+          <span class="text-muted fs-12">
+            {{ formatNumber(totalStudents) }} élèves · {{ formatNumber(totalSchools) }} établissements
+          </span>
+        </div>
+        <span class="badge" [ngClass]="priorityClass(selectedTerritory.priority)">
+          {{ priorityLabel(selectedTerritory.priority) }}
+        </span>
+      </div>
+      <div class="card-body p-0">
+        <div id="dashboard-territory-map"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card selected-territory-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Territoire sélectionné</h3>
+      </div>
+      <div class="card-body">
+        <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+          <div>
+            <h4 class="fw-semibold mb-1">{{ selectedTerritory.name }}</h4>
+            <span class="text-muted fs-12">{{ selectedTerritory.region }} · {{ selectedTerritory.code }}</span>
+          </div>
+          <span class="badge" [ngClass]="statusClass(selectedTerritory.validationStatus)">
+            {{ statusLabel(selectedTerritory.validationStatus) }}
+          </span>
+        </div>
+        <div class="territory-selected-grid">
+          <div>
+            <span class="text-muted fs-12">Écoles</span>
+            <h5 class="fw-semibold mb-0">{{ formatNumber(selectedTerritory.schools) }}</h5>
+          </div>
+          <div>
+            <span class="text-muted fs-12">Élèves</span>
+            <h5 class="fw-semibold mb-0">{{ formatNumber(selectedTerritory.students) }}</h5>
+          </div>
+          <div>
+            <span class="text-muted fs-12">Enseignants</span>
+            <h5 class="fw-semibold mb-0">{{ formatNumber(selectedTerritory.teachers) }}</h5>
+          </div>
+          <div>
+            <span class="text-muted fs-12">GPS</span>
+            <h5 class="fw-semibold mb-0">{{ selectedTerritory.gpsRate }}%</h5>
+          </div>
+        </div>
+        <div class="progress mt-4">
+          <div
+            class="progress-bar"
+            role="progressbar"
+            [style.width.%]="selectedTerritory.gpsRate"
+            [attr.aria-valuenow]="selectedTerritory.gpsRate"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          ></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Zones prioritaires</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="territory-list">
+          @for (territory of priorityTerritories; track territory.id) {
+            <button class="territory-list-item" type="button" (click)="selectTerritory(territory)">
+              <div>
+                <div class="fw-semibold">{{ territory.name }}</div>
+                <span class="text-muted fs-12">
+                  {{ territory.type === 'prefecture' ? 'Préfecture' : 'Sous-préfecture' }} · {{ territory.region }}
+                </span>
+              </div>
+              <div class="text-end">
+                <span class="badge" [ngClass]="priorityClass(territory.priority)">
+                  {{ priorityLabel(territory.priority) }}
+                </span>
+                <div class="text-muted fs-12 mt-1">GPS {{ territory.gpsRate }}%</div>
+              </div>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-7">
+    <div class="card custom-card overflow-hidden">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Charge scolaire par préfecture</h3>
+      </div>
+      <div class="card-body">
+        <spk-apexcharts id="territory-prefecture-load" [chartOptions]="prefectureLoadChart" />
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-5">
+    <div class="card custom-card overflow-hidden">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Couverture GPS</h3>
+      </div>
+      <div class="card-body">
+        <spk-apexcharts id="territory-gps-coverage" [chartOptions]="gpsCoverageChart" />
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card overflow-hidden">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Répartition des écoles</h3>
+      </div>
+      <div class="card-body">
+        <spk-apexcharts id="territory-school-distribution" [chartOptions]="schoolDistributionChart" />
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Liste des préfectures</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Préfecture</th>
+                <th>Région</th>
+                <th class="text-end">Écoles</th>
+                <th class="text-end">Élèves</th>
+                <th class="text-end">Enseignants</th>
+                <th class="text-end">GPS</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (prefecture of prefectures; track prefecture.id) {
+                <tr>
+                  <td>
+                    <button class="territory-link" type="button" (click)="selectTerritory(prefecture)">
+                      {{ prefecture.name }}
+                    </button>
+                    <div class="text-muted fs-12">{{ prefecture.code }}</div>
+                  </td>
+                  <td>{{ prefecture.region }}</td>
+                  <td class="text-end">{{ formatNumber(prefecture.schools) }}</td>
+                  <td class="text-end fw-semibold">{{ formatNumber(prefecture.students) }}</td>
+                  <td class="text-end">{{ formatNumber(prefecture.teachers) }}</td>
+                  <td class="text-end">{{ prefecture.gpsRate }}%</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(prefecture.validationStatus)">
+                      {{ statusLabel(prefecture.validationStatus) }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

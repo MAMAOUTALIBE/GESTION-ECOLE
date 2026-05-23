@@ -1,0 +1,41 @@
+.table td,
+.table th {
+  vertical-align: middle;
+}
+
+.class-summary-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.class-summary-item {
+  border: 1px solid var(--default-border);
+  border-radius: 6px;
+  min-height: 64px;
+  padding: 0.75rem;
+}
+
+.class-summary-item span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.class-summary-item strong {
+  color: var(--default-text-color);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.class-capacity-progress {
+  height: 6px;
+  max-width: 140px;
+}
+
+@media (max-width: 991.98px) {
+  .class-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

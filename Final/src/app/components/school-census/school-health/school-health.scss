@@ -1,0 +1,64 @@
+.health-page-header,
+.health-stat {
+  background: var(--custom-white);
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  margin-block-end: 1.5rem;
+}
+
+.health-page-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.health-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.health-stat {
+  align-items: center;
+  display: flex;
+  gap: 0.875rem;
+  min-height: 108px;
+  padding: 1rem;
+}
+
+.health-stat-icon,
+.service-pill {
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.health-stat-icon {
+  flex: 0 0 42px;
+  height: 42px;
+  width: 42px;
+}
+
+.service-pill {
+  height: 28px;
+  min-width: 28px;
+  padding-inline: 0.45rem;
+}
+
+@media (max-width: 767.98px) {
+  .health-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .health-header-actions {
+    width: 100%;
+  }
+
+  .health-header-actions .btn {
+    flex: 1 1 150px;
+  }
+}

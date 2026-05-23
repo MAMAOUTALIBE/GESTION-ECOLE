@@ -1,0 +1,222 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="resources-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Pédagogie</p>
+        <h3 class="fw-semibold mb-1">Ressources pédagogiques</h3>
+        <p class="text-muted mb-0">
+          Inventaire des manuels, kits pédagogiques, ressources numériques et besoins par matière.
+        </p>
+      </div>
+      <div class="resources-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/subjects">
+          <i class="ri-book-open-line me-1"></i>Matières
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="resources-stat">
+      <span class="resources-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-stack-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Lignes</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.lines) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="resources-stat">
+      <span class="resources-stat-icon bg-info-transparent text-info">
+        <i class="ri-book-2-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Disponibles</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.available) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="resources-stat">
+      <span class="resources-stat-icon bg-secondary-transparent text-secondary">
+        <i class="ri-list-check-3"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Besoins</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.required) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="resources-stat">
+      <span class="resources-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-percent-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Couverture</p>
+        <h4 class="fw-semibold mb-0">{{ totals.coverageRate }}%</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="resources-stat">
+      <span class="resources-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-error-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Manques</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.missing) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="resources-stat">
+      <span class="resources-stat-icon bg-success-transparent text-success">
+        <i class="ri-computer-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Numérique</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.digital) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Inventaire pédagogique</h3>
+          <span class="text-muted fs-12">{{ filteredRows.length }} ressource(s) affichée(s)</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="École, code, matière, niveau..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Type</label>
+            <select class="form-select" [(ngModel)]="selectedType">
+              <option value="">Tous</option>
+              @for (type of resourceTypes; track type.value) {
+                <option [value]="type.value">{{ type.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Matière</label>
+            <select class="form-select" [(ngModel)]="selectedSubject">
+              <option value="">Toutes</option>
+              @for (subject of subjects; track subject) {
+                <option [value]="subject">{{ subject }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="sufficient">Suffisant</option>
+              <option value="watch">À surveiller</option>
+              <option value="shortage">Manque</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Établissement</th>
+                <th>Matière</th>
+                <th>Type</th>
+                <th class="text-end">Disponible</th>
+                <th class="text-end">Besoin</th>
+                <th class="text-end">Couverture</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredRows; track row.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.schoolName }}</div>
+                    <span class="text-muted fs-12">{{ row.code }} · {{ row.region }}</span>
+                  </td>
+                  <td>
+                    <div>{{ row.subject }}</div>
+                    <span class="text-muted fs-12">{{ row.level }}</span>
+                  </td>
+                  <td>
+                    <span class="badge" [ngClass]="typeClass(row.type)">
+                      {{ typeLabel(row.type) }}
+                    </span>
+                  </td>
+                  <td class="text-end fw-semibold">{{ formatNumber(row.available) }}</td>
+                  <td class="text-end">{{ formatNumber(row.required) }}</td>
+                  <td class="text-end">
+                    <span class="fw-semibold">{{ row.coverageRate }}%</span>
+                    <span class="text-muted fs-12 d-block">{{ row.lastInventory }}</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(row.status)">
+                      {{ statusLabel(row.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des ressources...
+                    } @else {
+                      Aucune ressource ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,226 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="support-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Vie scolaire</p>
+        <h3 class="fw-semibold mb-1">Cantines & aides sociales</h3>
+        <p class="text-muted mb-0">
+          Suivi des bénéficiaires, bourses, kits scolaires, transport et distributions.
+        </p>
+      </div>
+      <div class="support-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/students">
+          <i class="ri-graduation-cap-line me-1"></i>Élèves
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-3 col-md-6">
+    <div class="support-stat">
+      <span class="support-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-hand-heart-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Bénéficiaires</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.beneficiaries) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="support-stat">
+      <span class="support-stat-icon bg-success-transparent text-success">
+        <i class="ri-checkbox-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Actifs</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.active) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="support-stat">
+      <span class="support-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-alarm-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Vulnérabilité élevée</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.highVulnerability) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="support-stat">
+      <span class="support-stat-icon bg-info-transparent text-info">
+        <i class="ri-money-dollar-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Budget mensuel</p>
+        <h5 class="fw-semibold mb-0">{{ formatCurrency(totals.monthlyBudget) }}</h5>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Programmes d’appui</h3>
+      </div>
+      <div class="card-body">
+        <div class="program-list">
+          @for (program of programSummaries; track program.id) {
+            <div class="program-item">
+              <span class="program-icon" [ngClass]="programClass(program)">
+                <i [class]="program.icon"></i>
+              </span>
+              <div class="flex-fill">
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                  <span class="fw-semibold">{{ program.title }}</span>
+                  <span class="badge" [ngClass]="programClass(program)">
+                    {{ formatNumber(program.beneficiaries) }}
+                  </span>
+                </div>
+                <p class="text-muted fs-12 mb-1">{{ program.description }}</p>
+                <span class="text-muted fs-12">{{ formatCurrency(program.monthlyBudget) }} / mois</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Registre des bénéficiaires</h3>
+          <span class="text-muted fs-12">{{ filteredRows.length }} ligne(s) affichée(s)</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Élève, code, école..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Programme</label>
+            <select class="form-select" [(ngModel)]="selectedProgramId">
+              <option value="">Tous</option>
+              @for (program of programs; track program.id) {
+                <option [value]="program.id">{{ program.title }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Vulnérabilité</label>
+            <select class="form-select" [(ngModel)]="selectedVulnerability">
+              <option value="">Toutes</option>
+              <option value="high">Élevée</option>
+              <option value="medium">Moyenne</option>
+              <option value="low">Faible</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="active">Actif</option>
+              <option value="pending">Attente</option>
+              <option value="paused">Suspendu</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Élève</th>
+                <th>Établissement</th>
+                <th>Programme</th>
+                <th class="text-end">Montant</th>
+                <th class="text-end">Présence</th>
+                <th class="text-end">Vulnérabilité</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredRows; track row.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.studentName }}</div>
+                    <span class="text-muted fs-12">{{ row.uniqueCode }}</span>
+                  </td>
+                  <td>
+                    <div>{{ row.schoolName }}</div>
+                    <span class="text-muted fs-12">{{ row.className }} · {{ row.region }}</span>
+                  </td>
+                  <td>{{ row.programTitle }}</td>
+                  <td class="text-end">{{ row.monthlyAmount ? formatCurrency(row.monthlyAmount) : 'Nature' }}</td>
+                  <td class="text-end">{{ row.attendanceRate }}%</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="vulnerabilityClass(row.vulnerability)">
+                      {{ vulnerabilityLabel(row.vulnerability) }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(row.status)">
+                      {{ statusLabel(row.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des aides sociales...
+                    } @else {
+                      Aucun bénéficiaire ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

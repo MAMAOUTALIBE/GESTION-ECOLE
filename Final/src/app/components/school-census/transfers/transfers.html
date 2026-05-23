@@ -1,0 +1,211 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="transfers-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Recensement scolaire</p>
+        <h3 class="fw-semibold mb-1">Transferts & inscriptions</h3>
+        <p class="text-muted mb-0">
+          Suivi des mouvements d’élèves, validations, destinations et demandes en retard.
+        </p>
+      </div>
+      <div class="transfers-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/students">
+          <i class="ri-graduation-cap-line me-1"></i>Élèves
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="transfers-stat">
+      <span class="transfers-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-arrow-left-right-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Demandes</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.requests) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="transfers-stat">
+      <span class="transfers-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-time-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">En attente</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.pending) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="transfers-stat">
+      <span class="transfers-stat-icon bg-info-transparent text-info">
+        <i class="ri-check-double-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Approuvés</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.approved) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="transfers-stat">
+      <span class="transfers-stat-icon bg-success-transparent text-success">
+        <i class="ri-checkbox-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Terminés</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.completed) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="transfers-stat">
+      <span class="transfers-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-close-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Rejetés</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.rejected) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="transfers-stat">
+      <span class="transfers-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-alarm-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Retards</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.overdue) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Registre des mouvements</h3>
+          <span class="text-muted fs-12">{{ filteredRows.length }} demande(s) affichée(s)</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Élève, code, école, classe..." />
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes les régions</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Motif</label>
+            <select class="form-select" [(ngModel)]="selectedReason">
+              <option value="">Tous</option>
+              @for (reason of reasons; track reason.value) {
+                <option [value]="reason.value">{{ reason.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="pending">En attente</option>
+              <option value="approved">Approuvé</option>
+              <option value="completed">Terminé</option>
+              <option value="rejected">Rejeté</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-12 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Élève</th>
+                <th>Origine</th>
+                <th>Destination</th>
+                <th>Motif</th>
+                <th class="text-end">Ouvert</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredRows; track row.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.studentName }}</div>
+                    <span class="text-muted fs-12">{{ row.uniqueCode }}</span>
+                  </td>
+                  <td>
+                    <div>{{ row.fromSchool }}</div>
+                    <span class="text-muted fs-12">{{ row.fromClass }} · {{ row.region }}</span>
+                  </td>
+                  <td>
+                    <div>{{ row.toSchool }}</div>
+                    <span class="text-muted fs-12">{{ row.toClass }}</span>
+                  </td>
+                  <td>{{ reasonLabel(row.reason) }}</td>
+                  <td class="text-end">
+                    <span class="fw-semibold">{{ row.daysOpen }} j</span>
+                    <span class="text-muted fs-12 d-block">{{ row.requestedAt }}</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(row.status)">
+                      {{ statusLabel(row.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des transferts...
+                    } @else {
+                      Aucun mouvement ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

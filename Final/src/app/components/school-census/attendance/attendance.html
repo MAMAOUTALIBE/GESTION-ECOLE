@@ -1,0 +1,112 @@
+<div class="row">
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Scan présence</h3>
+      </div>
+      <div class="card-body">
+        @if (error) {
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        }
+        @if (cameraError) {
+          <div class="alert alert-warning py-2">{{ cameraError }}</div>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="scan()">
+          <div class="row gy-2 mb-3">
+            <div class="col-md-7">
+              <label class="form-label">QR token ou URL scannée</label>
+              <input class="form-control" formControlName="qrToken" placeholder="Coller le contenu du QR code" />
+            </div>
+            <div class="col-md-5">
+              <label class="form-label">Statut</label>
+              <select class="form-select" formControlName="status">
+                @for (status of statuses; track status.value) {
+                  <option [value]="status.value">{{ status.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-12 d-grid">
+              <button class="btn btn-primary" type="submit">
+                <i class="ri-checkbox-circle-line me-1"></i>Valider
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div class="d-flex gap-2 mb-3">
+          <button class="btn btn-outline-primary" type="button" (click)="startCamera()">
+            <i class="ri-camera-line me-1"></i>Caméra
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="stopCamera()">
+            <i class="ri-stop-circle-line me-1"></i>Arrêter
+          </button>
+        </div>
+
+        <video #video class="scanner-video" muted playsinline></video>
+      </div>
+    </div>
+
+    @if (lastRecord) {
+      <div class="card custom-card">
+        <div class="card-body">
+          <span [class]="duplicate ? 'badge bg-warning-transparent' : 'badge bg-success-transparent'">
+            {{ duplicate ? 'Déjà pointé aujourd’hui' : 'Présence enregistrée' }}
+          </span>
+          <h5 class="mt-3 mb-1">{{ lastRecord.person?.fullName }}</h5>
+          <p class="text-muted mb-1">{{ lastRecord.person?.uniqueCode }}</p>
+          <p class="text-muted mb-0">{{ lastRecord.person?.school?.name }}</p>
+          <span class="badge mt-3" [ngClass]="statusClass(lastRecord.status)">
+            {{ statusLabel(lastRecord.status) }}
+          </span>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Présences du jour</h3>
+        <span class="badge bg-primary-transparent">{{ records.length }} pointages</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Heure</th>
+                <th>Personne</th>
+                <th>Type</th>
+                <th>École</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (record of records; track record.id) {
+                <tr>
+                  <td>{{ record.scannedAt | date: 'HH:mm' }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ record.person?.fullName }}</div>
+                    <span class="text-muted fs-12">{{ record.person?.uniqueCode }}</span>
+                  </td>
+                  <td>{{ record.personType === 'STUDENT' ? 'Élève' : 'Enseignant' }}</td>
+                  <td>{{ record.person?.school?.name }}</td>
+                  <td>
+                    <span class="badge" [ngClass]="statusClass(record.status)">
+                      {{ statusLabel(record.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">Aucune présence enregistrée aujourd’hui.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,223 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="exam-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Pédagogie</p>
+        <h3 class="fw-semibold mb-1">Examens nationaux</h3>
+        <p class="text-muted mb-0">
+          Planification des sessions, centres, candidats, présences et résultats consolidés.
+        </p>
+      </div>
+      <div class="exam-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/grades">
+          <i class="ri-file-list-3-line me-1"></i>Notes
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-12">
+    <div class="exam-session-bar">
+      @for (session of sessions; track session.id) {
+        <button
+          class="exam-session"
+          type="button"
+          [class.active]="selectedSessionId === session.id"
+          (click)="selectedSessionId = session.id; onSessionChange()"
+        >
+          <span class="exam-session-icon bg-primary-transparent text-primary">
+            <i class="ri-award-line"></i>
+          </span>
+          <span>
+            <span class="fw-semibold d-block">{{ session.title }}</span>
+            <span class="text-muted fs-12">{{ session.level }} · {{ session.date | date: 'dd/MM/yyyy' }}</span>
+          </span>
+          <span class="badge ms-auto" [ngClass]="sessionStatusClass(session.status)">
+            {{ sessionStatusLabel(session.status) }}
+          </span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="exam-stat">
+      <span class="exam-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-user-star-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Candidats</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.candidates) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="exam-stat">
+      <span class="exam-stat-icon bg-info-transparent text-info">
+        <i class="ri-school-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Centres</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.centers) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="exam-stat">
+      <span class="exam-stat-icon bg-success-transparent text-success">
+        <i class="ri-checkbox-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Présence</p>
+        <h4 class="fw-semibold mb-0">{{ totals.attendanceRate }}%</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="exam-stat">
+      <span class="exam-stat-icon bg-secondary-transparent text-secondary">
+        <i class="ri-bar-chart-2-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Réussite</p>
+        <h4 class="fw-semibold mb-0">{{ totals.successRate }}%</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="exam-stat">
+      <span class="exam-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-medal-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Moyenne</p>
+        <h4 class="fw-semibold mb-0">{{ formatScore(totals.averageScore) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="exam-stat">
+      <span class="exam-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-error-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Incidents</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.incidents) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Centres d’examen</h3>
+          <span class="text-muted fs-12">{{ selectedSession.title }} · {{ filteredRows.length }} centre(s)</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-5 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Centre, code, région, préfecture..." />
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes les régions</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Statut centre</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="ready">Prêts</option>
+              <option value="watch">À surveiller</option>
+              <option value="blocked">Bloqués</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-12 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Centre</th>
+                <th>Territoire</th>
+                <th class="text-end">Candidats</th>
+                <th class="text-end">Présents</th>
+                <th class="text-end">Admis</th>
+                <th class="text-end">Moyenne</th>
+                <th class="text-end">Incidents</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredRows; track row.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.schoolName }}</div>
+                    <span class="text-muted fs-12">{{ row.code }}</span>
+                  </td>
+                  <td>
+                    <div>{{ row.region }}</div>
+                    <span class="text-muted fs-12">{{ row.prefecture }}</span>
+                  </td>
+                  <td class="text-end fw-semibold">{{ formatNumber(row.candidates) }}</td>
+                  <td class="text-end">{{ formatNumber(row.present) }}</td>
+                  <td class="text-end">{{ formatNumber(row.admitted) }}</td>
+                  <td class="text-end">{{ formatScore(row.averageScore) }}</td>
+                  <td class="text-end">{{ formatNumber(row.incidents) }}</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="centerStatusClass(row.status)">
+                      {{ centerStatusLabel(row.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="8" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des centres...
+                    } @else {
+                      Aucun centre ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

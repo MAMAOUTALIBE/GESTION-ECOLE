@@ -1,0 +1,237 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="map-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Carte scolaire nationale</p>
+        <h3 class="fw-semibold mb-1">Localisation et charge des établissements</h3>
+        <p class="text-muted mb-0">
+          Suivi géographique des écoles, effectifs, couverture GPS et zones nécessitant une mise à jour.
+        </p>
+      </div>
+      <button class="btn btn-outline-primary" type="button" (click)="loadSchools()" [disabled]="loading">
+        <i class="ri-refresh-line me-1"></i>Actualiser
+      </button>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-12">
+    <div class="filter-bar">
+      <div class="row gy-3 align-items-end">
+        <div class="col-xl-4 col-md-6">
+          <label class="form-label">Recherche</label>
+          <input
+            class="form-control"
+            type="search"
+            placeholder="École, code, région, commune..."
+            [(ngModel)]="searchTerm"
+            (ngModelChange)="applyFilters()"
+          />
+        </div>
+        <div class="col-xl-3 col-md-6">
+          <label class="form-label">Région</label>
+          <select class="form-select" [(ngModel)]="selectedRegionId" (ngModelChange)="applyFilters()">
+            <option value="">Toutes les régions</option>
+            @for (region of regions; track region.id) {
+              <option [value]="region.id">{{ region.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-xl-3 col-md-6">
+          <label class="form-label">Type</label>
+          <select class="form-select" [(ngModel)]="selectedType" (ngModelChange)="applyFilters()">
+            <option value="">Tous les types</option>
+            @for (type of schoolTypes; track type) {
+              <option [value]="type">{{ type }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-xl-2 col-md-6 d-grid">
+          <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">Réinitialiser</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="map-stat">
+      <span class="map-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-school-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Écoles filtrées</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.schools) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="map-stat">
+      <span class="map-stat-icon bg-success-transparent text-success">
+        <i class="ri-map-pin-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Écoles géolocalisées</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.geolocated) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="map-stat">
+      <span class="map-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-error-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">GPS à compléter</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.missingGps) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="map-stat">
+      <span class="map-stat-icon bg-info-transparent text-info">
+        <i class="ri-pie-chart-2-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Couverture GPS</p>
+        <h4 class="fw-semibold mb-0">{{ gpsRate }}%</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="map-overhead">
+      <div>
+        <h6 class="fw-semibold mb-0">Carte des établissements</h6>
+        <span class="text-muted fs-11">
+          {{ formatNumber(censusTotals.students) }} élèves · {{ formatNumber(censusTotals.teachers) }} enseignants ·
+          {{ formatNumber(censusTotals.classes) }} classes
+        </span>
+      </div>
+      <div class="alert-counters">
+        <span class="badge bg-danger-transparent text-danger" title="Sans enseignant, ratio > 45 ou 0 élèves">
+          {{ formatNumber(alertSummary.critical) }} critique{{ alertSummary.critical > 1 ? 's' : '' }}
+        </span>
+        <span class="badge bg-warning-transparent text-warning" title="Ratio 35–45 ou présence < 70%">
+          {{ formatNumber(alertSummary.warning) }} en attention
+        </span>
+        <span class="badge bg-success-transparent text-success">
+          {{ formatNumber(alertSummary.normal) }} normale{{ alertSummary.normal > 1 ? 's' : '' }}
+        </span>
+        <span class="badge bg-primary-transparent">{{ formatNumber(geolocatedSchools.length) }} GPS</span>
+      </div>
+    </div>
+    <div id="school-census-map"></div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Écoles géolocalisées</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="school-list">
+          @for (school of geolocatedSchools; track school.id) {
+            <button class="school-list-item" type="button" (click)="focusSchool(school)">
+              <div>
+                <div class="fw-semibold">{{ school.name }}</div>
+                <span class="text-muted fs-12">{{ school.code }} · {{ school.region?.name }}</span>
+              </div>
+              <div class="text-end">
+                <div class="fw-semibold">{{ formatNumber(school.counts?.students) }}</div>
+                <span class="text-muted fs-12">élèves</span>
+              </div>
+            </button>
+          } @empty {
+            <div class="text-center text-muted py-4">
+              @if (loading) {
+                Chargement de la carte...
+              } @else {
+                Aucune école géolocalisée dans ce filtre.
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Couverture GPS par région</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Région</th>
+                <th class="text-end">Écoles</th>
+                <th class="text-end">GPS</th>
+                <th class="text-end">Élèves</th>
+                <th class="text-end">Enseignants</th>
+                <th>Couverture</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (region of regionCoverage; track region.id) {
+                <tr>
+                  <td class="fw-semibold">{{ region.name }}</td>
+                  <td class="text-end">{{ formatNumber(region.schools) }}</td>
+                  <td class="text-end">{{ formatNumber(region.geolocated) }}</td>
+                  <td class="text-end">{{ formatNumber(region.students) }}</td>
+                  <td class="text-end">{{ formatNumber(region.teachers) }}</td>
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="progress flex-fill" style="height: 7px">
+                        <div
+                          class="progress-bar"
+                          role="progressbar"
+                          [style.width.%]="region.gpsRate"
+                          [attr.aria-valuenow]="region.gpsRate"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                        ></div>
+                      </div>
+                      <span class="fs-12 text-muted">{{ region.gpsRate }}%</span>
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-4">Aucune région à afficher.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">GPS manquant</h3>
+      </div>
+      <div class="card-body">
+        @for (school of missingGpsSchools.slice(0, 8); track school.id) {
+          <div class="missing-gps-row">
+            <div>
+              <div class="fw-semibold">{{ school.name }}</div>
+              <span class="text-muted fs-12">{{ school.region?.name }} · {{ school.prefecture || 'Préfecture N/A' }}</span>
+            </div>
+            <span class="badge bg-warning-transparent">À localiser</span>
+          </div>
+        } @empty {
+          <div class="text-center text-muted py-3">Toutes les écoles filtrées ont des coordonnées GPS.</div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

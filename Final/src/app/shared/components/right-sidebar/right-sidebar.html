@@ -1,0 +1,36 @@
+<div class="sidebar offcanvas-end" tabindex="-1" id="sidebar-canvas" aria-labelledby="offcanvasRightLabel">
+  <div class="offcanvas-header border-bottom bg-light">
+    <h6 class="offcanvas-title text-default" id="offcanvasRightLabel22">RACCOURCIS</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+    <div class="p-3 border-bottom">
+      <h6 class="fw-semibold mb-2">Recensement scolaire</h6>
+      <p class="text-muted fs-12 mb-0">Accès rapide aux registres et au suivi national.</p>
+    </div>
+
+    <div class="list-group list-group-flush">
+      @for (item of shortcuts; track item.title) {
+        <a class="list-group-item list-group-item-action d-flex align-items-center gap-3" [routerLink]="item.route">
+          <span class="avatar avatar-sm rounded-3 bg-primary-transparent text-primary">
+            <i [class]="item.icon"></i>
+          </span>
+          <span>
+            <span class="d-block fw-semibold">{{ item.title }}</span>
+            <span class="d-block text-muted fs-12">{{ item.description }}</span>
+          </span>
+        </a>
+      }
+    </div>
+
+    <div class="p-3">
+      <h6 class="fw-semibold mb-3">Suivi</h6>
+      @for (item of statusItems; track item.label) {
+        <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+          <span class="text-muted">{{ item.label }}</span>
+          <span class="badge" [ngClass]="item.badgeClass">{{ item.value }}</span>
+        </div>
+      }
+    </div>
+  </div>
+</div>

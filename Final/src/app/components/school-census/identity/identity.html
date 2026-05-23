@@ -1,0 +1,48 @@
+<div class="row justify-content-center">
+  <div class="col-xl-6">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Identification QR</h3>
+      </div>
+      <div class="card-body">
+        @if (loading) {
+          <div class="text-muted">Chargement...</div>
+        } @else if (error) {
+          <div class="alert alert-danger mb-0">{{ error }}</div>
+        } @else if (person) {
+          <div class="d-flex align-items-start gap-3">
+            <div class="avatar avatar-lg bg-primary-transparent text-primary">
+              <i class="ri-user-line fs-22"></i>
+            </div>
+            <div>
+              <span class="badge bg-primary-transparent mb-2">
+                {{ personType === 'STUDENT' ? 'Élève' : 'Enseignant' }}
+              </span>
+              <h4 class="mb-1">{{ person.fullName }}</h4>
+              <p class="text-muted mb-2">{{ person.uniqueCode }}</p>
+              <div class="identity-grid">
+                <span>École</span>
+                <strong>{{ person.school.name }}</strong>
+                @if (person.classRoom) {
+                  <span>Classe</span>
+                  <strong>{{ person.classRoom.name }}</strong>
+                }
+                @if (person.subject) {
+                  <span>Matière</span>
+                  <strong>{{ person.subject }}</strong>
+                }
+                @if (person.guardianName) {
+                  <span>Tuteur</span>
+                  <strong>{{ person.guardianName }}</strong>
+                }
+              </div>
+              <a class="btn btn-primary mt-4" [routerLink]="['/school-census/attendance']">
+                <i class="ri-checkbox-circle-line me-1"></i>Pointer la présence
+              </a>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

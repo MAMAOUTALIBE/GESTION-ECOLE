@@ -1,0 +1,248 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="imports-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Rapports & outils</p>
+        <h3 class="fw-semibold mb-1">Import & synchronisation</h3>
+        <p class="text-muted mb-0">
+          Préparation des fichiers de recensement avant validation et intégration backend.
+        </p>
+      </div>
+      <div class="imports-header-actions">
+        <a class="btn btn-outline-primary" routerLink="/school-census/reports">
+          <i class="ri-file-chart-line me-1"></i>Rapports
+        </a>
+        <button class="btn btn-primary" type="button" (click)="prepareImport()" [disabled]="!canPrepareImport || loading">
+          <i class="ri-check-double-line me-1"></i>Préparer l'import
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="import-stat">
+      <span class="import-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-file-list-3-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Lignes lues</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(stats.rows) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="import-stat">
+      <span class="import-stat-icon bg-success-transparent text-success">
+        <i class="ri-checkbox-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Valides</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(stats.valid) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="import-stat">
+      <span class="import-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-error-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">À vérifier</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(stats.warnings) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="import-stat">
+      <span class="import-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-close-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Erreurs</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(stats.errors) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Modèles d'import</h3>
+      </div>
+      <div class="card-body">
+        <div class="template-list">
+          @for (template of templates; track template.id) {
+            <button
+              class="template-item"
+              type="button"
+              [class.active]="selectedTemplateId === template.id"
+              (click)="selectedTemplateId = template.id; onTemplateChange()"
+            >
+              <span class="template-icon" [ngClass]="'bg-' + template.color + '-transparent text-' + template.color">
+                <i [class]="template.icon"></i>
+              </span>
+              <span class="template-content">
+                <span class="fw-semibold">{{ template.title }}</span>
+                <span class="text-muted fs-12">{{ template.description }}</span>
+              </span>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between gap-2">
+        <h3 class="card-title mb-0">Télécharger un modèle</h3>
+        <span class="badge bg-primary-transparent">{{ selectedTemplate.title }}</span>
+      </div>
+      <div class="card-body">
+        <div class="required-fields">
+          @for (header of selectedTemplate.requiredHeaders; track header) {
+            <span class="badge bg-light text-default">{{ header }}</span>
+          }
+        </div>
+        <button class="btn btn-outline-success w-100 mt-3" type="button" (click)="downloadTemplate(selectedTemplate)">
+          <i class="ri-download-2-line me-1"></i>Modèle CSV
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Contrôle du fichier</h3>
+          <span class="text-muted fs-12">{{ selectedFileName || 'Aucun fichier sélectionné' }}</span>
+        </div>
+        <label class="btn btn-primary mb-0">
+          <i class="ri-upload-cloud-2-line me-1"></i>Choisir CSV
+          <input class="d-none" type="file" accept=".csv,.txt" (change)="onFileSelected($event)" />
+        </label>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-3">
+          <div class="col-md-6">
+            <div class="header-check">
+              <span class="header-check-icon bg-success-transparent text-success">
+                <i class="ri-checkbox-circle-line"></i>
+              </span>
+              <div>
+                <p class="fw-semibold mb-1">Colonnes attendues</p>
+                <span class="text-muted fs-12">{{ selectedTemplate.headers.join(', ') }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="header-check">
+              <span class="header-check-icon" [ngClass]="missingHeaders.length ? 'bg-danger-transparent text-danger' : 'bg-info-transparent text-info'">
+                <i class="ri-list-check-3"></i>
+              </span>
+              <div>
+                <p class="fw-semibold mb-1">Contrôle d'en-tête</p>
+                @if (missingHeaders.length) {
+                  <span class="text-danger fs-12">Manquant : {{ missingHeaders.join(', ') }}</span>
+                } @else if (unknownHeaders.length) {
+                  <span class="text-warning fs-12">Colonnes à vérifier : {{ unknownHeaders.join(', ') }}</span>
+                } @else {
+                  <span class="text-muted fs-12">Structure compatible avec le modèle.</span>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th class="text-nowrap">Ligne</th>
+                @for (header of previewHeaders.slice(0, 5); track header) {
+                  <th>{{ header }}</th>
+                }
+                <th>Contrôle</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of previewRows; track row.rowNumber) {
+                <tr>
+                  <td class="fw-semibold">{{ row.rowNumber }}</td>
+                  @for (header of previewHeaders.slice(0, 5); track header) {
+                    <td>{{ row.values[header] || 'N/A' }}</td>
+                  }
+                  <td>
+                    <span class="badge" [ngClass]="statusClass(row.status)">
+                      {{ row.issues.length ? row.issues.join(' · ') : statusLabel(row.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Analyse du fichier...
+                    } @else {
+                      Sélectionnez un fichier CSV pour afficher l'aperçu.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Synchronisations référentielles</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Flux</th>
+                <th>Source</th>
+                <th class="text-end">Enregistrements</th>
+                <th>Dernière exécution</th>
+                <th>Statut</th>
+                <th class="text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of syncItems; track item.id) {
+                <tr>
+                  <td class="fw-semibold">{{ item.title }}</td>
+                  <td>{{ item.source }}</td>
+                  <td class="text-end">{{ formatNumber(item.records) }}</td>
+                  <td>{{ item.lastRun }}</td>
+                  <td>
+                    <span class="badge" [ngClass]="statusClass(item.status)">
+                      {{ statusLabel(item.status) }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary" type="button" (click)="runSync(item)" [disabled]="item.status === 'running'">
+                      <i class="ri-loop-left-line me-1"></i>Synchroniser
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

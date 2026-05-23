@@ -1,0 +1,67 @@
+# ============================================================================
+# GESTION-EE — .gitignore racine
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Editors / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Node / Angular
+node_modules/
+.angular/
+dist/
+.cache/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts
+*.egg-info/
+build/
+*.tgz
+
+# Environment files (SECRETS — never commit)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# OS / temp
+*.tmp
+*.bak
+.tmp/
+
+# Claude / agents
+.claude/local-state/

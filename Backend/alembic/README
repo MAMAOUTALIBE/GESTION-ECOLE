@@ -1,0 +1,15 @@
+Migrations Alembic — GESTION-EE Backend Python.
+
+Commandes utiles (depuis Backend/) :
+
+  uv run alembic upgrade head                       # appliquer toutes les migrations
+  uv run alembic downgrade -1                       # annuler la dernière migration
+  uv run alembic current                            # voir la révision active
+  uv run alembic history                            # historique
+  uv run alembic revision -m "<message>"            # créer une migration vide
+  uv run alembic revision --autogenerate -m "..."   # générer depuis Base.metadata
+
+Notes :
+  - alembic.ini lit DATABASE_URL_SYNC via app.core.config.settings
+  - alembic/env.py importe app.modules pour peupler Base.metadata
+  - Les enums Postgres sont nommés en CamelCase pour matcher la convention Prisma

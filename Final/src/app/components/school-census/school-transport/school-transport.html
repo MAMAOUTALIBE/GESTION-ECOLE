@@ -1,0 +1,270 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="transport-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Vie scolaire</p>
+        <h3 class="fw-semibold mb-1">Transport scolaire</h3>
+        <p class="text-muted mb-0">
+          Suivi des circuits, élèves transportés, capacités, incidents et risques de trajet.
+        </p>
+      </div>
+      <div class="transport-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/students">
+          <i class="ri-graduation-cap-line me-1"></i>Élèves
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-warning">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="transport-stat">
+      <span class="transport-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-route-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Circuits actifs</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.routes) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="transport-stat">
+      <span class="transport-stat-icon bg-success-transparent text-success">
+        <i class="ri-group-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Élèves transportés</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.students) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="transport-stat">
+      <span class="transport-stat-icon bg-info-transparent text-info">
+        <i class="ri-speed-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Occupation moyenne</p>
+        <h4 class="fw-semibold mb-0">{{ totals.occupancyRate }}%</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="transport-stat">
+      <span class="transport-stat-icon" [ngClass]="totals.highRisk ? 'bg-danger-transparent text-danger' : 'bg-warning-transparent text-warning'">
+        <i class="ri-alarm-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Risques élevés</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.highRisk) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Modes de transport</h3>
+      </div>
+      <div class="card-body">
+        <div class="transport-mode-list">
+          @for (mode of modeSummaries; track mode.id) {
+            <button
+              class="transport-mode-item"
+              type="button"
+              [class.active]="selectedMode === mode.id"
+              (click)="selectedMode = selectedMode === mode.id ? '' : mode.id"
+            >
+              <span class="transport-mode-icon" [ngClass]="toneClass(mode.color)">
+                <i [class]="mode.icon"></i>
+              </span>
+              <span class="transport-mode-content">
+                <span class="d-flex align-items-center justify-content-between gap-2">
+                  <span class="fw-semibold">{{ mode.title }}</span>
+                  <span class="badge" [ngClass]="toneClass(mode.color)">{{ formatNumber(mode.students) }}</span>
+                </span>
+                <span class="text-muted fs-12">{{ mode.description }}</span>
+                <span class="text-muted fs-12">
+                  {{ formatNumber(mode.routes) }} circuit(s) · {{ formatNumber(mode.incidents) }} incident(s)
+                </span>
+              </span>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Niveau de risque</h3>
+      </div>
+      <div class="card-body">
+        <div class="transport-risk-list">
+          @for (item of riskSummaries; track item.risk) {
+            <button
+              class="transport-risk-item"
+              type="button"
+              [class.active]="selectedRisk === item.risk"
+              (click)="selectedRisk = selectedRisk === item.risk ? '' : item.risk"
+            >
+              <span class="badge" [ngClass]="item.className">{{ item.label }}</span>
+              <span class="fw-semibold">{{ formatNumber(item.count) }}</span>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Registre des circuits</h3>
+          <span class="text-muted fs-12">
+            {{ filteredRoutes.length }} ligne(s) · {{ formatNumber(totals.distanceKm) }} km · {{ formatNumber(totals.incidents) }} incident(s)
+          </span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Circuit, quartier, chauffeur..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId" (change)="onRegionChange()">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Établissement</label>
+            <select class="form-select" [(ngModel)]="selectedSchoolId">
+              <option value="">Tous</option>
+              @for (school of filteredSchools; track school.id) {
+                <option [value]="school.id">{{ school.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Mode</label>
+            <select class="form-select" [(ngModel)]="selectedMode">
+              <option value="">Tous</option>
+              @for (mode of modes; track mode.id) {
+                <option [value]="mode.id">{{ mode.title }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6">
+            <label class="form-label">Risque</label>
+            <select class="form-select" [(ngModel)]="selectedRisk">
+              <option value="">Tous</option>
+              <option value="high">Élevé</option>
+              <option value="medium">Moyen</option>
+              <option value="low">Faible</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="active">Actif</option>
+              <option value="watch">Alerte</option>
+              <option value="suspended">Suspendu</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Circuit</th>
+                <th>Établissement</th>
+                <th>Mode</th>
+                <th class="text-end">Distance</th>
+                <th class="text-end">Élèves</th>
+                <th class="text-end">Occupation</th>
+                <th>Responsable</th>
+                <th class="text-end">Risque</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (route of filteredRoutes; track route.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ route.routeName }}</div>
+                    <span class="text-muted fs-12">{{ route.origin }} → {{ route.destination }}</span>
+                  </td>
+                  <td>
+                    <div>{{ route.schoolName }}</div>
+                    <span class="text-muted fs-12">{{ route.region }} · contrôle {{ route.lastCheck }}</span>
+                  </td>
+                  <td>{{ modeLabel(route.mode) }}</td>
+                  <td class="text-end">{{ route.distanceKm }} km</td>
+                  <td class="text-end">{{ formatNumber(route.students) }}/{{ formatNumber(route.capacity) }}</td>
+                  <td class="text-end">{{ route.occupancyRate }}%</td>
+                  <td>
+                    <div>{{ route.driver }}</div>
+                    <span class="text-muted fs-12">{{ route.vehicle }}</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="riskClass(route.risk)">
+                      {{ riskLabel(route.risk) }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(route.status)">
+                      {{ statusLabel(route.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="9" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement du transport scolaire...
+                    } @else {
+                      Aucun circuit ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

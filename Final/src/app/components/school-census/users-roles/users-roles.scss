@@ -1,0 +1,86 @@
+.security-page-header,
+.security-stat {
+  background: var(--custom-white);
+  border: 1px solid var(--default-border);
+  border-radius: 8px;
+  margin-block-end: 1.5rem;
+}
+
+.security-page-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.security-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.security-stat {
+  align-items: center;
+  display: flex;
+  gap: 0.875rem;
+  min-height: 108px;
+  padding: 1rem;
+}
+
+.security-stat-icon,
+.audit-icon,
+.permission-dot {
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.security-stat-icon {
+  flex: 0 0 42px;
+  height: 42px;
+  width: 42px;
+}
+
+.permissions-table th:not(:first-child),
+.permissions-table td:not(:first-child) {
+  min-width: 96px;
+}
+
+.permission-dot {
+  height: 28px;
+  width: 28px;
+}
+
+.audit-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.audit-item {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.875rem;
+}
+
+.audit-icon {
+  flex: 0 0 38px;
+  height: 38px;
+  width: 38px;
+}
+
+@media (max-width: 767.98px) {
+  .security-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .security-header-actions {
+    width: 100%;
+  }
+
+  .security-header-actions .btn {
+    flex: 1 1 150px;
+  }
+}

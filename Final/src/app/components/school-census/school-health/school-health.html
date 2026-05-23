@@ -1,0 +1,223 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="health-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Vie scolaire</p>
+        <h3 class="fw-semibold mb-1">Santé scolaire</h3>
+        <p class="text-muted mb-0">
+          Suivi des infirmeries, dépistages, vaccinations, incidents et cas nécessitant un accompagnement.
+        </p>
+      </div>
+      <div class="health-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/attendance-monitoring">
+          <i class="ri-calendar-check-line me-1"></i>Présences
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="health-stat">
+      <span class="health-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-school-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Écoles</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.schools) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="health-stat">
+      <span class="health-stat-icon bg-info-transparent text-info">
+        <i class="ri-stethoscope-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Dépistage</p>
+        <h4 class="fw-semibold mb-0">{{ totals.screeningRate }}%</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="health-stat">
+      <span class="health-stat-icon bg-success-transparent text-success">
+        <i class="ri-syringe-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Vaccination</p>
+        <h4 class="fw-semibold mb-0">{{ totals.vaccinationRate }}%</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="health-stat">
+      <span class="health-stat-icon bg-secondary-transparent text-secondary">
+        <i class="ri-hospital-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Infirmeries</p>
+        <h4 class="fw-semibold mb-0">{{ totals.infirmaryCoverage }}%</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="health-stat">
+      <span class="health-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-heart-pulse-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Cas suivis</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.chronicCases) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="health-stat">
+      <span class="health-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-alarm-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Critiques</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.critical) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Registre santé des établissements</h3>
+          <span class="text-muted fs-12">{{ filteredRows.length }} établissement(s) affiché(s)</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="École, code, préfecture..." />
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes les régions</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="good">Conformes</option>
+              <option value="watch">À surveiller</option>
+              <option value="critical">Critiques</option>
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Service</label>
+            <select class="form-select" [(ngModel)]="selectedService">
+              <option value="">Tous</option>
+              <option value="infirmary">Avec infirmerie</option>
+              <option value="missing-infirmary">Sans infirmerie</option>
+              <option value="first-aid">Avec trousse</option>
+              <option value="missing-first-aid">Sans trousse</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-12 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Établissement</th>
+                <th>Territoire</th>
+                <th class="text-end">Dépistés</th>
+                <th class="text-end">Vaccinés</th>
+                <th class="text-end">Cas / incidents</th>
+                <th class="text-end">Services</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredRows; track row.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.schoolName }}</div>
+                    <span class="text-muted fs-12">{{ row.code }}</span>
+                  </td>
+                  <td>
+                    <div>{{ row.region }}</div>
+                    <span class="text-muted fs-12">{{ row.prefecture }} · {{ row.commune }}</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="fw-semibold">{{ formatNumber(row.screened) }}</span>
+                    <span class="text-muted fs-12 d-block">{{ rowRate(row.screened, row.studentsMonitored) }}%</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="fw-semibold">{{ formatNumber(row.vaccinated) }}</span>
+                    <span class="text-muted fs-12 d-block">{{ rowRate(row.vaccinated, row.studentsMonitored) }}%</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="fw-semibold">{{ formatNumber(row.chronicCases) }}</span>
+                    <span class="text-muted fs-12 d-block">{{ formatNumber(row.incidents) }} incident(s)</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="service-pill" [ngClass]="row.infirmary ? 'bg-success-transparent text-success' : 'bg-danger-transparent text-danger'">
+                      <i class="ri-hospital-line"></i>
+                    </span>
+                    <span class="service-pill ms-1" [ngClass]="row.firstAidKits ? 'bg-success-transparent text-success' : 'bg-warning-transparent text-warning'">
+                      {{ row.firstAidKits }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(row.status)">
+                      {{ statusLabel(row.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement du registre santé...
+                    } @else {
+                      Aucun établissement ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

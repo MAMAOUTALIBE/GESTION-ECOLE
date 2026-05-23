@@ -1,0 +1,202 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="admin-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Administration scolaire</p>
+        <h3 class="fw-semibold mb-1">Années scolaires et périodes</h3>
+        <p class="text-muted mb-0">
+          Configurez les exercices académiques, trimestres ou semestres utilisés par les notes et bulletins.
+        </p>
+      </div>
+      <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+        <i class="ri-refresh-line me-1"></i>Actualiser
+      </button>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xl-3 col-md-6">
+    <div class="admin-stat">
+      <span class="admin-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-calendar-2-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Années</p>
+        <h4 class="fw-semibold mb-0">{{ totals.years }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="admin-stat">
+      <span class="admin-stat-icon bg-success-transparent text-success">
+        <i class="ri-checkbox-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Active</p>
+        <h4 class="fw-semibold mb-0">{{ totals.active }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="admin-stat">
+      <span class="admin-stat-icon bg-info-transparent text-info">
+        <i class="ri-stack-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Périodes</p>
+        <h4 class="fw-semibold mb-0">{{ totals.periods }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="admin-stat">
+      <span class="admin-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-filter-3-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Affichées</p>
+        <h4 class="fw-semibold mb-0">{{ totals.visible }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Nouvelle année scolaire</h3>
+      </div>
+      <div class="card-body">
+        @if (!canManageSchoolYears) {
+          <div class="alert alert-warning py-2">
+            Votre rôle ne permet pas de créer une année scolaire.
+          </div>
+        }
+        <form [formGroup]="form" (ngSubmit)="createSchoolYear()">
+          <div class="row gy-3">
+            <div class="col-12">
+              <label class="form-label">Libellé</label>
+              <input class="form-control" formControlName="name" placeholder="2026-2027" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Date début</label>
+              <input type="date" class="form-control" formControlName="startDate" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Date fin</label>
+              <input type="date" class="form-control" formControlName="endDate" />
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Découpage</label>
+              <select class="form-select" formControlName="periodType">
+                @for (type of periodTypes; track type.value) {
+                  <option [value]="type.value">{{ type.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" formControlName="isActive" id="schoolYearActive" />
+                <label class="form-check-label" for="schoolYearActive">Active</label>
+              </div>
+            </div>
+            <div class="col-12 d-grid">
+              <button class="btn btn-primary" type="submit" [disabled]="form.invalid || saving || !canManageSchoolYears">
+                @if (saving) {
+                  Enregistrement...
+                } @else {
+                  Créer l’année
+                }
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <h3 class="card-title mb-0">Référentiel des années</h3>
+        <span class="badge bg-primary-transparent">{{ filteredSchoolYears.length }} ligne(s)</span>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-md-10">
+            <label class="form-label">Recherche</label>
+            <input
+              class="form-control"
+              [(ngModel)]="searchTerm"
+              placeholder="Année, période, trimestre, semestre..."
+            />
+          </div>
+          <div class="col-md-2 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetSearch()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Année scolaire</th>
+                <th>Dates</th>
+                <th>Découpage</th>
+                <th>Périodes</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (schoolYear of filteredSchoolYears; track schoolYear.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ schoolYear.name }}</div>
+                    <span class="text-muted fs-12">{{ schoolYear.id }}</span>
+                  </td>
+                  <td>
+                    <div>{{ formatDate(schoolYear.startDate) }}</div>
+                    <span class="text-muted fs-12">au {{ formatDate(schoolYear.endDate) }}</span>
+                  </td>
+                  <td>{{ periodTypeLabel(schoolYear.periodType) }}</td>
+                  <td>
+                    <div class="period-chip-list">
+                      @for (period of schoolYear.periods; track period.id) {
+                        <span class="badge bg-light text-default">{{ period.name }}</span>
+                      }
+                    </div>
+                  </td>
+                  <td class="text-end">
+                    <span
+                      class="badge"
+                      [ngClass]="schoolYear.isActive ? 'bg-success-transparent text-success' : 'bg-secondary-transparent'"
+                    >
+                      {{ schoolYear.isActive ? 'Active' : 'Archivée' }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des années scolaires...
+                    } @else {
+                      Aucune année scolaire trouvée.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

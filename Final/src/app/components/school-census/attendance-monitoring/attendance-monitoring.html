@@ -1,0 +1,316 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="attendance-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Vie scolaire</p>
+        <h3 class="fw-semibold mb-1">Suivi des présences du jour</h3>
+        <p class="text-muted mb-0">
+          Pilotage des présents, retards et absences issus des pointages QR.
+        </p>
+      </div>
+      <div class="attendance-header-actions">
+        <a class="btn btn-primary" routerLink="/school-census/attendance">
+          <i class="ri-qr-scan-2-line me-1"></i>Scanner
+        </a>
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
+  }
+
+  <!-- Tendance 7 jours + Top / Flop écoles (Phase 8 analytics) -->
+  <div class="col-xl-7">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Tendance présence — 7 jours</h3>
+          <span class="text-muted fs-12">
+            Taux national : <strong>{{ nationalRate7d }}%</strong>
+            @if (trendDirection === 'up') {
+              · <span class="text-success fw-semibold"><i class="ri-arrow-up-line"></i> en hausse</span>
+            } @else if (trendDirection === 'down') {
+              · <span class="text-danger fw-semibold"><i class="ri-arrow-down-line"></i> en baisse</span>
+            } @else {
+              · <span class="text-muted">stable</span>
+            }
+          </span>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Jour</th>
+                <th class="text-end">Présents</th>
+                <th class="text-end">Retards</th>
+                <th class="text-end">Absents</th>
+                <th class="text-end">Total</th>
+                <th class="text-end">Taux</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (point of trendPoints; track point.day) {
+                <tr>
+                  <td class="fw-semibold">{{ point.day }}</td>
+                  <td class="text-end text-success">{{ formatNumber(point.present) }}</td>
+                  <td class="text-end text-warning">{{ formatNumber(point.late) }}</td>
+                  <td class="text-end text-danger">{{ formatNumber(point.absent) }}</td>
+                  <td class="text-end">{{ formatNumber(point.total) }}</td>
+                  <td class="text-end fw-semibold"
+                      [ngClass]="point.presenceRate >= 80 ? 'text-success' : point.presenceRate >= 65 ? 'text-warning' : 'text-danger'">
+                    {{ point.presenceRate }}%
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-4">
+                    @if (trendsLoading) { Chargement de la tendance… } @else { Pas de tendance disponible. }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-5">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">⚠ Écoles en alerte — taux le plus bas</h3>
+        <span class="text-muted fs-12">7 derniers jours · ministère doit prioriser</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>École</th>
+                <th class="text-end">Élèves</th>
+                <th class="text-end">Taux</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of bottomSchools; track s.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ s.name }}</div>
+                    <span class="text-muted fs-12">{{ s.code }} · {{ s.regionName }}</span>
+                  </td>
+                  <td class="text-end">{{ formatNumber(s.students) }}</td>
+                  <td class="text-end fw-semibold text-danger">{{ s.presenceRateLast7Days }}%</td>
+                </tr>
+              } @empty {
+                <tr><td colspan="3" class="text-center text-muted py-3">Aucune école en alerte.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">🏆 Meilleurs taux de présence</h3>
+        <span class="text-muted fs-12">Modèles à valoriser</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>École</th>
+                <th class="text-end">Élèves</th>
+                <th class="text-end">Taux</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of topSchools; track s.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ s.name }}</div>
+                    <span class="text-muted fs-12">{{ s.code }} · {{ s.regionName }}</span>
+                  </td>
+                  <td class="text-end">{{ formatNumber(s.students) }}</td>
+                  <td class="text-end fw-semibold text-success">{{ s.presenceRateLast7Days }}%</td>
+                </tr>
+              } @empty {
+                <tr><td colspan="3" class="text-center text-muted py-3">Pas de classement disponible.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="attendance-stat">
+      <span class="attendance-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-list-check-3"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Pointages</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.records) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="attendance-stat">
+      <span class="attendance-stat-icon bg-success-transparent text-success">
+        <i class="ri-checkbox-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Présents</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.present) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="attendance-stat">
+      <span class="attendance-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-time-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Retards</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.late) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="attendance-stat">
+      <span class="attendance-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-close-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Absences</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.absent) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="attendance-stat">
+      <span class="attendance-stat-icon bg-info-transparent text-info">
+        <i class="ri-graduation-cap-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Élèves</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.students) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="attendance-stat">
+      <span class="attendance-stat-icon bg-secondary-transparent text-secondary">
+        <i class="ri-briefcase-4-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Personnel</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.teachers) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <h3 class="card-title mb-0">Registre de pointage</h3>
+        <span class="badge bg-primary-transparent">{{ filteredRecords.length }} ligne(s)</span>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Nom, matricule, classe, école..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              @for (status of statuses; track status.value) {
+                <option [value]="status.value">{{ status.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Type</label>
+            <select class="form-select" [(ngModel)]="selectedPersonType">
+              <option value="">Tous</option>
+              @for (type of personTypes; track type.value) {
+                <option [value]="type.value">{{ type.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">École</label>
+            <select class="form-select" [(ngModel)]="selectedSchool">
+              <option value="">Toutes les écoles</option>
+              @for (school of schools; track school) {
+                <option [value]="school">{{ school }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-12 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Heure</th>
+                <th>Personne</th>
+                <th>Type</th>
+                <th>Établissement</th>
+                <th>Classe</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (record of filteredRecords; track record.id) {
+                <tr>
+                  <td>{{ record.scannedAt | date: 'HH:mm' }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ record.person?.fullName || 'Personne supprimée' }}</div>
+                    <span class="text-muted fs-12">{{ record.person?.uniqueCode || 'Code N/A' }}</span>
+                  </td>
+                  <td>{{ personTypeLabel(record.personType) }}</td>
+                  <td>{{ record.person?.school?.name || 'École N/A' }}</td>
+                  <td>{{ record.person?.classRoom?.name || 'N/A' }}</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(record.status)">
+                      {{ statusLabel(record.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement du registre...
+                    } @else {
+                      Aucun pointage ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

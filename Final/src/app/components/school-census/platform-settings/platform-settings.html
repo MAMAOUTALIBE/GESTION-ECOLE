@@ -1,0 +1,228 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="settings-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Gouvernance</p>
+        <h3 class="fw-semibold mb-1">Paramètres plateforme</h3>
+        <p class="text-muted mb-0">
+          Seuils nationaux, règles de validation et canaux d'alerte de GESTION-EE.
+        </p>
+      </div>
+      <div class="settings-header-actions">
+        <button class="btn btn-outline-secondary" type="button" (click)="resetDefaults()">
+          <i class="ri-restart-line me-1"></i>Défauts
+        </button>
+        <button class="btn btn-primary" type="button" (click)="saveSettings()" [disabled]="saving">
+          <i class="ri-save-3-line me-1"></i>
+          @if (saving) {
+            Enregistrement...
+          } @else {
+            Enregistrer
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="settings-stat">
+      <span class="settings-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-equalizer-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Seuils</p>
+        <h4 class="fw-semibold mb-0">{{ totals.thresholds }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="settings-stat">
+      <span class="settings-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-route-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Circuits</p>
+        <h4 class="fw-semibold mb-0">{{ totals.workflows }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="settings-stat">
+      <span class="settings-stat-icon bg-success-transparent text-success">
+        <i class="ri-notification-3-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Canaux actifs</p>
+        <h4 class="fw-semibold mb-0">{{ totals.channels }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="settings-stat">
+      <span class="settings-stat-icon bg-info-transparent text-info">
+        <i class="ri-time-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Dernière sauvegarde</p>
+        <h6 class="fw-semibold mb-0">{{ formatSavedAt() }}</h6>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Domaines de paramétrage</h3>
+      </div>
+      <div class="card-body">
+        <div class="settings-category-list">
+          @for (category of categories; track category.id) {
+            <button
+              class="settings-category"
+              type="button"
+              [class.active]="selectedCategory === category.id"
+              (click)="selectedCategory = category.id"
+            >
+              <span class="settings-category-icon" [ngClass]="'bg-' + category.color + '-transparent text-' + category.color">
+                <i [class]="category.icon"></i>
+              </span>
+              <span>
+                <span class="fw-semibold d-block">{{ category.title }}</span>
+                <span class="text-muted fs-12">{{ category.description }}</span>
+              </span>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Contexte</h3>
+      </div>
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3">
+          <span class="settings-stat-icon bg-primary-transparent text-primary">
+            <i class="ri-user-star-line"></i>
+          </span>
+          <div>
+            <p class="text-muted mb-1">Modifié par</p>
+            <h6 class="fw-semibold mb-0">{{ currentUserName }}</h6>
+          </div>
+        </div>
+        <div class="alert alert-info mt-3 mb-0">
+          <div class="fw-semibold">Mode préparation</div>
+          <div class="fs-12">Les valeurs sont prêtes côté interface et pourront être branchées au backend de configuration.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">{{ selectedCategoryDefinition.title }}</h3>
+          <span class="text-muted fs-12">{{ selectedCategoryDefinition.description }}</span>
+        </div>
+        <span class="badge bg-primary-transparent">{{ totals.modified }} modifié(s)</span>
+      </div>
+      <div class="card-body">
+        <div class="settings-threshold-list">
+          @for (setting of visibleThresholds; track setting.id) {
+            <div class="threshold-row">
+              <div class="threshold-copy">
+                <div class="fw-semibold">{{ setting.label }}</div>
+                <p class="text-muted fs-12 mb-0">{{ setting.description }}</p>
+              </div>
+              <div class="threshold-control">
+                <div class="input-group input-group-sm">
+                  <input
+                    class="form-control text-end"
+                    type="number"
+                    [(ngModel)]="setting.value"
+                    [min]="setting.min"
+                    [max]="setting.max"
+                  />
+                  @if (setting.unit) {
+                    <span class="input-group-text">{{ setting.unit }}</span>
+                  }
+                </div>
+                <div class="progress mt-2" style="height: 6px">
+                  <div class="progress-bar" role="progressbar" [style.width.%]="settingProgress(setting)"></div>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Circuits de validation</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Entité</th>
+                <th>Demandeur</th>
+                <th>Validateur</th>
+                <th class="text-end">SLA</th>
+                <th class="text-end">Auto</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (step of workflowSteps; track step.id) {
+                <tr>
+                  <td class="fw-semibold">{{ step.entity }}</td>
+                  <td>{{ step.requester }}</td>
+                  <td>{{ step.reviewer }}</td>
+                  <td class="text-end">
+                    <div class="input-group input-group-sm workflow-sla">
+                      <input class="form-control text-end" type="number" min="1" max="168" [(ngModel)]="step.slaHours" />
+                      <span class="input-group-text">h</span>
+                    </div>
+                  </td>
+                  <td class="text-end">
+                    <input class="form-check-input" type="checkbox" [(ngModel)]="step.autoApprove" />
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Canaux d'alerte</h3>
+      </div>
+      <div class="card-body">
+        <div class="channel-list">
+          @for (channel of channels; track channel.id) {
+            <button class="channel-item" type="button" (click)="toggleChannel(channel)">
+              <span class="channel-icon" [ngClass]="channelClass(channel)">
+                <i [class]="channel.icon"></i>
+              </span>
+              <span class="channel-copy">
+                <span class="fw-semibold">{{ channel.label }}</span>
+                <span class="text-muted fs-12">{{ channel.description }}</span>
+              </span>
+              <span class="badge" [ngClass]="channel.enabled ? 'bg-success-transparent text-success' : 'bg-light text-muted'">
+                {{ channel.enabled ? 'Actif' : 'Off' }}
+              </span>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

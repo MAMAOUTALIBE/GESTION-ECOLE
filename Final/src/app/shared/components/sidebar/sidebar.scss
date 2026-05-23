@@ -1,0 +1,30 @@
+:host ::ng-deep .app-sidebar .slide-menu .side-menu__item::before {
+  content: none !important;
+  display: none !important;
+}
+
+:host ::ng-deep .app-sidebar .slide-menu .side-menu__item {
+  align-items: center;
+  display: flex;
+  gap: 0.625rem;
+}
+
+.submenu-icon {
+  align-items: center;
+  color: inherit;
+  display: inline-flex;
+  flex: 0 0 1.125rem;
+  height: 1.125rem;
+  justify-content: center;
+  width: 1.125rem;
+}
+
+:host ::ng-deep .submenu-icon .side-menu__icon,
+:host ::ng-deep .submenu-icon i,
+:host ::ng-deep .submenu-icon svg {
+  font-size: 1rem;
+  height: 1rem;
+  margin: 0;
+  min-width: 1rem;
+  width: 1rem;
+}

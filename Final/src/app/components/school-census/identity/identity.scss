@@ -1,0 +1,9 @@
+.identity-grid {
+  display: grid;
+  grid-template-columns: minmax(90px, max-content) 1fr;
+  gap: 0.5rem 1rem;
+}
+
+.identity-grid span {
+  color: var(--text-muted);
+}

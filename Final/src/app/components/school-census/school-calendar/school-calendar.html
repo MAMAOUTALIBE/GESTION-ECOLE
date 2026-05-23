@@ -1,0 +1,210 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="calendar-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Administration scolaire</p>
+        <h3 class="fw-semibold mb-1">Calendrier scolaire</h3>
+        <p class="text-muted mb-0">
+          Pilotage des échéances académiques, examens, vacances, inspections et validations.
+        </p>
+      </div>
+      <div class="calendar-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="exportRows('print')">
+          <i class="ri-printer-line me-1"></i>Imprimer
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/school-years">
+          <i class="ri-calendar-2-line me-1"></i>Années
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="calendar-stat">
+      <span class="calendar-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-calendar-event-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Événements</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.events) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="calendar-stat">
+      <span class="calendar-stat-icon bg-info-transparent text-info">
+        <i class="ri-calendar-check-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Planifiés</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.planned) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="calendar-stat">
+      <span class="calendar-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-play-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">En cours</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.active) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="calendar-stat">
+      <span class="calendar-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-award-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Examens</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.exams) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="calendar-stat">
+      <span class="calendar-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-alarm-warning-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Retards</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.delayed) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="calendar-stat">
+      <span class="calendar-stat-icon bg-danger-transparent text-danger">
+        <i class="ri-flag-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Priorité haute</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.highPriority) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Planning officiel</h3>
+          <span class="text-muted fs-12">{{ filteredItems.length }} événement(s) affiché(s)</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-5 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Événement, responsable, périmètre..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Type</label>
+            <select class="form-select" [(ngModel)]="selectedType">
+              <option value="">Tous</option>
+              @for (type of types; track type.value) {
+                <option [value]="type.value">{{ type.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="planned">Planifié</option>
+              <option value="active">En cours</option>
+              <option value="completed">Terminé</option>
+              <option value="delayed">En retard</option>
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Priorité</label>
+            <select class="form-select" [(ngModel)]="selectedPriority">
+              <option value="">Toutes</option>
+              <option value="high">Élevée</option>
+              <option value="medium">Moyenne</option>
+              <option value="low">Faible</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-12 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Événement</th>
+                <th>Type</th>
+                <th>Période</th>
+                <th>Responsable</th>
+                <th class="text-end">Avancement</th>
+                <th class="text-end">Priorité</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of filteredItems; track item.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ item.title }}</div>
+                    <span class="text-muted fs-12">{{ item.scope }}</span>
+                  </td>
+                  <td>
+                    <span class="badge" [ngClass]="typeClass(item.type)">
+                      {{ typeLabel(item.type) }}
+                    </span>
+                  </td>
+                  <td>
+                    <div>{{ item.startDate | date: 'dd/MM/yyyy' }}</div>
+                    <span class="text-muted fs-12">{{ item.endDate | date: 'dd/MM/yyyy' }}</span>
+                  </td>
+                  <td>{{ item.owner }}</td>
+                  <td class="text-end">
+                    <span class="fw-semibold">{{ item.progress }}%</span>
+                    <div class="progress mt-1 ms-auto calendar-progress">
+                      <div class="progress-bar" role="progressbar" [style.width.%]="item.progress"></div>
+                    </div>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="priorityClass(item.priority)">
+                      {{ priorityLabel(item.priority) }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(item.status)">
+                      {{ statusLabel(item.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">
+                    Aucun événement ne correspond aux filtres.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,20 @@
+<div class="col-8">
+    <div class="ps-4 pt-4 pe-3 pb-4">
+        <div class="">
+            <h6 class="mb-2 fs-12">{{title()}}</h6>
+        </div>
+        <div class="pb-0 mt-0">
+            <div class="d-flex">
+                <h4 class="fs-20 fw-semibold mb-2">{{value()}}</h4>
+            </div>
+            <p class="mb-0 fs-12 text-muted">{{status()}}<i class="bx bx-caret-{{direction()}} mx-2 text-{{textcolor()}}"></i>
+                <span class="text-{{textcolor()}} fw-semibold"> {{sales()}}</span>
+            </p>
+        </div>
+    </div>
+</div>
+<div class="col-4">
+    <div class="circle-icon bg-{{Bgcolor()}}-transparent text-center align-self-center overflow-hidden">
+        <i class="fe fe-{{icon()}} fs-16 text-{{iconBg()}}"></i>
+    </div>
+</div>

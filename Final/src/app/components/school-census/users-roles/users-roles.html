@@ -1,0 +1,226 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="security-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Gouvernance</p>
+        <h3 class="fw-semibold mb-1">Utilisateurs & rôles</h3>
+        <p class="text-muted mb-0">
+          Lecture des accès, périmètres territoriaux et permissions de la plateforme.
+        </p>
+      </div>
+      <div class="security-header-actions">
+        <a class="btn btn-outline-primary" routerLink="/school-census/validations">
+          <i class="ri-check-double-line me-1"></i>Validations
+        </a>
+        <a class="btn btn-primary" routerLink="/school-census/notifications">
+          <i class="ri-notification-3-line me-1"></i>Notifications
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="security-stat">
+      <span class="security-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-user-settings-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Comptes visibles</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.users) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="security-stat">
+      <span class="security-stat-icon bg-success-transparent text-success">
+        <i class="ri-checkbox-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Actifs</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.active) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="security-stat">
+      <span class="security-stat-icon bg-info-transparent text-info">
+        <i class="ri-shield-user-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Rôles</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.roles) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="security-stat">
+      <span class="security-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-map-pin-range-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Périmètres</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.scopes) }}</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <h3 class="card-title mb-0">Annuaire des accès</h3>
+        @if (currentUser) {
+          <span class="badge bg-primary-transparent">Session : {{ currentUser.fullName }}</span>
+        }
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Nom, email, rôle, périmètre..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Périmètre</label>
+            <select class="form-select" [(ngModel)]="selectedScope">
+              <option value="">Tous</option>
+              @for (scope of scopes; track scope.value) {
+                <option [value]="scope.value">{{ scope.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Rôle</label>
+            <select class="form-select" [(ngModel)]="selectedRole">
+              <option value="">Tous les rôles</option>
+              @for (role of roles; track role.role) {
+                <option [value]="role.role">{{ role.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="active">Actifs</option>
+              <option value="inactive">Inactifs</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-12 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Utilisateur</th>
+                <th>Rôle</th>
+                <th>Périmètre</th>
+                <th>Dernière connexion</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (user of directoryRows; track user.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ user.fullName }}</div>
+                    <span class="text-muted fs-12">{{ user.email }}</span>
+                  </td>
+                  <td>
+                    <span class="badge" [ngClass]="roleBadgeClass(user.role)">
+                      {{ roleLabel(user.role) }}
+                    </span>
+                  </td>
+                  <td>{{ user.scopeLabel }}</td>
+                  <td>{{ user.lastLogin }}</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="user.active ? 'bg-success-transparent text-success' : 'bg-danger-transparent text-danger'">
+                      {{ user.active ? 'Actif' : 'Inactif' }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">Aucun utilisateur ne correspond aux filtres.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Matrice des permissions</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive permissions-table">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Permission</th>
+                @for (role of roles; track role.role) {
+                  <th class="text-center">{{ role.role }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (permission of permissions; track permission.key) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ permission.label }}</div>
+                    <span class="text-muted fs-12">{{ permission.description }}</span>
+                  </td>
+                  @for (role of roles; track role.role) {
+                    <td class="text-center">
+                      @if (hasPermission(role.role, permission)) {
+                        <span class="permission-dot bg-success-transparent text-success">
+                          <i class="ri-check-line"></i>
+                        </span>
+                      } @else {
+                        <span class="permission-dot bg-light text-muted">
+                          <i class="ri-subtract-line"></i>
+                        </span>
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Journal d'audit</h3>
+      </div>
+      <div class="card-body">
+        <div class="audit-list">
+          @for (event of auditEvents; track event.id) {
+            <div class="audit-item">
+              <span class="audit-icon" [ngClass]="statusClass(event.status)">
+                <i class="ri-history-line"></i>
+              </span>
+              <div>
+                <div class="fw-semibold">{{ event.action }}</div>
+                <p class="text-muted fs-12 mb-1">{{ event.actor }} · {{ event.target }}</p>
+                <span class="text-muted fs-12">{{ event.date }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

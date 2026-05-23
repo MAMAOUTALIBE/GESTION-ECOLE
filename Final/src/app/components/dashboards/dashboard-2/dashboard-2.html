@@ -1,0 +1,204 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="academic-dashboard-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Dashboard 2 · Suivi académique</p>
+        <h3 class="fw-semibold mb-1">Moyennes, examens et validation pédagogique</h3>
+        <p class="text-muted mb-0">
+          Mock initial aligné sur les modules Academics pour préparer le branchement API.
+        </p>
+      </div>
+      <div class="academic-header-actions">
+        <a class="btn btn-primary" routerLink="/school-census/grades">
+          <i class="ri-edit-2-line me-1"></i>Notes
+        </a>
+        <a class="btn btn-outline-primary" routerLink="/school-census/report-cards">
+          <i class="ri-file-list-3-line me-1"></i>Bulletins
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @for (kpi of kpis; track kpi.label) {
+    <div class="col-xxl-3 col-xl-6 col-md-6">
+      <div class="academic-kpi">
+        <span class="academic-kpi-icon" [ngClass]="'bg-' + kpi.color + '-transparent text-' + kpi.color">
+          <i [class]="kpi.icon"></i>
+        </span>
+        <div class="flex-fill">
+          <p class="text-muted mb-1">{{ kpi.label }}</p>
+          <div class="d-flex align-items-end justify-content-between gap-2">
+            <h4 class="fw-semibold mb-0">{{ kpi.value }}</h4>
+            <span class="badge bg-success-transparent text-success">{{ kpi.trend }}</span>
+          </div>
+          <span class="fs-12 text-muted">{{ kpi.detail }}</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  <div class="col-xl-8">
+    <div class="card custom-card overflow-hidden">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Évolution des moyennes</h3>
+          <span class="text-muted fs-12">Moyennes observées comparées aux objectifs pédagogiques</span>
+        </div>
+        <span class="badge bg-primary-transparent">Année scolaire 2025-2026</span>
+      </div>
+      <div class="card-body">
+        <spk-apexcharts id="academic-average-trend" [chartOptions]="averageTrendChart" />
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Validation académique</h3>
+      </div>
+      <div class="card-body">
+        <spk-apexcharts id="academic-validation-chart" [chartOptions]="validationChart" />
+        <div class="validation-list">
+          @for (item of validationSummary; track item.status) {
+            <div class="validation-row">
+              <span class="badge" [ngClass]="statusClass(item.status)">{{ item.label }}</span>
+              <span class="fw-semibold">{{ item.value }}%</span>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6">
+    <div class="card custom-card overflow-hidden">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Examens par type</h3>
+      </div>
+      <div class="card-body">
+        <spk-apexcharts id="academic-exam-volume" [chartOptions]="examVolumeChart" />
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6">
+    <div class="card custom-card overflow-hidden">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Performance par matière</h3>
+          <span class="text-muted fs-12">Radar des moyennes consolidées</span>
+        </div>
+        <span class="badge bg-secondary-transparent">5 matières</span>
+      </div>
+      <div class="card-body">
+        <spk-apexcharts id="academic-subject-radar" [chartOptions]="subjectRadarChart" />
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Participation aux évaluations</h3>
+      </div>
+      <div class="card-body">
+        <div class="d-flex align-items-start justify-content-between gap-3 mb-2">
+          <div>
+            <p class="text-muted mb-1">Dernier mois</p>
+            <h3 class="fw-semibold mb-0">95%</h3>
+          </div>
+          <span class="badge bg-success-transparent text-success">+4%</span>
+        </div>
+        <spk-apexcharts id="academic-participation" [chartOptions]="participationChart" />
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Examens à venir</h3>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Évaluation</th>
+                <th>Matière</th>
+                <th>Classe</th>
+                <th>Date</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (exam of upcomingAssessments; track exam.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ exam.title }}</div>
+                    <span class="text-muted fs-12">{{ formatType(exam.type) }}</span>
+                  </td>
+                  <td>{{ exam.subject }}</td>
+                  <td>{{ exam.className }}</td>
+                  <td>{{ exam.date | date: 'dd MMM yyyy' }}</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(exam.status)">
+                      {{ statusLabel(exam.status) }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Matières à suivre</h3>
+      </div>
+      <div class="card-body">
+        @for (subject of subjectPerformance; track subject.subject) {
+          <div class="subject-row">
+            <div>
+              <div class="fw-semibold">{{ subject.subject }}</div>
+              <span class="text-muted fs-12">{{ formatNumber(subject.exams) }} évaluations saisies</span>
+            </div>
+            <div class="text-end">
+              <div class="fw-semibold">{{ subject.average }} / 20</div>
+              <span class="badge" [ngClass]="subjectStatusClass(subject.status)">{{ subject.status }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Classes à risque</h3>
+      </div>
+      <div class="card-body">
+        @for (risk of riskClasses; track risk.className) {
+          <div class="risk-row">
+            <div>
+              <div class="fw-semibold">{{ risk.className }}</div>
+              <span class="text-muted fs-12">{{ risk.school }} · {{ risk.missingGrades }} notes manquantes</span>
+            </div>
+            <div class="text-end">
+              <div class="fw-semibold">{{ risk.average }} / 20</div>
+              <span [ngClass]="risk.trend >= 0 ? 'text-success' : 'text-danger'">
+                {{ risk.trend >= 0 ? '+' : '' }}{{ risk.trend }} pt
+              </span>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

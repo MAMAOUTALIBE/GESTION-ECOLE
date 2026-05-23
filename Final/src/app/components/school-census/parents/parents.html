@@ -1,0 +1,217 @@
+<div class="row">
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">{{ editingId ? 'Modifier parent' : 'Nouveau parent' }}</h3>
+        @if (editingId) {
+          <button class="btn btn-sm btn-outline-secondary" type="button" (click)="resetForm()">Annuler</button>
+        }
+      </div>
+      <div class="card-body">
+        @if (error) {
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="saveParent()">
+          <div class="row gy-3">
+            <div class="col-md-6">
+              <label class="form-label">Prénom</label>
+              <input class="form-control" formControlName="firstName" [readonly]="!canManageParents" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Nom</label>
+              <input class="form-control" formControlName="lastName" [readonly]="!canManageParents" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Téléphone</label>
+              <input class="form-control" formControlName="phone" [readonly]="!canManageParents" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" formControlName="email" [readonly]="!canManageParents" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Profession</label>
+              <input class="form-control" formControlName="profession" [readonly]="!canManageParents" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Langue</label>
+              <input class="form-control" formControlName="preferredLanguage" [readonly]="!canManageParents" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Adresse</label>
+              <textarea class="form-control" rows="2" formControlName="address" [readonly]="!canManageParents"></textarea>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Élève lié</label>
+              <select class="form-select" formControlName="studentId" [disabled]="!canManageParents || !!editingId">
+                @for (student of students; track student.id) {
+                  <option [value]="student.id">{{ student.fullName }} · {{ student.school.name }}</option>
+                }
+              </select>
+              @if (editingId) {
+                <div class="form-text">La modification des liens multiples sera ajoutée dans le portail parent.</div>
+              }
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Relation</label>
+              <select class="form-select" formControlName="relation" [disabled]="!canManageParents || !!editingId">
+                @for (relation of relationOptions; track relation.value) {
+                  <option [value]="relation.value">{{ relation.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+              <div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" formControlName="isPrimary" id="parentPrimary" />
+                  <label class="form-check-label" for="parentPrimary">Contact principal</label>
+                </div>
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" formControlName="isEmergencyContact" id="parentEmergency" />
+                  <label class="form-check-label" for="parentEmergency">Contact urgence</label>
+                </div>
+              </div>
+            </div>
+            @if (canManageParents) {
+              <div class="col-12 d-grid">
+                <button class="btn btn-primary" type="submit" [disabled]="form.invalid || saving">
+                  @if (saving) {
+                    Enregistrement...
+                  } @else if (editingId) {
+                    Mettre à jour
+                  } @else {
+                    Ajouter le parent
+                  }
+                </button>
+              </div>
+            }
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Parents / Tuteurs</h3>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="badge bg-primary-transparent">{{ filteredParents.length }} / {{ parents.length }} contacts</span>
+          <button class="btn btn-sm btn-outline-primary" type="button" [disabled]="!filteredParents.length" (click)="exportCsv()">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-sm btn-outline-success" type="button" [disabled]="!filteredParents.length" (click)="exportExcel()">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" [disabled]="!filteredParents.length" (click)="printReport()">
+            <i class="ri-printer-line me-1"></i>PDF
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Nom, téléphone, élève" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Relation</label>
+            <select class="form-select" [(ngModel)]="selectedRelation">
+              <option value="">Toutes</option>
+              @for (relation of relationOptions; track relation.value) {
+                <option [value]="relation.value">{{ relation.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-md-2 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="parents-summary-grid mt-3">
+          <div class="parents-summary-item">
+            <span>Contacts</span>
+            <strong>{{ parentTotals.parents }}</strong>
+          </div>
+          <div class="parents-summary-item">
+            <span>Élèves liés</span>
+            <strong>{{ parentTotals.linkedStudents }}</strong>
+          </div>
+          <div class="parents-summary-item">
+            <span>Urgence</span>
+            <strong>{{ parentTotals.emergencyContacts }}</strong>
+          </div>
+          <div class="parents-summary-item">
+            <span>OTP validés</span>
+            <strong>{{ parentTotals.verified }}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Parent</th>
+                <th>Contact</th>
+                <th>Élèves</th>
+                <th>Relation</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (parent of filteredParents; track parent.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ parent.fullName }}</div>
+                    <span class="text-muted fs-12">{{ parent.profession || 'Profession non renseignée' }}</span>
+                  </td>
+                  <td>
+                    <div>{{ parent.phone }}</div>
+                    <span class="text-muted fs-12">{{ parent.email || parent.preferredLanguage || 'Email non renseigné' }}</span>
+                  </td>
+                  <td>
+                    <div>{{ linkedStudents(parent) || 'Aucun élève lié' }}</div>
+                    <span class="text-muted fs-12">{{ parent.students.length }} lien(s)</span>
+                  </td>
+                  <td>
+                    @for (link of parent.students; track link.id) {
+                      <span class="badge bg-info-transparent me-1">{{ relationLabel(link.relation) }}</span>
+                    }
+                  </td>
+                  <td class="text-end">
+                    @if (canManageParents) {
+                      <button class="btn btn-sm btn-outline-primary me-2" type="button" (click)="editParent(parent)">
+                        <i class="ri-edit-line"></i>
+                      </button>
+                    }
+                    @if (canDeleteParents) {
+                      <button class="btn btn-sm btn-outline-danger" type="button" (click)="deleteParent(parent)">
+                        <i class="ri-delete-bin-line"></i>
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des parents...
+                    } @else if (parents.length) {
+                      Aucun parent ne correspond aux filtres.
+                    } @else {
+                      Aucun parent enregistré.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

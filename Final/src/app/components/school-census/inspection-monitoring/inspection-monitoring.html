@@ -1,0 +1,259 @@
+<div class="row">
+  <div class="col-xl-12">
+    <div class="inspection-page-header">
+      <div>
+        <p class="text-uppercase fw-semibold text-primary mb-2">Gouvernance</p>
+        <h3 class="fw-semibold mb-1">Inspections & supervision</h3>
+        <p class="text-muted mb-0">
+          Planification des visites terrain, notation qualité et suivi des actions correctives.
+        </p>
+      </div>
+      <div class="inspection-header-actions">
+        <button class="btn btn-outline-primary" type="button" (click)="load()" [disabled]="loading">
+          <i class="ri-refresh-line me-1"></i>Actualiser
+        </button>
+        <a class="btn btn-primary" routerLink="/school-census/validations">
+          <i class="ri-shield-check-line me-1"></i>Validations
+        </a>
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="col-xl-12">
+      <div class="alert alert-warning">{{ error }}</div>
+    </div>
+  }
+
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="inspection-stat">
+      <span class="inspection-stat-icon bg-primary-transparent text-primary">
+        <i class="ri-route-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Visites planifiées</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.planned) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="inspection-stat">
+      <span class="inspection-stat-icon bg-success-transparent text-success">
+        <i class="ri-checkbox-circle-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Terminées</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.completed) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="inspection-stat">
+      <span class="inspection-stat-icon bg-warning-transparent text-warning">
+        <i class="ri-task-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Actions ouvertes</p>
+        <h4 class="fw-semibold mb-0">{{ formatNumber(totals.openActions) }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-xxl-3 col-xl-4 col-md-6">
+    <div class="inspection-stat">
+      <span class="inspection-stat-icon" [ngClass]="totals.highPriority ? 'bg-danger-transparent text-danger' : 'bg-info-transparent text-info'">
+        <i class="ri-speed-up-line"></i>
+      </span>
+      <div>
+        <p class="text-muted mb-1">Score qualité moyen</p>
+        <h4 class="fw-semibold mb-0" [ngClass]="scoreClass(totals.score)">{{ totals.score }}%</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Types d’inspection</h3>
+      </div>
+      <div class="card-body">
+        <div class="inspection-type-list">
+          @for (type of typeSummaries; track type.id) {
+            <button
+              class="inspection-type-item"
+              type="button"
+              [class.active]="selectedType === type.id"
+              (click)="selectedType = selectedType === type.id ? '' : type.id"
+            >
+              <span class="inspection-type-icon" [ngClass]="toneClass(type.color)">
+                <i [class]="type.icon"></i>
+              </span>
+              <span class="inspection-type-content">
+                <span class="d-flex align-items-center justify-content-between gap-2">
+                  <span class="fw-semibold">{{ type.title }}</span>
+                  <span class="badge" [ngClass]="toneClass(type.color)">{{ type.score }}%</span>
+                </span>
+                <span class="text-muted fs-12">{{ type.description }}</span>
+                <span class="text-muted fs-12">
+                  {{ formatNumber(type.rows) }} visite(s) · {{ formatNumber(type.openActions) }} action(s)
+                </span>
+              </span>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Priorités d’action</h3>
+      </div>
+      <div class="card-body">
+        <div class="inspection-priority-list">
+          @for (item of prioritySummaries; track item.priority) {
+            <button
+              class="inspection-priority-item"
+              type="button"
+              [class.active]="selectedPriority === item.priority"
+              (click)="selectedPriority = selectedPriority === item.priority ? '' : item.priority"
+            >
+              <span class="badge" [ngClass]="item.className">{{ item.label }}</span>
+              <span class="fw-semibold">{{ formatNumber(item.count) }}</span>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h3 class="card-title mb-0">Registre des visites</h3>
+          <span class="text-muted fs-12">
+            {{ filteredRows.length }} ligne(s) · {{ totals.active }} en cours · {{ totals.late }} en retard
+          </span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" type="button" (click)="exportRows('csv')">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-outline-success" type="button" (click)="exportRows('excel')">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-outline-secondary" type="button" (click)="exportRows('print')">
+            <i class="ri-printer-line me-1"></i>Imprimer
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-4 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="École, code, superviseur..." />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Type</label>
+            <select class="form-select" [(ngModel)]="selectedType">
+              <option value="">Tous</option>
+              @for (type of inspectionTypes; track type.id) {
+                <option [value]="type.id">{{ type.title }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Priorité</label>
+            <select class="form-select" [(ngModel)]="selectedPriority">
+              <option value="">Toutes</option>
+              <option value="high">Haute</option>
+              <option value="medium">Moyenne</option>
+              <option value="low">Faible</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" [(ngModel)]="selectedStatus">
+              <option value="">Tous</option>
+              <option value="planned">Planifiée</option>
+              <option value="in_progress">En cours</option>
+              <option value="completed">Terminée</option>
+              <option value="late">Retard</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Établissement</th>
+                <th>Type</th>
+                <th>Superviseur</th>
+                <th>Planning</th>
+                <th class="text-end">Score</th>
+                <th class="text-end">Actions</th>
+                <th class="text-end">Priorité</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredRows; track row.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.schoolName }}</div>
+                    <span class="text-muted fs-12">{{ row.code }} · {{ row.prefecture }} · {{ row.region }}</span>
+                  </td>
+                  <td>{{ typeLabel(row.type) }}</td>
+                  <td>{{ row.supervisor }}</td>
+                  <td>
+                    <div>{{ row.scheduledAt }}</div>
+                    <span class="text-muted fs-12">Échéance {{ row.dueDate }}</span>
+                  </td>
+                  <td class="text-end fw-semibold" [ngClass]="scoreClass(row.score)">{{ row.score }}%</td>
+                  <td class="text-end">
+                    <span>{{ row.openActions }}/{{ row.findings }}</span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="priorityClass(row.priority)">
+                      {{ priorityLabel(row.priority) }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(row.status)">
+                      {{ statusLabel(row.status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="8" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des inspections...
+                    } @else {
+                      Aucune inspection ne correspond aux filtres.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

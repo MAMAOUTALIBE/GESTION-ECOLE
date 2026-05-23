@@ -1,0 +1,312 @@
+<div class="row">
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Référentiels pédagogiques</h3>
+      </div>
+      <div class="card-body">
+        @if (error) {
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        }
+
+        <form [formGroup]="schoolYearForm" (ngSubmit)="createSchoolYear()" class="mb-4">
+          <div class="row gy-2">
+            <div class="col-12">
+              <label class="form-label">Année scolaire</label>
+              <input class="form-control" formControlName="name" placeholder="2026-2027" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Début</label>
+              <input type="date" class="form-control" formControlName="startDate" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Fin</label>
+              <input type="date" class="form-control" formControlName="endDate" />
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Périodes</label>
+              <select class="form-select" formControlName="periodType">
+                @for (type of periodTypes; track type.value) {
+                  <option [value]="type.value">{{ type.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" formControlName="isActive" id="activeSchoolYear" />
+                <label class="form-check-label" for="activeSchoolYear">Active</label>
+              </div>
+            </div>
+            <div class="col-12 d-grid">
+              <button class="btn btn-outline-primary" type="submit" [disabled]="schoolYearForm.invalid">
+                Ajouter année
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <form [formGroup]="subjectForm" (ngSubmit)="createSubject()">
+          <div class="row gy-2">
+            <div class="col-md-4">
+              <label class="form-label">Code</label>
+              <input class="form-control text-uppercase" formControlName="code" placeholder="MATH" />
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Matière</label>
+              <input class="form-control" formControlName="name" placeholder="Mathématiques" />
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Niveau</label>
+              <input class="form-control" formControlName="level" placeholder="Primaire, Collège..." />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Coef.</label>
+              <input type="number" step="0.1" min="0.1" class="form-control" formControlName="coefficient" />
+            </div>
+            <div class="col-12 d-grid">
+              <button class="btn btn-outline-success" type="submit" [disabled]="subjectForm.invalid">
+                Ajouter matière
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Nouvelle évaluation</h3>
+      </div>
+      <div class="card-body">
+        <form [formGroup]="assessmentForm" (ngSubmit)="createAssessment()">
+          <div class="row gy-3">
+            <div class="col-12">
+              <label class="form-label">Titre</label>
+              <input class="form-control" formControlName="title" placeholder="Composition de français" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Année</label>
+              <select class="form-select" formControlName="schoolYearId" (change)="syncPeriodForYear()">
+                @for (schoolYear of schoolYears; track schoolYear.id) {
+                  <option [value]="schoolYear.id">{{ schoolYear.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Période</label>
+              <select class="form-select" formControlName="periodId">
+                @for (period of periodsFor(assessmentForm.controls.schoolYearId.value); track period.id) {
+                  <option [value]="period.id">{{ period.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Classe</label>
+              <select class="form-select" formControlName="classRoomId">
+                @for (classRoom of classRooms; track classRoom.id) {
+                  <option [value]="classRoom.id">{{ classRoom.name }} · {{ classRoom.school?.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Matière</label>
+              <select class="form-select" formControlName="subjectId">
+                @for (subject of subjects; track subject.id) {
+                  <option [value]="subject.id">{{ subject.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Type</label>
+              <select class="form-select" formControlName="type">
+                @for (type of assessmentTypes; track type.value) {
+                  <option [value]="type.value">{{ type.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Date</label>
+              <input type="date" class="form-control" formControlName="assessedAt" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Coef.</label>
+              <input type="number" step="0.1" min="0.1" class="form-control" formControlName="coefficient" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Barème</label>
+              <input type="number" min="1" class="form-control" formControlName="maxScore" />
+            </div>
+            <div class="col-12 d-grid">
+              <button class="btn btn-primary" type="submit" [disabled]="assessmentForm.invalid || saving">
+                @if (saving) {
+                  Enregistrement...
+                } @else {
+                  Créer l’évaluation
+                }
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Évaluations et notes</h3>
+        <span class="badge bg-primary-transparent">{{ filteredAssessments.length }} évaluations</span>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-md-10">
+            <label class="form-label">Recherche</label>
+            <input class="form-control" [(ngModel)]="searchTerm" placeholder="Matière, classe, période" />
+          </div>
+          <div class="col-md-2 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="searchTerm = ''">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="grades-summary-grid mt-3">
+          <div class="grades-summary-item">
+            <span>Évaluations</span>
+            <strong>{{ assessmentTotals.assessments }}</strong>
+          </div>
+          <div class="grades-summary-item">
+            <span>Notes saisies</span>
+            <strong>{{ assessmentTotals.grades }}</strong>
+          </div>
+          <div class="grades-summary-item">
+            <span>Validées</span>
+            <strong>{{ assessmentTotals.validated }}</strong>
+          </div>
+          <div class="grades-summary-item">
+            <span>En attente</span>
+            <strong>{{ assessmentTotals.pending }}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Évaluation</th>
+                <th>Classe</th>
+                <th>Période</th>
+                <th>Notes</th>
+                <th class="text-end">Workflow</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (assessment of filteredAssessments; track assessment.id) {
+                <tr [class.table-active]="assessment.id === selectedAssessmentId">
+                  <td>
+                    <button class="btn btn-link p-0 fw-semibold text-start" type="button" (click)="selectAssessment(assessment.id)">
+                      {{ assessment.title }}
+                    </button>
+                    <div class="text-muted fs-12">{{ assessment.subject.name }} · {{ typeLabel(assessment.type) }}</div>
+                  </td>
+                  <td>
+                    <div>{{ assessment.classRoom.name }}</div>
+                    <span class="text-muted fs-12">{{ assessment.classRoom.school?.name }}</span>
+                  </td>
+                  <td>
+                    <div>{{ assessment.period.name }}</div>
+                    <span class="text-muted fs-12">{{ assessment.schoolYear.name }}</span>
+                  </td>
+                  <td>{{ assessment.gradesCount }} / {{ assessment.maxScore }}</td>
+                  <td class="text-end">
+                    <span class="badge" [ngClass]="statusClass(assessment.status)">{{ assessment.status }}</span>
+                    @if (assessment.status === 'DRAFT') {
+                      <button class="btn btn-sm btn-outline-warning ms-2" type="button" (click)="updateAssessmentStatus(assessment, 'SUBMITTED')">
+                        Soumettre
+                      </button>
+                    }
+                    @if (canValidateNotes && assessment.status !== 'VALIDATED') {
+                      <button class="btn btn-sm btn-outline-success ms-2" type="button" (click)="updateAssessmentStatus(assessment, 'VALIDATED')">
+                        Valider
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des évaluations...
+                    } @else {
+                      Aucune évaluation enregistrée.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">
+          @if (selectedAssessment) {
+            Saisie des notes · {{ selectedAssessment.title }}
+          } @else {
+            Saisie des notes
+          }
+        </h3>
+        <button class="btn btn-sm btn-primary" type="button" [disabled]="!selectedAssessment || !gradeRows.length || saving" (click)="saveGrades()">
+          Enregistrer
+        </button>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead>
+              <tr>
+                <th>Élève</th>
+                <th>Classe</th>
+                <th class="notes-score-col">Note</th>
+                <th>Appréciation</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of gradeRows; track row.student.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.student.fullName }}</div>
+                    <span class="text-muted fs-12">{{ row.student.uniqueCode }}</span>
+                  </td>
+                  <td>{{ row.student.classRoom?.name || 'Sans classe' }}</td>
+                  <td>
+                    <input
+                      type="number"
+                      min="0"
+                      [max]="selectedAssessment?.maxScore || 20"
+                      step="0.25"
+                      class="form-control"
+                      [(ngModel)]="row.score"
+                    />
+                  </td>
+                  <td>
+                    <input class="form-control" [(ngModel)]="row.appreciation" placeholder="Observation" />
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4" class="text-center text-muted py-4">
+                    Sélectionnez une évaluation contenant des élèves dans la classe.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

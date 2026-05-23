@@ -1,0 +1,239 @@
+<div class="row">
+  <div class="col-xl-4">
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">{{ editingId ? 'Modifier classe' : 'Nouvelle classe' }}</h3>
+        @if (editingId) {
+          <button class="btn btn-sm btn-outline-secondary" type="button" (click)="resetForm()">Annuler</button>
+        }
+      </div>
+      <div class="card-body">
+        @if (error) {
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        }
+
+        @if (!canManageClasses) {
+          <div class="alert alert-info py-2">Votre rôle permet la consultation des classes.</div>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="saveClass()">
+          <div class="row gy-3">
+            <div class="col-12">
+              <label class="form-label">École</label>
+              <select class="form-select" formControlName="schoolId" [disabled]="!canManageClasses">
+                @for (school of schools; track school.id) {
+                  <option [value]="school.id">{{ school.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Classe</label>
+              <input class="form-control" formControlName="name" placeholder="Ex: CM2 A" [readonly]="!canManageClasses" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Niveau</label>
+              <select class="form-select" formControlName="level" [disabled]="!canManageClasses">
+                <option value="">Non renseigné</option>
+                <option value="Préscolaire">Préscolaire</option>
+                <option value="Primaire">Primaire</option>
+                <option value="Collège">Collège</option>
+                <option value="Lycée">Lycée</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Effectif max</label>
+              <input type="number" min="1" class="form-control" formControlName="maxStudents" [readonly]="!canManageClasses" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Année scolaire</label>
+              <input class="form-control" formControlName="schoolYear" placeholder="Ex: 2025-2026" [readonly]="!canManageClasses" />
+            </div>
+            @if (canManageClasses) {
+              <div class="col-12 d-grid">
+                <button class="btn btn-primary" type="submit" [disabled]="form.invalid || saving">
+                  @if (saving) {
+                    Enregistrement...
+                  } @else if (editingId) {
+                    Mettre à jour
+                  } @else {
+                    Ajouter la classe
+                  }
+                </button>
+              </div>
+            }
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+    <div class="card custom-card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Classes</h3>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="badge bg-primary-transparent">{{ filteredClassRooms.length }} / {{ classRooms.length }} classes</span>
+          <button class="btn btn-sm btn-outline-primary" type="button" [disabled]="!filteredClassRooms.length" (click)="exportCsv()">
+            <i class="ri-file-text-line me-1"></i>CSV
+          </button>
+          <button class="btn btn-sm btn-outline-success" type="button" [disabled]="!filteredClassRooms.length" (click)="exportExcel()">
+            <i class="ri-file-excel-2-line me-1"></i>Excel
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" [disabled]="!filteredClassRooms.length" (click)="printReport()">
+            <i class="ri-printer-line me-1"></i>PDF
+          </button>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row gy-2 align-items-end">
+          <div class="col-xl-3 col-md-6">
+            <label class="form-label">Recherche</label>
+            <input
+              class="form-control"
+              [(ngModel)]="searchTerm"
+              placeholder="Classe, école, année"
+            />
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">École</label>
+            <select class="form-select" [(ngModel)]="selectedSchoolId">
+              <option value="">Toutes les écoles</option>
+              @for (school of schools; track school.id) {
+                <option [value]="school.id">{{ school.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Région</label>
+            <select class="form-select" [(ngModel)]="selectedRegionId">
+              <option value="">Toutes</option>
+              @for (region of regions; track region.id) {
+                <option [value]="region.id">{{ region.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Niveau</label>
+            <select class="form-select" [(ngModel)]="selectedLevel">
+              <option value="">Tous</option>
+              @for (level of classLevels; track level) {
+                <option [value]="level">{{ level }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-xl-2 col-md-6">
+            <label class="form-label">Capacité</label>
+            <select class="form-select" [(ngModel)]="selectedCapacityStatus">
+              <option value="">Tous</option>
+              <option value="available">Disponible</option>
+              <option value="full">Pleine</option>
+              <option value="overloaded">Surchargée</option>
+              <option value="missing">N/A</option>
+            </select>
+          </div>
+          <div class="col-xl-1 col-md-6 d-grid">
+            <button class="btn btn-outline-secondary" type="button" (click)="resetFilters()">
+              <i class="ri-refresh-line"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="class-summary-grid mt-3">
+          <div class="class-summary-item">
+            <span>Classes</span>
+            <strong>{{ classTotals.classes }}</strong>
+          </div>
+          <div class="class-summary-item">
+            <span>Élèves</span>
+            <strong>{{ classTotals.students }}</strong>
+          </div>
+          <div class="class-summary-item">
+            <span>Enseignants</span>
+            <strong>{{ classTotals.teachers }}</strong>
+          </div>
+          <div class="class-summary-item">
+            <span>Capacité</span>
+            <strong>{{ classTotals.capacity || 'N/A' }}</strong>
+          </div>
+          <div class="class-summary-item">
+            <span>Remplissage</span>
+            <strong>{{ classTotals.fillRate }}%</strong>
+          </div>
+          <div class="class-summary-item">
+            <span>Surchargées</span>
+            <strong>{{ classTotals.overloaded }}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Classe</th>
+                <th>École</th>
+                <th>Niveau</th>
+                <th>Capacité</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (classRoom of filteredClassRooms; track classRoom.id) {
+                <tr>
+                  <td class="fw-semibold">{{ classRoom.name }}</td>
+                  <td>
+                    <div>{{ classRoom.school?.name }}</div>
+                    <span class="text-muted fs-12">{{ classRoom.school?.region?.name }}</span>
+                  </td>
+                  <td>
+                    <span class="badge bg-info-transparent">{{ classRoom.level || 'Non renseigné' }}</span>
+                    @if (classRoom.schoolYear) {
+                      <div class="text-muted fs-12">{{ classRoom.schoolYear }}</div>
+                    }
+                  </td>
+                  <td>
+                    <div>{{ classRoom.studentsCount || 0 }} élèves</div>
+                    <span class="text-muted fs-12">
+                      Max {{ classRoom.maxStudents || 'N/A' }} · {{ classRoom.teachersCount || 0 }} enseignants
+                    </span>
+                    @if (classRoom.maxStudents) {
+                      <div class="progress mt-2 class-capacity-progress">
+                        <div
+                          class="progress-bar"
+                          [ngClass]="capacityBarClass(classRoom)"
+                          [style.width.%]="capacityRate(classRoom)"
+                        ></div>
+                      </div>
+                    }
+                  </td>
+                  <td class="text-end">
+                    @if (canManageClasses) {
+                      <button class="btn btn-sm btn-outline-primary me-2" type="button" (click)="editClass(classRoom)">
+                        <i class="ri-edit-line"></i>
+                      </button>
+                      <button class="btn btn-sm btn-outline-danger" type="button" (click)="deleteClass(classRoom)">
+                        <i class="ri-delete-bin-line"></i>
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">
+                    @if (loading) {
+                      Chargement des classes...
+                    } @else if (classRooms.length) {
+                      Aucune classe ne correspond aux filtres.
+                    } @else {
+                      Aucune classe enregistrée.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
