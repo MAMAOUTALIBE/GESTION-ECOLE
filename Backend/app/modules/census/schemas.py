@@ -4,8 +4,12 @@ response shapes (mapStudent / mapTeacher / dashboard).
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.modules.census.normalization import (
+    normalize_name,
+    normalize_phone_guinea,
+)
 from app.modules.schools.schemas import (
     SchoolEmbedded,
     TerritorialBriefRead,
@@ -29,34 +33,56 @@ from app.shared.enums import (
 class CreateStudentRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    firstName: str = Field(min_length=2)
-    lastName: str = Field(min_length=2)
+    # C-2 review Module 2 : max_length sur tous les champs string pour
+    # prévenir DoS par payloads volumineux.
+    firstName: str = Field(min_length=2, max_length=120)
+    lastName: str = Field(min_length=2, max_length=120)
     gender: Gender
-    photoUrl: str | None = None
+    photoUrl: str | None = Field(default=None, max_length=512)
     birthDate: date | None = None
-    guardianName: str | None = None
-    guardianPhone: str | None = None
-    schoolId: str
-    classRoomId: str | None = None
+    guardianName: str | None = Field(default=None, max_length=120)
+    guardianPhone: str | None = Field(default=None, max_length=20)
+    schoolId: str = Field(max_length=30)
+    classRoomId: str | None = Field(default=None, max_length=30)
+
+    @field_validator("firstName", "lastName")
+    @classmethod
+    def _normalize_name_field(cls, value: str) -> str:
+        return normalize_name(value)
+
+    @field_validator("guardianPhone")
+    @classmethod
+    def _normalize_phone_field(cls, value: str | None) -> str | None:
+        return normalize_phone_guinea(value)
 
 
 class CreateTeacherRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    firstName: str = Field(min_length=2)
-    lastName: str = Field(min_length=2)
+    firstName: str = Field(min_length=2, max_length=120)
+    lastName: str = Field(min_length=2, max_length=120)
     gender: Gender
-    photoUrl: str | None = None
+    photoUrl: str | None = Field(default=None, max_length=512)
     birthDate: date | None = None
-    phone: str | None = None
-    subject: str | None = None
-    diploma: str | None = None
-    schoolId: str
+    phone: str | None = Field(default=None, max_length=20)
+    subject: str | None = Field(default=None, max_length=120)
+    diploma: str | None = Field(default=None, max_length=120)
+    schoolId: str = Field(max_length=30)
     classRoomIds: list[str] | None = None
+
+    @field_validator("firstName", "lastName")
+    @classmethod
+    def _normalize_name_field(cls, value: str) -> str:
+        return normalize_name(value)
+
+    @field_validator("phone")
+    @classmethod
+    def _normalize_phone_field(cls, value: str | None) -> str | None:
+        return normalize_phone_guinea(value)
 
 
 class AssignStudentClassRequest(BaseModel):
-    classRoomId: str | None = None
+    classRoomId: str | None = Field(default=None, max_length=30)
 
 
 class AssignTeacherClassesRequest(BaseModel):
@@ -66,9 +92,9 @@ class AssignTeacherClassesRequest(BaseModel):
 class TransferStudentRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    toSchoolId: str
-    toClassRoomId: str | None = None
-    reason: str | None = None
+    toSchoolId: str = Field(max_length=30)
+    toClassRoomId: str | None = Field(default=None, max_length=30)
+    reason: str | None = Field(default=None, max_length=500)
 
 
 class DashboardQuery(BaseModel):
@@ -301,3 +327,108 @@ class MetadataResponse(BaseModel):
     prefectures: list[PrefectureRead]
     subPrefectures: list[SubPrefectureRead]
     roles: list[str]
+
+
+# =============================================================
+# DUPLICATES (Module 2)
+# =============================================================
+class StudentDuplicateCheckRequest(BaseModel):
+    """POST /api/census/students/check-duplicates."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    firstName: str = Field(min_length=2, max_length=120)
+    lastName: str = Field(min_length=2, max_length=120)
+    birthDate: date | None = None
+    gender: Gender | None = None
+    guardianPhone: str | None = Field(default=None, max_length=20)
+    schoolId: str | None = Field(default=None, max_length=30)
+
+    @field_validator("firstName", "lastName")
+    @classmethod
+    def _normalize_name_field(cls, value: str) -> str:
+        return normalize_name(value)
+
+    @field_validator("guardianPhone")
+    @classmethod
+    def _normalize_phone_field(cls, value: str | None) -> str | None:
+        return normalize_phone_guinea(value)
+
+
+DuplicateClassification = Literal["HIGH", "MEDIUM", "LOW"]
+
+
+class StudentDuplicateMatch(BaseModel):
+    """Une fiche élève candidate au dédoublonnage.
+
+    C-3 review Module 2 : on ne renvoie PAS la birthDate exacte (énumération
+    sensible — un attaquant pourrait par essais successifs reconstituer la
+    date de naissance). À la place on expose ``birthYear`` (granularité
+    suffisante pour vérifier la cohérence) + ``birthDateMatches`` (flag
+    booléen indiquant si l'input et le candidat ont la même date — None si
+    une des deux est absente).
+    """
+    id: str
+    firstName: str
+    lastName: str
+    birthYear: int | None = None
+    birthDateMatches: bool | None = None
+    schoolId: str
+    schoolName: str | None = None
+    score: float
+    classification: DuplicateClassification
+    matchedFields: list[str]
+
+
+class StudentDuplicateCheckResponse(BaseModel):
+    matches: list[StudentDuplicateMatch]
+    total: int
+
+
+class TeacherDuplicateCheckRequest(BaseModel):
+    """POST /api/census/teachers/check-duplicates."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    firstName: str = Field(min_length=2, max_length=120)
+    lastName: str = Field(min_length=2, max_length=120)
+    birthDate: date | None = None
+    gender: Gender | None = None
+    schoolId: str | None = Field(default=None, max_length=30)
+
+    @field_validator("firstName", "lastName")
+    @classmethod
+    def _normalize_name_field(cls, value: str) -> str:
+        return normalize_name(value)
+
+
+class TeacherDuplicateMatch(BaseModel):
+    """Pendant teacher de StudentDuplicateMatch.
+
+    Idem C-3 : on n'expose pas la birthDate complète.
+    """
+    id: str
+    firstName: str
+    lastName: str
+    birthYear: int | None = None
+    birthDateMatches: bool | None = None
+    schoolId: str
+    score: float
+    classification: DuplicateClassification
+    matchedFields: list[str]
+
+
+class TeacherDuplicateCheckResponse(BaseModel):
+    matches: list[TeacherDuplicateMatch]
+    total: int
+
+
+class MergeStudentsRequest(BaseModel):
+    """POST /api/census/students/{source_id}/merge.
+
+    H-1 review Module 2 : ``reason`` rendu obligatoire (min 20 chars) pour
+    forcer l'agent à justifier la fusion. Une fusion supprime un Student de
+    la DB — on veut une trace explicite et lisible dans AuditLog.
+    """
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    targetId: str = Field(max_length=30)
+    reason: str = Field(min_length=20, max_length=500)
