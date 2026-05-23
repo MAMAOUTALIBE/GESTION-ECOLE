@@ -58,6 +58,26 @@ import_commit_total = Counter(
     labelnames=("kind", "result"),  # kind ∈ students|teachers|schools, result ∈ ok|failed
 )
 
+# Census — Module 2 (dédoublonnage)
+# Toute demande de vérification de doublons (fait sur la hot-path création).
+census_duplicate_check_total = Counter(
+    "gestionee_census_duplicate_check_total",
+    "Total des appels au moteur de dédoublonnage census",
+    labelnames=("entity",),  # entity ∈ student | teacher
+)
+# Création bloquée car un doublon HIGH a été détecté sans le flag force.
+census_duplicate_blocked_total = Counter(
+    "gestionee_census_duplicate_blocked_total",
+    "Créations census bloquées par le seuil de doublons",
+    labelnames=("entity", "level"),  # level ∈ HIGH (le seul qui bloque pour l'instant)
+)
+# Fusion d'entités census (merge_students). Stratégique : audit + suivi UX.
+census_merge_total = Counter(
+    "gestionee_census_merge_total",
+    "Total des fusions de fiches census",
+    labelnames=("entity", "result"),  # result ∈ ok | not_found | forbidden
+)
+
 
 # ---------------------------------------------------------------------
 # Request ID middleware — propagates X-Request-Id and binds it to loguru
