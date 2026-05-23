@@ -29,6 +29,13 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:4200"
 
+    # Security fix C-4 — comma-separated CIDR list of reverse-proxy IPs
+    # we trust to set the `X-Forwarded-For` header. Empty in dev (we read
+    # request.client.host directly). In production behind nginx/ALB, set
+    # this to your proxy subnets so per-IP rate limiting actually buckets
+    # by the true client IP rather than the proxy's.
+    trusted_proxies: str = ""
+
     database_url: PostgresDsn
     database_url_sync: PostgresDsn
     db_pool_size: int = 20

@@ -6,6 +6,7 @@ from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.core.proxy import client_ip
 from app.core.redis import get_redis
 from app.modules.auth.models import User
 from app.modules.auth.schemas import (
@@ -16,6 +17,7 @@ from app.modules.auth.schemas import (
     LogoutRequest,
     MeResponse,
     MfaDisableRequest,
+    MfaSetupRequest,
     MfaSetupResponse,
     MfaVerifyRequest,
     MfaVerifySetupRequest,
@@ -45,8 +47,14 @@ ADMIN_USER_ROLES = (UserRole.NATIONAL_ADMIN, UserRole.MINISTRY_ADMIN)
 
 
 def _request_meta(request: Request) -> tuple[str | None, str | None]:
-    """Return `(ip, user_agent)` — both nullable for tests."""
-    ip = request.client.host if request.client else None
+    """Return `(ip, user_agent)` — both nullable for tests.
+
+    Security fix C-4 — `ip` now goes through :func:`app.core.proxy.client_ip`
+    which honours ``TRUSTED_PROXIES`` instead of blindly trusting either
+    ``request.client.host`` (broken behind reverse proxies) or the raw
+    ``X-Forwarded-For`` header (spoofable when not behind one).
+    """
+    ip = client_ip(request)
     ua = request.headers.get("user-agent")
     return ip, ua
 
@@ -250,12 +258,20 @@ async def reset_password(
     summary="Démarrer la configuration MFA (secret + QR + recovery codes)",
 )
 async def mfa_setup(
+    dto: MfaSetupRequest,
     request: Request,
     service: AuthSvc,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> MfaSetupResponse:
+    """Fix C-1 — body is now mandatory; see :class:`MfaSetupRequest`."""
     ip, ua = _request_meta(request)
-    return await service.setup_mfa(current_user, ip_address=ip, user_agent=ua)
+    return await service.setup_mfa(
+        current_user,
+        current_password=dto.currentPassword,
+        current_totp=dto.currentTotp,
+        ip_address=ip,
+        user_agent=ua,
+    )
 
 
 @router.post(

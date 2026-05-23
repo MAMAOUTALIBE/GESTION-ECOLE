@@ -142,4 +142,91 @@ login (4) · MFA challenge / TOTP / recovery / expiry (5) ·
 rate-limit (2) · refresh / rotation / expired / revoked (3) ·
 logout (1) · change-password (3) · forgot/reset (4) ·
 MFA setup/verify/disable (3) · sessions list/revoke (2) ·
-audit-log (3) · /me byte-compat (1) · crypto primitives (3) — ≈34 tests.
+audit-log (3) · /me byte-compat (1) · crypto primitives (3) ·
+**security review fixes C-1..C-5 (8)** — 42 tests total.
+
+## Security fixes post-review
+
+The independent security review of Module 1 (post-commit `3e813ef`) flagged
+five CRITICAL findings. All are patched in a follow-up commit. Each fix
+ships with a non-regression test that lives in the "Security review fixes"
+section of `tests/integration/test_auth_module1.py`.
+
+### C-1 — `/mfa/setup` requires current password (and TOTP when re-enrolling)
+
+* **Was**: a valid access token alone could trigger an MFA setup. If the
+  victim's credential was `enabled=False` (pending) it was silently
+  overwritten, neutralising MFA for the attacker's benefit.
+* **Now**: `MfaSetupRequest` mandates `currentPassword`; when the caller
+  already has `mfaEnabled=True`, `currentTotp` is also required and is
+  validated against the existing credential. Any mismatch → 401, no DB
+  write. Reaching `MFA déjà activé` 409 now means full re-auth.
+* **Code**: `service.AuthService.setup_mfa`, `schemas.MfaSetupRequest`,
+  `router.mfa_setup`.
+* **Test**: `test_mfa_setup_requires_current_password_and_totp_if_already_enabled`.
+
+### C-2 — JWT algorithm hard-pin (block alg=none / RS256 confusion)
+
+* **Was**: `decode_token` passed `algorithms=[settings.jwt_algorithm]`,
+  trusting the env. A leaked or mis-set `JWT_ALGORITHM=none` would
+  silently accept any unsigned token.
+* **Now**: `core.security._ALLOWED_JWT_ALGORITHMS = frozenset({"HS256"})`.
+  `decode_token` raises `RuntimeError` if the env value is outside the
+  allow-list and passes `algorithms=list(_ALLOWED_JWT_ALGORITHMS)` to
+  `jwt.decode`. PyJWT therefore refuses both `alg=none` and RS256 tokens.
+* **Code**: `app/core/security.py::decode_token`.
+* **Test**: `test_decode_token_rejects_alg_none` (also exercises RS256).
+
+### C-3 — Recovery codes carry 160 bits of entropy (was 41)
+
+* **Was**: `secrets.choice` over a 36-char alphabet × 8 chars ≈ 41 bits.
+  Well below the 128-bit promise — and below any sane 2026 floor.
+* **Now**: `secrets.token_urlsafe(20)` (160 bits) → strip `-`/`_`, upper-
+  case → format in dashed groups of 4 (`XXXX-XXXX-...`). Hash / verify
+  share a `_normalize_recovery_code` helper so users can type the codes
+  with or without dashes.
+* **Schemas**: `MfaVerifyRequest.code.max_length` and
+  `MfaDisableRequest.code.max_length` widened from 16 to 64 to fit the
+  new format.
+* **Code**: `app/core/security.py::generate_recovery_codes` and helpers.
+* **Test**: `test_recovery_codes_have_sufficient_entropy` (1000 codes,
+  no collisions, alphabet check).
+
+### C-4 — Honour `X-Forwarded-For` only behind trusted proxies
+
+* **Was**: `_request_meta` returned `request.client.host` verbatim. In
+  prod behind nginx/ALB, this is the proxy IP → per-IP rate limit
+  collapses to a single bucket.
+* **Now**: new `app/core/proxy.py::client_ip()` reads XFF only when the
+  immediate peer is inside one of the CIDRs declared via the
+  `TRUSTED_PROXIES` env var (empty by default → behaves as before in
+  dev). Takes the **leftmost** XFF token (original client per RFC 7239).
+  Spoofed headers from the open internet are ignored.
+* **Code**: `app/core/proxy.py`, `app/core/config.py::Settings`,
+  `app/modules/auth/router.py::_request_meta`, `.env.example`.
+* **Tests**: `test_client_ip_{uses_direct_when_no_trusted_proxies,
+  uses_xff_when_trusted_proxy_matches, ignores_xff_when_proxy_not_trusted,
+  takes_leftmost_from_xff_list}`.
+
+### C-5 — Fail-closed on Redis outage for token revocation
+
+* **Was**: `get_current_user` caught `Exception` and continued, so a
+  revoked access token kept working until its TTL whenever Redis was
+  unreachable.
+* **Now**: a caught Redis error
+  1. increments the Prometheus counter
+     `gestionee_auth_revocation_check_failed_total`,
+  2. logs via loguru with `request_id` + `user_id` + `jti`,
+  3. raises `UnauthorizedError(status_code=503)` with a French message.
+  503 (not 401) lets ops alerting distinguish "auth degraded" from
+  "client sent a bad token". A `TODO Module 1.1` flags the future
+  refinement (allow read-only access if the JWT was issued < 5 min ago).
+
+  Rate-limit checks `core.rate_limit` keep their fail-open behaviour
+  (UX priority — Argon2 still throttles brute force) **but** now bump
+  `gestionee_auth_rate_limit_check_failed_total` and log via
+  `logger.error` so the degradation is just as audible.
+* **Code**: `app/shared/deps.py::get_current_user`,
+  `app/core/rate_limit.py::RateLimiter.check_and_increment`,
+  `app/core/observability.py` (2 new counters).
+* **Test**: `test_get_current_user_fails_closed_when_redis_down`.

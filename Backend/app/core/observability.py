@@ -24,6 +24,19 @@ auth_login_total = Counter(
     labelnames=("result",),  # success | invalid | inactive
 )
 
+# Security fix C-5 — observability for Redis-backed auth checks failing.
+# Both counters share the same surface: bump on EVERY caught Redis error
+# in get_current_user / rate_limit. Alerting threshold: > 0 over 1 min
+# is a P1 (auth degradation or Redis outage).
+auth_revocation_check_failed_total = Counter(
+    "gestionee_auth_revocation_check_failed_total",
+    "Times the JWT JTI revocation check could not be performed (Redis down)",
+)
+auth_rate_limit_check_failed_total = Counter(
+    "gestionee_auth_rate_limit_check_failed_total",
+    "Times the auth rate-limit check could not be performed (Redis down)",
+)
+
 # QR scans (attendance)
 attendance_scan_total = Counter(
     "gestionee_attendance_scan_total",
