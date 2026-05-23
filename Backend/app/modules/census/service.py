@@ -8,13 +8,15 @@ Notes
   endpoints will be implemented alongside the attendance flow.
 * All write operations record an AuditLog row matching the NestJS contract.
 """
+import unicodedata
 from datetime import UTC, datetime, timedelta
+from io import BytesIO
 from typing import Any
 from uuid import uuid4
 
 import qrcode
 import qrcode.image.svg
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, delete, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -22,10 +24,28 @@ from app.core.exceptions import (
     ConflictError,
     ForbiddenError,
     NotFoundError,
+    ValidationFailedError,
+)
+from app.core.observability import (
+    census_duplicate_blocked_total,
+    census_duplicate_check_total,
+    census_merge_total,
+)
+from app.modules.academics.models import (
+    Grade,
+    ParentCommunication,
+    ReportCard,
+    StudentParent,
 )
 from app.modules.attendance.models import AttendanceRecord, QrCredential
 from app.modules.auth.models import User
+from app.modules.census.duplicates import (
+    classify_score,
+    compute_similarity_score,
+    force_classification_floor,
+)
 from app.modules.census.models import Student, StudentTransfer, Teacher
+from app.modules.census.normalization import validate_birthdate_for_classroom
 from app.modules.census.schemas import (
     AssignStudentClassRequest,
     AssignTeacherClassesRequest,
@@ -48,11 +68,18 @@ from app.modules.census.schemas import (
     MetadataResponse,
     QrSvgResponse,
     RecentAttendance,
+    StudentDuplicateCheckRequest,
+    StudentDuplicateCheckResponse,
+    StudentDuplicateMatch,
     StudentRead,
+    TeacherDuplicateCheckRequest,
+    TeacherDuplicateCheckResponse,
+    TeacherDuplicateMatch,
     TeacherRead,
     TransferHistoryItem,
     TransferStudentRequest,
 )
+from app.modules.library.models import LibraryLoan
 from app.modules.schools.models import ClassRoom, School, class_room_teacher_table
 from app.modules.schools.schemas import SchoolEmbedded, TerritorialBriefRead
 from app.modules.territory.models import Prefecture, Region, SubPrefecture
@@ -77,12 +104,36 @@ from app.shared.permissions import (
     SUB_PREFECTURE_SCOPE_ROLES,
 )
 
+# Roles autorisés à fusionner deux fiches élèves (administration territoriale).
+MERGE_STUDENTS_ROLES: frozenset[UserRole] = frozenset(
+    {
+        UserRole.NATIONAL_ADMIN,
+        UserRole.MINISTRY_ADMIN,
+        UserRole.REGIONAL_ADMIN,
+        UserRole.PREFECTURE_ADMIN,
+    }
+)
+
 
 def _clean(value: str | None) -> str | None:
     if value is None:
         return None
     trimmed = value.strip()
     return trimmed or None
+
+
+def _ascii_fold(value: str) -> str:
+    """Replie ``value`` en ASCII (NFKD + drop des combining marks).
+
+    Sert à stocker des chaînes diacritiques dans une DB encodée SQL_ASCII
+    (cf. AuditLog metadata) sans perdre le sens lisible. Les chaînes déjà
+    ASCII passent inchangées. À ne PAS utiliser pour des données critiques
+    (noms d'élèves, communications parents) — uniquement pour des traces.
+    """
+    if not value:
+        return value
+    decomposed = unicodedata.normalize("NFKD", value)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
 class CensusService:
@@ -145,11 +196,52 @@ class CensusService:
         await self._assert_can_access_school(user, student.schoolId)
         return self._map_student(student)
 
-    async def create_student(self, user: User, dto: CreateStudentRequest) -> StudentRead:
+    async def create_student(
+        self,
+        user: User,
+        dto: CreateStudentRequest,
+        *,
+        force: bool = False,
+    ) -> StudentRead:
         await self._assert_can_access_school(user, dto.schoolId)
-        await self._assert_no_duplicate_student(dto)
+
+        # C-1 review Module 2 — dernière barrière EXACT-MATCH (legacy) :
+        # si même (lastName, firstName, birthDate) dans la même école, on
+        # bloque même si le scoring fuzzy n'a rien proposé. Ce check
+        # prend la précédence pour produire un message d'erreur explicite.
+        # Avec ``force=true``, l'agent peut quand même créer la fiche
+        # (même politique que pour les HIGH fuzzy) — la trace audit
+        # ci-dessous distingue les deux cas.
+        if not force:
+            await self._assert_no_duplicate_student(dto)
+
+        # Module 2 — vérification fuzzy. Si un doublon HIGH existe ET que
+        # l'agent n'a pas explicitement fourni force=true, on bloque avec
+        # 409 + payload listant les candidats. La barrière exact-match
+        # ci-dessus traite déjà le cas extrême ; ici on rattrape les
+        # variantes orthographiques (Aichatou/Aïssatou, Dialo/Diallo, ...).
+        fuzzy_matches = await self._scan_student_duplicates(dto)
+        high_matches = [m for m in fuzzy_matches if m.classification == "HIGH"]
+        if high_matches and not force:
+            census_duplicate_blocked_total.labels(
+                entity="student", level="HIGH"
+            ).inc()
+            raise ConflictError(
+                detail="Doublon potentiel détecté",
+                extra={
+                    "duplicates": [m.model_dump(mode="json") for m in high_matches],
+                },
+            )
+
         if dto.classRoomId:
             await self._assert_class_belongs_to_school(dto.classRoomId, dto.schoolId)
+
+        # M-6 review Module 2 — cohérence âge/niveau. La feature existait
+        # depuis Module 2 mais n'était jamais appelée. On la branche ici
+        # après le check classroom→école pour pouvoir lire ``level``.
+        await self._assert_birthdate_matches_classroom(
+            dto, user=user, force=force,
+        )
 
         unique_code = await self._generate_unique_code(PersonType.STUDENT, dto.schoolId)
         student = Student(
@@ -177,13 +269,21 @@ class CensusService:
                 studentId=student.id,
             )
         )
+        audit_metadata: dict[str, Any] = {"uniqueCode": unique_code}
+        if force and high_matches:
+            # Trace de l'override pour audit + analyse a posteriori.
+            audit_metadata["reason"] = "force_creation_after_duplicate_warning"
+            audit_metadata["forcedDuplicates"] = [
+                {"id": m.id, "score": m.score, "classification": m.classification}
+                for m in high_matches
+            ]
         self.session.add(
             AuditLog(
                 actorId=user.id,
                 action="CREATE_STUDENT",
                 entity="Student",
                 entityId=student.id,
-                metadata_={"uniqueCode": unique_code},
+                metadata_=audit_metadata,
             )
         )
         await self.session.flush()
@@ -333,9 +433,33 @@ class CensusService:
         await self._assert_can_access_school(user, teacher.schoolId)
         return self._map_teacher(teacher)
 
-    async def create_teacher(self, user: User, dto: CreateTeacherRequest) -> TeacherRead:
+    async def create_teacher(
+        self,
+        user: User,
+        dto: CreateTeacherRequest,
+        *,
+        force: bool = False,
+    ) -> TeacherRead:
         await self._assert_can_access_school(user, dto.schoolId)
-        await self._assert_no_duplicate_teacher(dto)
+
+        # C-1 review Module 2 — dernière barrière EXACT-MATCH (legacy).
+        # Cf. create_student pour la rationale.
+        if not force:
+            await self._assert_no_duplicate_teacher(dto)
+
+        # Module 2 — vérification fuzzy enseignants (signature plus simple :
+        # lastName + firstName + birthDate). Pas de guardianPhone côté teacher.
+        teacher_matches = await self._scan_teacher_duplicates(dto)
+        high_t_matches = [m for m in teacher_matches if m["classification"] == "HIGH"]
+        if high_t_matches and not force:
+            census_duplicate_blocked_total.labels(
+                entity="teacher", level="HIGH"
+            ).inc()
+            raise ConflictError(
+                detail="Doublon potentiel détecté",
+                extra={"duplicates": high_t_matches},
+            )
+
         if dto.classRoomIds:
             await self._assert_classes_belong_to_school(dto.classRoomIds, dto.schoolId)
 
@@ -368,8 +492,6 @@ class CensusService:
         await self.session.flush()
 
         if dto.classRoomIds:
-            from sqlalchemy import insert
-
             await self.session.execute(
                 insert(class_room_teacher_table),
                 [{"A": cid, "B": teacher.id} for cid in dto.classRoomIds],
@@ -383,13 +505,24 @@ class CensusService:
                 teacherId=teacher.id,
             )
         )
+        teacher_audit_meta: dict[str, Any] = {"uniqueCode": unique_code}
+        if force and high_t_matches:
+            teacher_audit_meta["reason"] = "force_creation_after_duplicate_warning"
+            teacher_audit_meta["forcedDuplicates"] = [
+                {
+                    "id": m["id"],
+                    "score": m["score"],
+                    "classification": m["classification"],
+                }
+                for m in high_t_matches
+            ]
         self.session.add(
             AuditLog(
                 actorId=user.id,
                 action="CREATE_TEACHER",
                 entity="Teacher",
                 entityId=teacher.id,
-                metadata_={"uniqueCode": unique_code},
+                metadata_=teacher_audit_meta,
             )
         )
         await self.session.flush()
@@ -421,8 +554,6 @@ class CensusService:
             raise NotFoundError(detail="Enseignant introuvable")
         await self._assert_can_access_school(user, teacher.schoolId)
         await self._assert_classes_belong_to_school(dto.classRoomIds, teacher.schoolId)
-
-        from sqlalchemy import delete, insert
 
         await self.session.execute(
             delete(class_room_teacher_table).where(teacher_id == class_room_teacher_table.c.B)
@@ -547,8 +678,6 @@ class CensusService:
         qr.add_data(payload)
         qr.make(fit=True)
         img = qr.make_image(image_factory=qrcode.image.svg.SvgImage)
-        from io import BytesIO
-
         buf = BytesIO()
         img.save(buf)
         return buf.getvalue().decode("utf-8")
@@ -912,6 +1041,450 @@ class CensusService:
         )
 
     # ==================================================================
+    # DUPLICATES (Module 2)
+    # ==================================================================
+    async def check_student_duplicates(
+        self, user: User, dto: StudentDuplicateCheckRequest
+    ) -> StudentDuplicateCheckResponse:
+        """Liste les fiches élèves les plus proches du DTO via pg_trgm + scoring.
+
+        RBAC : le scope territorial de l'utilisateur est appliqué — un
+        SCHOOL_DIRECTOR ne voit que son école, un REGIONAL_ADMIN sa région.
+        """
+        census_duplicate_check_total.labels(entity="student").inc()
+        matches = await self._scan_student_duplicates(
+            dto, user_scope=user, limit_candidates=20
+        )
+        return StudentDuplicateCheckResponse(matches=matches[:5], total=len(matches))
+
+    async def check_teacher_duplicates(
+        self, user: User, dto: TeacherDuplicateCheckRequest
+    ) -> TeacherDuplicateCheckResponse:
+        """Pendant du check-duplicates côté enseignants (C-3 review Module 2).
+
+        Avant : aucun endpoint exposé, le scan teacher n'était accessible
+        qu'indirectement via create_teacher. Symétrie minimale pour l'UI
+        d'aide à la saisie (lookup avant création).
+        """
+        census_duplicate_check_total.labels(entity="teacher").inc()
+        first = (dto.firstName or "").strip().lower()
+        last = (dto.lastName or "").strip().lower()
+        if not first or not last:
+            return TeacherDuplicateCheckResponse(matches=[], total=0)
+
+        stmt = (
+            select(Teacher)
+            .where(func.similarity(func.lower(Teacher.lastName), last) > 0.3)
+            .order_by(func.similarity(func.lower(Teacher.lastName), last).desc())
+            .limit(20)
+        )
+        if dto.schoolId:
+            stmt = stmt.where(Teacher.schoolId == dto.schoolId)
+        stmt = self._scope_person_query(stmt, user, model=Teacher)
+        rows = (await self.session.execute(stmt)).scalars().unique().all()
+        candidate = {
+            "firstName": dto.firstName,
+            "lastName": dto.lastName,
+            "birthDate": dto.birthDate,
+            "gender": dto.gender,
+            "schoolId": dto.schoolId,
+        }
+        matches: list[TeacherDuplicateMatch] = []
+        for teacher in rows:
+            row_payload = {
+                "firstName": teacher.firstName,
+                "lastName": teacher.lastName,
+                "birthDate": teacher.birthDate,
+                "gender": teacher.gender,
+                "schoolId": teacher.schoolId,
+            }
+            scored = compute_similarity_score(candidate, row_payload)
+            classification = classify_score(scored["score"])
+            classification = force_classification_floor(
+                candidate, row_payload, classification,
+            )
+            if classification == "LOW":
+                continue
+            birth_year = teacher.birthDate.year if teacher.birthDate else None
+            birth_matches: bool | None
+            if teacher.birthDate is None or dto.birthDate is None:
+                birth_matches = None
+            else:
+                row_d = (
+                    teacher.birthDate.date()
+                    if isinstance(teacher.birthDate, datetime)
+                    else teacher.birthDate
+                )
+                birth_matches = row_d == dto.birthDate
+            matches.append(
+                TeacherDuplicateMatch(
+                    id=teacher.id,
+                    firstName=teacher.firstName,
+                    lastName=teacher.lastName,
+                    birthYear=birth_year,
+                    birthDateMatches=birth_matches,
+                    schoolId=teacher.schoolId,
+                    score=scored["score"],
+                    classification=classification,  # type: ignore[arg-type]
+                    matchedFields=scored["matchedFields"],
+                )
+            )
+        matches.sort(key=lambda m: m.score, reverse=True)
+        return TeacherDuplicateCheckResponse(matches=matches[:5], total=len(matches))
+
+    async def merge_students(
+        self,
+        user: User,
+        source_id: str,
+        target_id: str,
+        *,
+        reason: str | None = None,
+    ) -> StudentRead:
+        """Fusionne ``source_id`` dans ``target_id``.
+
+        * Vérifie source ≠ target, RBAC, accès aux écoles concernées.
+        * Déplace les rows dépendantes (Grade, ReportCard, AttendanceRecord,
+          LibraryLoan, ParentCommunication, StudentParent, StudentTransfer)
+          de source vers target en une seule transaction.
+        * Supprime QrCredential du source puis le Student lui-même.
+        * Écrit un AuditLog avec le détail des transferts.
+        * Idempotent : si ``source_id`` est déjà introuvable, on retourne le
+          target (404 propre sur target seulement).
+        """
+        if source_id == target_id:
+            raise ConflictError(detail="Impossible de fusionner un élève avec lui-même")
+
+        if user.role not in MERGE_STUDENTS_ROLES:
+            census_merge_total.labels(entity="student", result="forbidden").inc()
+            raise ForbiddenError(
+                detail="Seul un administrateur territorial peut fusionner deux fiches élève",
+                extra={"required_any_of": sorted(r.value for r in MERGE_STUDENTS_ROLES)},
+            )
+
+        target = await self.session.get(Student, target_id)
+        if target is None:
+            census_merge_total.labels(entity="student", result="not_found").inc()
+            raise NotFoundError(detail="Élève cible introuvable")
+        await self._assert_can_access_school(user, target.schoolId)
+
+        source = await self.session.get(Student, source_id)
+        if source is None:
+            # Idempotence : le source a peut-être déjà été fusionné. On
+            # retourne le target tel quel pour permettre au client de rejouer.
+            census_merge_total.labels(entity="student", result="ok").inc()
+            return await self.get_student(user, target_id)
+
+        await self._assert_can_access_school(user, source.schoolId)
+
+        transferred = await self._transfer_student_dependents(source_id, target_id)
+
+        # Cleanup : QrCredential du source ne doit plus pointer vers lui.
+        await self.session.execute(
+            delete(QrCredential).where(QrCredential.studentId == source_id)
+        )
+        # Et suppression du Student source.
+        await self.session.execute(delete(Student).where(Student.id == source_id))
+
+        merge_metadata: dict[str, Any] = {
+            "source_id": source_id,
+            "target_id": target_id,
+            "transferred": transferred,
+        }
+        if reason:
+            merge_metadata["reason"] = reason
+        self.session.add(
+            AuditLog(
+                actorId=user.id,
+                action="MERGE_STUDENTS",
+                entity="Student",
+                entityId=target_id,
+                metadata_=merge_metadata,
+            )
+        )
+        await self.session.flush()
+        census_merge_total.labels(entity="student", result="ok").inc()
+        return await self.get_student(user, target_id)
+
+    async def _transfer_student_dependents(
+        self, source_id: str, target_id: str
+    ) -> dict[str, int]:
+        """Bascule toutes les rows dépendantes de ``source_id`` vers ``target_id``.
+
+        Retourne un dict ``{table: rowcount, ...}`` pour l'audit.
+        """
+        counts: dict[str, int] = {}
+
+        async def _bulk_update(model: Any, name: str) -> None:
+            res = await self.session.execute(
+                update(model)
+                .where(model.studentId == source_id)
+                .values(studentId=target_id)
+            )
+            counts[name] = res.rowcount or 0
+
+        # Grades : contrainte unique (assessmentId, studentId) — on
+        # nettoie d'abord les conflits éventuels (le target gagne).
+        conflict_grades = await self.session.execute(
+            select(Grade.assessmentId)
+            .where(Grade.studentId == target_id)
+        )
+        target_assessment_ids = set(conflict_grades.scalars().all())
+        if target_assessment_ids:
+            await self.session.execute(
+                delete(Grade).where(
+                    Grade.studentId == source_id,
+                    Grade.assessmentId.in_(target_assessment_ids),
+                )
+            )
+        await _bulk_update(Grade, "grades")
+
+        # ReportCard : unique (studentId, periodId) — même politique.
+        conflict_rc = await self.session.execute(
+            select(ReportCard.periodId).where(ReportCard.studentId == target_id)
+        )
+        target_period_ids = set(conflict_rc.scalars().all())
+        if target_period_ids:
+            await self.session.execute(
+                delete(ReportCard).where(
+                    ReportCard.studentId == source_id,
+                    ReportCard.periodId.in_(target_period_ids),
+                )
+            )
+        await _bulk_update(ReportCard, "reportCards")
+
+        await _bulk_update(AttendanceRecord, "attendances")
+        await _bulk_update(LibraryLoan, "libraryLoans")
+        await _bulk_update(ParentCommunication, "parentCommunications")
+
+        # StudentParent : unique (studentId, parentId, relation) — on
+        # supprime d'abord les liens du source qui dupliqueraient ceux du
+        # target, puis on bascule le reste.
+        conflict_sp = await self.session.execute(
+            select(StudentParent.parentId, StudentParent.relation)
+            .where(StudentParent.studentId == target_id)
+        )
+        target_parent_relations = {tuple(row) for row in conflict_sp.all()}
+        if target_parent_relations:
+            for parent_id, relation in target_parent_relations:
+                await self.session.execute(
+                    delete(StudentParent).where(
+                        StudentParent.studentId == source_id,
+                        StudentParent.parentId == parent_id,
+                        StudentParent.relation == relation,
+                    )
+                )
+        await _bulk_update(StudentParent, "studentParents")
+        await _bulk_update(StudentTransfer, "transfers")
+        await self.session.flush()
+        return counts
+
+    async def _scan_student_duplicates(
+        self,
+        dto: CreateStudentRequest | StudentDuplicateCheckRequest,
+        *,
+        user_scope: User | None = None,
+        limit_candidates: int = 20,
+    ) -> list[StudentDuplicateMatch]:
+        """Trouve les candidats doublons via pg_trgm + scoring fuzzy.
+
+        Si ``user_scope`` est fourni, le scope territorial du user est
+        appliqué (utile pour /check-duplicates où on veut respecter le RBAC).
+        Pour la création (create_student), on ne scope PAS — un agent qui
+        crée un élève dans une école doit voir les doublons dans cette école
+        (et seulement celle-ci) via le filtre schoolId du DTO.
+        """
+        first = (dto.firstName or "").strip().lower()
+        last = (dto.lastName or "").strip().lower()
+        if not first or not last:
+            return []
+
+        # Query principale : on filtre via la fonction similarity() de pg_trgm
+        # sur le lastName (signal le plus fort), seuil bas (0.3) pour
+        # rattraper les variantes orthographiques courantes. Le scoring fin
+        # est fait Python-side juste après.
+        stmt = (
+            select(Student)
+            .where(
+                func.similarity(func.lower(Student.lastName), last) > 0.3,
+            )
+            .options(selectinload(Student.school))
+            .order_by(
+                func.similarity(func.lower(Student.lastName), last).desc()
+            )
+            .limit(limit_candidates)
+        )
+        if isinstance(dto, CreateStudentRequest):
+            # Pour la création, scope au schoolId du DTO (un agent ne
+            # crée pas un élève dans une autre école sans le savoir).
+            stmt = stmt.where(Student.schoolId == dto.schoolId)
+        elif user_scope is not None:
+            stmt = self._scope_person_query(stmt, user_scope, model=Student)
+
+        rows = (await self.session.execute(stmt)).scalars().unique().all()
+        candidate_payload = {
+            "firstName": dto.firstName,
+            "lastName": dto.lastName,
+            "birthDate": dto.birthDate,
+            "guardianPhone": getattr(dto, "guardianPhone", None),
+            "gender": getattr(dto, "gender", None),
+            "schoolId": getattr(dto, "schoolId", None),
+        }
+
+        matches: list[StudentDuplicateMatch] = []
+        for student in rows:
+            row_payload = {
+                "firstName": student.firstName,
+                "lastName": student.lastName,
+                "birthDate": student.birthDate,
+                "guardianPhone": student.guardianPhone,
+                "gender": student.gender,
+                "schoolId": student.schoolId,
+            }
+            scored = compute_similarity_score(candidate_payload, row_payload)
+            classification = classify_score(scored["score"])
+            # Fallback exact-match (C-1 review) : si le scoring laisse passer
+            # un appariement noms+école+genre très fort, on remonte le niveau.
+            classification = force_classification_floor(
+                candidate_payload, row_payload, classification,
+            )
+            if classification == "LOW":
+                continue
+            school_name = student.school.name if student.school else None
+            matches.append(
+                self._build_student_match(
+                    student,
+                    school_name=school_name,
+                    score=scored["score"],
+                    classification=classification,
+                    matched_fields=scored["matchedFields"],
+                    candidate_birth=candidate_payload.get("birthDate"),
+                )
+            )
+
+        matches.sort(key=lambda m: m.score, reverse=True)
+        return matches
+
+    @staticmethod
+    def _build_student_match(
+        student: Student,
+        *,
+        school_name: str | None,
+        score: float,
+        classification: str,
+        matched_fields: list[str],
+        candidate_birth: Any,
+    ) -> StudentDuplicateMatch:
+        """Construit un StudentDuplicateMatch en masquant la birthDate exacte.
+
+        Conformément à C-3 (review Module 2) : on ne renvoie PAS la birthDate
+        complète (énumération sensible), uniquement l'année + un flag de
+        correspondance avec l'input.
+        """
+        birth_year: int | None = None
+        if student.birthDate is not None:
+            birth_year = student.birthDate.year
+
+        birth_matches: bool | None
+        if student.birthDate is None or candidate_birth is None:
+            birth_matches = None
+        else:
+            row_d = (
+                student.birthDate.date()
+                if isinstance(student.birthDate, datetime)
+                else student.birthDate
+            )
+            cand_d = (
+                candidate_birth.date()
+                if isinstance(candidate_birth, datetime)
+                else candidate_birth
+            )
+            birth_matches = row_d == cand_d
+
+        return StudentDuplicateMatch(
+            id=student.id,
+            firstName=student.firstName,
+            lastName=student.lastName,
+            birthYear=birth_year,
+            birthDateMatches=birth_matches,
+            schoolId=student.schoolId,
+            schoolName=school_name,
+            score=score,
+            classification=classification,  # type: ignore[arg-type]
+            matchedFields=matched_fields,
+        )
+
+    async def _scan_teacher_duplicates(
+        self, dto: CreateTeacherRequest
+    ) -> list[dict[str, Any]]:
+        """Scan minimaliste des doublons enseignants (lastName + firstName + birthDate)."""
+        first = (dto.firstName or "").strip().lower()
+        last = (dto.lastName or "").strip().lower()
+        if not first or not last:
+            return []
+
+        stmt = (
+            select(Teacher)
+            .where(
+                Teacher.schoolId == dto.schoolId,
+                func.similarity(func.lower(Teacher.lastName), last) > 0.3,
+            )
+            .order_by(
+                func.similarity(func.lower(Teacher.lastName), last).desc()
+            )
+            .limit(20)
+        )
+        rows = (await self.session.execute(stmt)).scalars().unique().all()
+
+        candidate = {
+            "firstName": dto.firstName,
+            "lastName": dto.lastName,
+            "birthDate": dto.birthDate,
+            "gender": dto.gender,
+            "schoolId": dto.schoolId,
+        }
+        matches: list[dict[str, Any]] = []
+        for teacher in rows:
+            row_payload = {
+                "firstName": teacher.firstName,
+                "lastName": teacher.lastName,
+                "birthDate": teacher.birthDate,
+                "gender": teacher.gender,
+                "schoolId": teacher.schoolId,
+            }
+            scored = compute_similarity_score(candidate, row_payload)
+            classification = classify_score(scored["score"])
+            classification = force_classification_floor(
+                candidate, row_payload, classification,
+            )
+            if classification == "LOW":
+                continue
+            # Idem C-3 : on ne renvoie pas la birthDate exacte (énumération).
+            birth_year = teacher.birthDate.year if teacher.birthDate else None
+            birth_matches: bool | None
+            if teacher.birthDate is None or dto.birthDate is None:
+                birth_matches = None
+            else:
+                row_d = (
+                    teacher.birthDate.date()
+                    if isinstance(teacher.birthDate, datetime)
+                    else teacher.birthDate
+                )
+                birth_matches = row_d == dto.birthDate
+            matches.append({
+                "id": teacher.id,
+                "firstName": teacher.firstName,
+                "lastName": teacher.lastName,
+                "schoolId": teacher.schoolId,
+                "birthYear": birth_year,
+                "birthDateMatches": birth_matches,
+                "score": scored["score"],
+                "classification": classification,
+                "matchedFields": scored["matchedFields"],
+            })
+        matches.sort(key=lambda m: m["score"], reverse=True)
+        return matches
+
+    # ==================================================================
     # PRIVATE HELPERS
     # ==================================================================
     def _scope_school_query(self, stmt, user: User):  # type: ignore[no-untyped-def]
@@ -1021,6 +1594,61 @@ class CensusService:
                 detail="Une ou plusieurs classes sont introuvables pour cette école"
             )
 
+    async def _assert_birthdate_matches_classroom(
+        self,
+        dto: CreateStudentRequest,
+        *,
+        user: User,
+        force: bool,
+    ) -> None:
+        """M-6 review Module 2 — cohérence âge ↔ niveau de la classe.
+
+        Si la classe a un ``level`` connu (CP, CE2, CM1, ...) et que le DTO
+        porte une ``birthDate``, on appelle ``validate_birthdate_for_classroom``.
+        Sur incohérence :
+
+        * ``force=False`` → 422 ``ValidationFailedError`` (l'agent doit
+          confirmer explicitement).
+        * ``force=True``  → on autorise mais on trace un AuditLog dédié.
+
+        Sans birthDate ou sans classroom ou sans level, on ne valide rien
+        (chaque champ est facultatif côté schéma).
+        """
+        if dto.birthDate is None or not dto.classRoomId:
+            return
+        classroom = await self.session.get(ClassRoom, dto.classRoomId)
+        if classroom is None or not classroom.level:
+            return
+        ok, reason = validate_birthdate_for_classroom(dto.birthDate, classroom.level)
+        if ok:
+            return
+        if not force:
+            raise ValidationFailedError(
+                detail=f"Date de naissance incohérente avec la classe: {reason}",
+                extra={
+                    "classRoomId": dto.classRoomId,
+                    "level": classroom.level,
+                    "reason": reason,
+                },
+            )
+        # force=True : on autorise mais on trace pour audit a posteriori.
+        # NB : on ASCII-fold ``reason`` pour rester compatible avec une DB
+        # encodée en SQL_ASCII (chaîne d'origine restituée côté UI/i18n).
+        self.session.add(
+            AuditLog(
+                actorId=user.id,
+                action="OVERRIDE_BIRTHDATE_INCONSISTENT_WITH_CLASSROOM",
+                entity="Student",
+                entityId=None,
+                metadata_={
+                    "classRoomId": dto.classRoomId,
+                    "level": classroom.level,
+                    "birthDate": dto.birthDate.isoformat(),
+                    "reason": _ascii_fold(reason or ""),
+                },
+            )
+        )
+
     async def _assert_no_duplicate_student(self, dto: CreateStudentRequest) -> None:
         if not dto.birthDate:
             return
@@ -1037,11 +1665,29 @@ class CensusService:
         )
         row = (await self.session.execute(stmt)).first()
         if row is not None:
+            census_duplicate_blocked_total.labels(
+                entity="student", level="EXACT"
+            ).inc()
             raise ConflictError(
                 detail=(
                     f"Doublon détecté : {row.firstName} {row.lastName} est déjà "
                     f"enregistré ({row.uniqueCode})."
-                )
+                ),
+                # Schéma payload cohérent avec le HIGH fuzzy pour que les
+                # clients UI puissent traiter les deux cas avec le même code.
+                extra={
+                    "duplicates": [
+                        {
+                            "id": row.id,
+                            "firstName": row.firstName,
+                            "lastName": row.lastName,
+                            "schoolId": dto.schoolId,
+                            "score": 1.0,
+                            "classification": "EXACT",
+                            "matchedFields": ["firstName", "lastName", "birthDate"],
+                        }
+                    ]
+                },
             )
 
     async def _assert_no_duplicate_teacher(self, dto: CreateTeacherRequest) -> None:
@@ -1060,11 +1706,27 @@ class CensusService:
         )
         row = (await self.session.execute(stmt)).first()
         if row is not None:
+            census_duplicate_blocked_total.labels(
+                entity="teacher", level="EXACT"
+            ).inc()
             raise ConflictError(
                 detail=(
                     f"Doublon détecté : {row.firstName} {row.lastName} est déjà "
                     f"enregistré ({row.uniqueCode})."
-                )
+                ),
+                extra={
+                    "duplicates": [
+                        {
+                            "id": row.id,
+                            "firstName": row.firstName,
+                            "lastName": row.lastName,
+                            "schoolId": dto.schoolId,
+                            "score": 1.0,
+                            "classification": "EXACT",
+                            "matchedFields": ["firstName", "lastName", "birthDate"],
+                        }
+                    ]
+                },
             )
 
     async def _generate_unique_code(

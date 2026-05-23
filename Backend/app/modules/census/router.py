@@ -11,13 +11,18 @@ from app.modules.census.schemas import (
     DashboardQuery,
     DashboardResponse,
     IdentifyResponse,
+    MergeStudentsRequest,
     MetadataResponse,
     QrSvgResponse,
+    StudentDuplicateCheckRequest,
+    StudentDuplicateCheckResponse,
     StudentRead,
+    TeacherDuplicateCheckRequest,
+    TeacherDuplicateCheckResponse,
     TeacherRead,
     TransferStudentRequest,
 )
-from app.modules.census.service import CensusService
+from app.modules.census.service import MERGE_STUDENTS_ROLES, CensusService
 from app.shared.deps import DbSession, get_current_user
 from app.shared.enums import UserRole
 from app.shared.permissions import require_roles
@@ -90,9 +95,49 @@ async def get_student(
     dependencies=[Depends(require_roles(*CENSUS_WRITE_ROLES))],
 )
 async def create_student(
-    dto: CreateStudentRequest, user: CurrentUserDep, service: CensusSvc
+    dto: CreateStudentRequest,
+    user: CurrentUserDep,
+    service: CensusSvc,
+    force: Annotated[bool, Query(description="Force la création même si un doublon HIGH existe")] = False,
 ) -> StudentRead:
-    return await service.create_student(user, dto)
+    return await service.create_student(user, dto, force=force)
+
+
+@router.post(
+    "/students/check-duplicates",
+    response_model=StudentDuplicateCheckResponse,
+    summary="Recherche fuzzy de doublons élèves (Module 2)",
+    # C-3 review Module 2 : endpoint réservé aux rôles habilités à créer des
+    # élèves. Sans ce filtre, n'importe quel utilisateur authentifié (un
+    # TEACHER, un INSPECTOR) pouvait énumérer les fiches.
+    dependencies=[Depends(require_roles(*CENSUS_WRITE_ROLES))],
+)
+async def check_student_duplicates(
+    dto: StudentDuplicateCheckRequest,
+    user: CurrentUserDep,
+    service: CensusSvc,
+) -> StudentDuplicateCheckResponse:
+    return await service.check_student_duplicates(user, dto)
+
+
+@router.post(
+    "/students/{student_id}/merge",
+    response_model=StudentRead,
+    summary="Fusionne deux fiches élèves (source → target)",
+    dependencies=[Depends(require_roles(*MERGE_STUDENTS_ROLES))],
+)
+async def merge_students(
+    student_id: str,
+    dto: MergeStudentsRequest,
+    user: CurrentUserDep,
+    service: CensusSvc,
+) -> StudentRead:
+    return await service.merge_students(
+        user,
+        source_id=student_id,
+        target_id=dto.targetId,
+        reason=dto.reason,
+    )
 
 
 @router.patch(
@@ -151,9 +196,26 @@ async def get_teacher(
     dependencies=[Depends(require_roles(*CENSUS_WRITE_ROLES))],
 )
 async def create_teacher(
-    dto: CreateTeacherRequest, user: CurrentUserDep, service: CensusSvc
+    dto: CreateTeacherRequest,
+    user: CurrentUserDep,
+    service: CensusSvc,
+    force: Annotated[bool, Query(description="Force la création même si un doublon HIGH existe")] = False,
 ) -> TeacherRead:
-    return await service.create_teacher(user, dto)
+    return await service.create_teacher(user, dto, force=force)
+
+
+@router.post(
+    "/teachers/check-duplicates",
+    response_model=TeacherDuplicateCheckResponse,
+    summary="Recherche fuzzy de doublons enseignants (Module 2)",
+    dependencies=[Depends(require_roles(*CENSUS_WRITE_ROLES))],
+)
+async def check_teacher_duplicates(
+    dto: TeacherDuplicateCheckRequest,
+    user: CurrentUserDep,
+    service: CensusSvc,
+) -> TeacherDuplicateCheckResponse:
+    return await service.check_teacher_duplicates(user, dto)
 
 
 @router.patch(

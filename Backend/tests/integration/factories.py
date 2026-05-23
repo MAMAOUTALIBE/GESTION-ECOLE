@@ -345,6 +345,45 @@ class PasswordResetTokenFactory(_AsyncBaseFactory):
 
 
 # ---------------------------------------------------------------------------
+# Module 2 — helpers de doublons
+# ---------------------------------------------------------------------------
+async def make_duplicate_pair(
+    school_id: str,
+    *,
+    last_name: str = "Diallo",
+    first_name: str = "Aïssatou",
+    birth_iso: str = "2018-03-15",
+    phone: str = "+224622123456",
+) -> tuple[Student, Student]:
+    """Crée deux students presque identiques (orthographe légèrement différente).
+
+    Utilise les normalisations attendues du module census : on stocke
+    directement les valeurs déjà normalisées pour rester proche du runtime.
+    Renvoie ``(original, near_duplicate)`` ; les deux pointent sur
+    ``school_id``. Utile dans les tests qui veulent un score HIGH garanti.
+    """
+    birth = datetime.fromisoformat(birth_iso).replace(tzinfo=UTC)
+    a = await StudentFactory.create_async(
+        schoolId=school_id,
+        firstName=first_name,
+        lastName=last_name,
+        gender=Gender.FEMALE,
+        guardianPhone=phone,
+        birthDate=birth,
+    )
+    # Variante : capitalisation différente, accent retiré.
+    b = await StudentFactory.create_async(
+        schoolId=school_id,
+        firstName=first_name.upper().replace("Ï", "I"),
+        lastName=last_name.upper(),
+        gender=Gender.FEMALE,
+        guardianPhone=phone,
+        birthDate=birth,
+    )
+    return a, b
+
+
+# ---------------------------------------------------------------------------
 # High-level helpers — souvent on veut juste un "tree" complet
 # (region -> prefecture -> sous-prefecture -> ecole).
 # ---------------------------------------------------------------------------
