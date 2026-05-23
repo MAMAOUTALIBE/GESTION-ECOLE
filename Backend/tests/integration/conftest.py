@@ -217,6 +217,14 @@ async def db_engine() -> AsyncIterator[AsyncEngine]:
         swapped_cols, removed_indexes = _neutralise_postgis_columns()
 
     async with engine.begin() as conn:
+        # Module 2 — pg_trgm requis pour le service de dédoublonnage
+        # (utilise func.similarity). On l'active idempotemment ici pour
+        # que les tests d'integration puissent appeler check_duplicates
+        # sans dependre de l'execution prealable de la migration 0002.
+        try:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        except Exception:  # pragma: no cover - depends on perms
+            pass
         # PRECAUTION : drop d'abord pour repartir d'un schema propre meme si
         # la session precedente s'est terminee brutalement.
         await conn.run_sync(Base.metadata.drop_all)
