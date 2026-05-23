@@ -123,9 +123,31 @@ class UserListItem(BaseModel):
 # Module 1 — MFA / refresh / logout / password change / forgot-reset / sessions
 # ---------------------------------------------------------------------------
 class MfaVerifyRequest(BaseModel):
-    """POST /api/auth/mfa/verify — finishes the login when MFA is on."""
+    """POST /api/auth/mfa/verify — finishes the login when MFA is on.
+
+    `code` accepts either a 6-digit TOTP or a recovery code. Module 1.0
+    recovery codes were 8 chars; the C-3 security fix moved them to a
+    dashed 33-char format (`XXXX-XXXX-...`), hence `max_length=64` here.
+    """
     challengeToken: str
-    code: str = Field(min_length=6, max_length=16)
+    code: str = Field(min_length=6, max_length=64)
+
+
+class MfaSetupRequest(BaseModel):
+    """POST /api/auth/mfa/setup body.
+
+    Security fix C-1 — the endpoint used to be parameterless. Anyone with
+    a valid access token (e.g. stolen via XSS or replay) could call it and
+    overwrite the victim's MFA credential silently, effectively neutralising
+    MFA. We now demand:
+
+    * ``currentPassword`` — always required; re-verified server-side.
+    * ``currentTotp`` — only required when the user has ``mfaEnabled=True``
+      already (re-enrollment / "lost my device" flow). Must be a valid TOTP
+      or recovery code of the existing credential.
+    """
+    currentPassword: str = Field(min_length=8)
+    currentTotp: str | None = Field(default=None, min_length=6, max_length=64)
 
 
 class MfaSetupResponse(BaseModel):
@@ -145,9 +167,13 @@ class MfaVerifySetupRequest(BaseModel):
 
 
 class MfaDisableRequest(BaseModel):
-    """POST /api/auth/mfa/disable — requires password + a TOTP/recovery code."""
+    """POST /api/auth/mfa/disable — requires password + a TOTP/recovery code.
+
+    `code` accepts either a 6-digit TOTP or a recovery code (33 chars after
+    fix C-3 — see :class:`MfaVerifyRequest`).
+    """
     password: str
-    code: str = Field(min_length=6, max_length=16)
+    code: str = Field(min_length=6, max_length=64)
 
 
 class RefreshRequest(BaseModel):

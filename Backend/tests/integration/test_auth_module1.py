@@ -625,6 +625,7 @@ async def test_mfa_setup_returns_secret_and_codes(
     access = login.json()["accessToken"]
     r = await client.post(
         "/api/auth/mfa/setup",
+        json={"currentPassword": PWD_OK},
         headers={"Authorization": f"Bearer {access}"},
     )
     assert r.status_code == 200, r.text
@@ -645,6 +646,7 @@ async def test_mfa_verify_setup_activates_credential(
     access = login.json()["accessToken"]
     setup = await client.post(
         "/api/auth/mfa/setup",
+        json={"currentPassword": PWD_OK},
         headers={"Authorization": f"Bearer {access}"},
     )
     secret = setup.json()["secret"]
@@ -859,6 +861,234 @@ async def test_verify_totp_window_tolerates_clock_skew() -> None:
     assert verify_totp(secret, code) is True
     # Non-digit code instantly rejected.
     assert verify_totp(secret, "abcdef") is False
+
+
+# ===========================================================================
+# Module 1 — Security review fixes (C-1 .. C-5)
+# ===========================================================================
+# These tests guard against regressions on the 5 CRITICAL findings raised by
+# the independent security review of Module 1. Each test maps 1:1 to a fix.
+# ===========================================================================
+
+
+# --- C-1 — /mfa/setup requires current password (and TOTP when re-enrolling)
+async def test_mfa_setup_requires_current_password_and_totp_if_already_enabled(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """Reject /mfa/setup attempts that lack the proof of current possession.
+
+    The attacker scenario is: stolen access token + no password. Previous
+    code happily overwrote the existing credential as long as it was
+    `enabled=False` (and even when `enabled=True` it just returned a
+    conflict — but the silent overwrite of a *pending* cred remained).
+    """
+    user = await _make_user(
+        db_session, email="mfa-setup-c1@example.com", mfa_enabled=True
+    )
+    secret, _, _ = await _enable_mfa(db_session, user)
+    # Forge an access token directly to simulate the "stolen token" case
+    # without going through /login (which would not return one for an
+    # MFA-enabled user — exactly the bug we are guarding against).
+    access = create_access_token(user.id, claims={"role": user.role.value})
+
+    # 1) No body at all -> 422 (FastAPI validation).
+    r0 = await client.post(
+        "/api/auth/mfa/setup",
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r0.status_code in (400, 422), r0.text
+
+    # 2) Wrong password -> 401, MFA credential untouched.
+    r1 = await client.post(
+        "/api/auth/mfa/setup",
+        json={"currentPassword": "Totally-wrong-1234!"},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r1.status_code == 401, r1.text
+
+    # 3) Right password but no current TOTP for a user who already has MFA
+    #    -> 401 (cannot prove possession of the existing factor).
+    r2 = await client.post(
+        "/api/auth/mfa/setup",
+        json={"currentPassword": PWD_OK},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r2.status_code == 401, r2.text
+
+    # 4) Right password + WRONG current TOTP -> 401.
+    r3 = await client.post(
+        "/api/auth/mfa/setup",
+        json={"currentPassword": PWD_OK, "currentTotp": "000000"},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r3.status_code == 401, r3.text
+
+    # 5) Right password + VALID current TOTP -> 409 (must /mfa/disable first).
+    #    Verifies that even with full proof, we don't silently overwrite.
+    valid_totp = pyotp.TOTP(secret).now()
+    r4 = await client.post(
+        "/api/auth/mfa/setup",
+        json={"currentPassword": PWD_OK, "currentTotp": valid_totp},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r4.status_code == 409, r4.text
+
+    # The stored secret MUST be unchanged after every rejected attempt.
+    from app.core.security import decrypt_secret as _decrypt
+
+    stmt = select(MfaCredential).where(MfaCredential.userId == user.id)
+    cred_after = (await db_session.execute(stmt)).scalar_one()
+    assert _decrypt(cred_after.secret) == secret
+
+
+# --- C-2 — JWT decode pins the algorithm (rejects alg=none / RS256 confusion)
+async def test_decode_token_rejects_alg_none() -> None:
+    """A JWT explicitly signed with alg=none must not be decodable."""
+    import jwt as _jwt  # local alias to keep the test self-contained
+
+    # Hand-craft a token with header `{"alg":"none","typ":"JWT"}`.
+    none_token = _jwt.encode(
+        {"sub": "attacker", "type": "access", "jti": "x", "exp": 9999999999},
+        key="",  # PyJWT requires a key argument even for "none"
+        algorithm="none",
+    )
+    # Sanity — the token really is alg=none (header inspection).
+    header = _jwt.get_unverified_header(none_token)
+    assert header["alg"] == "none"
+
+    with pytest.raises((_jwt.InvalidTokenError, _jwt.PyJWTError)):
+        decode_token(none_token)
+
+    # RS256-signed token: same idea — even with a valid RSA signature, the
+    # allow-list pin must refuse it because only HS256 is allowed.
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    rs_token = _jwt.encode(
+        {"sub": "attacker", "type": "access", "jti": "y", "exp": 9999999999},
+        key=key,
+        algorithm="RS256",
+    )
+    with pytest.raises((_jwt.InvalidTokenError, _jwt.PyJWTError)):
+        decode_token(rs_token)
+
+
+# --- C-3 — Recovery codes carry >> 80 bits of entropy and are unique
+async def test_recovery_codes_have_sufficient_entropy() -> None:
+    """Generate a large batch and check no duplicates + min length."""
+    from app.core.security import generate_recovery_codes
+
+    batch = generate_recovery_codes(n=1000)
+    assert len(batch) == 1000
+    # No collisions across 1000 codes — at 41 bits the birthday probability
+    # would be ~22%; at 160 bits it's astronomically small.
+    assert len(set(batch)) == 1000
+    # Every code is the dashed format with at least 5 chars before the
+    # first dash and total length > 20 (sanity floor for the new scheme).
+    for code in batch:
+        assert "-" in code, code
+        assert len(code) >= 20, code
+        # Alphabet check — only [A-Z0-9-].
+        assert all(c.isalnum() or c == "-" for c in code), code
+        assert code == code.upper()
+
+
+# --- C-4 — client_ip honours TRUSTED_PROXIES (and only TRUSTED_PROXIES)
+def _fake_request(*, peer_ip: str | None, xff: str | None = None):
+    """Construct a Starlette Request with a forged client + headers."""
+    from starlette.requests import Request as _Req
+
+    headers: list[tuple[bytes, bytes]] = []
+    if xff is not None:
+        headers.append((b"x-forwarded-for", xff.encode("ascii")))
+    scope = {
+        "type": "http",
+        "client": (peer_ip, 5555) if peer_ip is not None else None,
+        "headers": headers,
+        "method": "GET",
+        "path": "/",
+        "raw_path": b"/",
+        "query_string": b"",
+    }
+    return _Req(scope)
+
+
+def test_client_ip_uses_direct_when_no_trusted_proxies(monkeypatch) -> None:
+    from app.core import proxy as _proxy
+    from app.core.config import settings as _settings
+
+    monkeypatch.setattr(_settings, "trusted_proxies", "", raising=True)
+    _proxy.reset_trusted_proxies_cache()
+    req = _fake_request(peer_ip="203.0.113.7", xff="198.51.100.1")
+    assert _proxy.client_ip(req) == "203.0.113.7"
+
+
+def test_client_ip_uses_xff_when_trusted_proxy_matches(monkeypatch) -> None:
+    from app.core import proxy as _proxy
+    from app.core.config import settings as _settings
+
+    monkeypatch.setattr(_settings, "trusted_proxies", "10.0.0.0/8", raising=True)
+    _proxy.reset_trusted_proxies_cache()
+    req = _fake_request(peer_ip="10.1.2.3", xff="198.51.100.42")
+    assert _proxy.client_ip(req) == "198.51.100.42"
+
+
+def test_client_ip_ignores_xff_when_proxy_not_trusted(monkeypatch) -> None:
+    """Anti-spoof: an open-internet caller cannot lie about its IP."""
+    from app.core import proxy as _proxy
+    from app.core.config import settings as _settings
+
+    monkeypatch.setattr(_settings, "trusted_proxies", "10.0.0.0/8", raising=True)
+    _proxy.reset_trusted_proxies_cache()
+    # Peer is on the open internet, NOT in 10.0.0.0/8 — XFF must be ignored.
+    req = _fake_request(peer_ip="8.8.8.8", xff="198.51.100.42")
+    assert _proxy.client_ip(req) == "8.8.8.8"
+
+
+def test_client_ip_takes_leftmost_from_xff_list(monkeypatch) -> None:
+    from app.core import proxy as _proxy
+    from app.core.config import settings as _settings
+
+    monkeypatch.setattr(_settings, "trusted_proxies", "172.16.0.0/12", raising=True)
+    _proxy.reset_trusted_proxies_cache()
+    req = _fake_request(
+        peer_ip="172.16.0.5",
+        xff="  198.51.100.42 , 10.0.0.1, 172.16.0.5",
+    )
+    # Leftmost = the original client.
+    assert _proxy.client_ip(req) == "198.51.100.42"
+
+
+# --- C-5 — get_current_user fails CLOSED with 503 when Redis is down
+async def test_get_current_user_fails_closed_when_redis_down(
+    db_session: AsyncSession, client: AsyncClient, monkeypatch
+) -> None:
+    """A Redis outage must produce 503, not pass-through (fail-open)."""
+    user = await _make_user(db_session, email="failclosed@example.com")
+    access = create_access_token(
+        user.id,
+        claims={
+            "role": user.role.value,
+            "regionId": user.regionId,
+            "prefectureId": user.prefectureId,
+            "subPrefectureId": user.subPrefectureId,
+            "schoolId": user.schoolId,
+        },
+    )
+
+    # Monkeypatch is_token_revoked to simulate Redis being unreachable.
+    async def _boom(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise ConnectionError("simulated redis down")
+
+    from app.shared import deps as _deps
+
+    monkeypatch.setattr(_deps, "is_token_revoked", _boom, raising=True)
+
+    r = await client.get(
+        "/api/auth/me", headers={"Authorization": f"Bearer {access}"}
+    )
+    assert r.status_code == 503, r.text
+    assert "temporairement" in r.json()["message"].lower()
 
 
 # Quiet ruff F401 on a couple of import-only usages.

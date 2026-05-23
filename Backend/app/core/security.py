@@ -18,10 +18,9 @@ import base64
 import hashlib
 import os
 import secrets
-import string
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 import jwt
 from argon2 import PasswordHasher
@@ -33,6 +32,14 @@ from passlib.hash import bcrypt
 from redis.asyncio import Redis
 
 from app.core.config import settings
+
+# Module 1 security fix C-2 — hard pin the JWT algorithms accepted by
+# `decode_token`. NEVER rely on `settings.jwt_algorithm` directly when
+# decoding: an attacker who controls the env (or a misconfigured deploy)
+# could swap it to "none" or to "RS256" and trigger alg-confusion attacks.
+# The pin is checked once on every decode AND used as the `algorithms=`
+# allow-list passed to `jwt.decode`.
+_ALLOWED_JWT_ALGORITHMS: Final[frozenset[str]] = frozenset({"HS256"})
 
 _argon2 = PasswordHasher(
     time_cost=3,
@@ -149,11 +156,23 @@ def decode_token(token: str, *, expected_type: TokenType | None = None) -> dict[
     Raises jwt.* exceptions on failure. Revocation check is a separate
     coroutine (:func:`is_token_revoked`) so callers can decide whether the
     blacklist is in scope (e.g. tests for token shape only do not need it).
+
+    Security fix C-2 — the `algorithms=` allow-list is hard-pinned to
+    `_ALLOWED_JWT_ALGORITHMS`, never the value of `settings.jwt_algorithm`.
+    A misconfigured deploy that sets `JWT_ALGORITHM=none` or `RS256` is
+    rejected at startup of every decode with a `RuntimeError`, well before
+    the attacker payload reaches `jwt.decode`.
     """
+    if settings.jwt_algorithm not in _ALLOWED_JWT_ALGORITHMS:
+        raise RuntimeError(
+            f"JWT_ALGORITHM forbidden: {settings.jwt_algorithm!r} "
+            f"(allowed: {sorted(_ALLOWED_JWT_ALGORITHMS)})"
+        )
+
     payload: dict[str, Any] = jwt.decode(
         token,
         settings.jwt_secret,
-        algorithms=[settings.jwt_algorithm],
+        algorithms=list(_ALLOWED_JWT_ALGORITHMS),
     )
     if expected_type and payload.get("type") != expected_type:
         raise jwt.InvalidTokenError(f"Expected token type {expected_type}")
@@ -224,29 +243,63 @@ def decrypt_secret(ciphertext: str) -> str:
 # ---------------------------------------------------------------------------
 # Recovery codes
 # ---------------------------------------------------------------------------
-_RECOVERY_ALPHABET = string.ascii_uppercase + string.digits
+# Security fix C-3 — previous implementation used `secrets.choice` over a
+# 36-char alphabet for 8 chars, yielding ~41 bits of entropy. We now use
+# `secrets.token_urlsafe(20)` which gives 160 bits, then format the result
+# in fixed-size groups for readability. Hashes / verification are unchanged
+# (both still go through Argon2id on the normalised string).
+_RECOVERY_RANDOM_BYTES: Final[int] = 20  # -> 160 bits of entropy
+_RECOVERY_GROUP_SIZE: Final[int] = 4
 
 
-def generate_recovery_codes(n: int = 10, length: int = 8) -> list[str]:
-    """Generate `n` cryptographically random alphanumeric codes.
+def _format_recovery_code(raw: str) -> str:
+    """Insert dashes every `_RECOVERY_GROUP_SIZE` chars (e.g. ABCD-EFGH-...)."""
+    upper = raw.upper()
+    return "-".join(
+        upper[i : i + _RECOVERY_GROUP_SIZE]
+        for i in range(0, len(upper), _RECOVERY_GROUP_SIZE)
+    )
 
-    Format chosen to be readable when displayed once at MFA enrollment.
+
+def generate_recovery_codes(n: int = 10) -> list[str]:
+    """Generate `n` cryptographically strong recovery codes.
+
+    Each code carries ~160 bits of entropy (token_urlsafe(20) → 27 chars of
+    a 64-char alphabet), then is formatted in dash-separated groups of 4
+    for human transcription. We strip URL-safe characters that are easy to
+    confuse with each other (``-`` and ``_``) BEFORE inserting the
+    dash separators — final shape is purely [A-Z0-9-].
     """
-    return [
-        "".join(secrets.choice(_RECOVERY_ALPHABET) for _ in range(length))
-        for _ in range(n)
-    ]
+    codes: list[str] = []
+    for _ in range(n):
+        raw = secrets.token_urlsafe(_RECOVERY_RANDOM_BYTES)
+        # token_urlsafe returns base64url alphabet (A-Z, a-z, 0-9, -, _).
+        # Drop the separator-confusable characters and force upper-case so
+        # the visible alphabet stays in [A-Z0-9] (~6 bits/char x 27 = 162b).
+        cleaned = raw.replace("-", "").replace("_", "").upper()
+        codes.append(_format_recovery_code(cleaned))
+    return codes
 
 
 def hash_recovery_code(code: str) -> str:
     """Hash a recovery code with Argon2id — exactly like a password."""
-    return _argon2.hash(code.upper().strip())
+    return _argon2.hash(_normalize_recovery_code(code))
 
 
 def verify_recovery_code(hashed: str, code: str) -> bool:
     """Verify a single recovery code candidate against its Argon2 hash."""
     try:
-        _argon2.verify(hashed, code.upper().strip())
+        _argon2.verify(hashed, _normalize_recovery_code(code))
         return True
     except VerifyMismatchError:
         return False
+
+
+def _normalize_recovery_code(code: str) -> str:
+    """Canonicalise a recovery code candidate for hashing/comparison.
+
+    Strips whitespace, drops every dash (users sometimes omit them when
+    typing) and upper-cases. Hash and verify MUST agree on this so that
+    `verify_recovery_code(hash_recovery_code(c), c)` is always True.
+    """
+    return (code or "").strip().upper().replace("-", "").replace(" ", "")

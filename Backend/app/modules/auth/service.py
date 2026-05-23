@@ -575,11 +575,85 @@ class AuthService:
         self,
         user: User,
         *,
+        current_password: str,
+        current_totp: str | None = None,
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> MfaSetupResponse:
+        """Security fix C-1 — protect MFA enrollment.
+
+        Without these checks, a stolen access token was enough to call
+        ``/mfa/setup`` and silently overwrite the victim's MFA credential
+        (the previous code only refused when ``cred.enabled is True``; a
+        cred in pending state was happily clobbered, effectively giving
+        the attacker a fresh secret). We now require:
+
+        1. ``current_password`` — re-verified via ``verify_password``.
+           Refused with 401 if it does not match — no information leak.
+        2. ``current_totp`` — required only when the user already has
+           ``mfaEnabled=True``. Must be a valid TOTP or recovery code on
+           the existing enabled credential. This blocks "lost my phone +
+           stolen token" combo attacks.
+        3. The existing "MFA déjà activé" conflict is **kept** so the
+           normal flow asks the user to call ``/mfa/disable`` first.
+        """
+        if not verify_password(current_password, user.passwordHash):
+            await self._audit(
+                event=AuthEvent.MFA_ENABLED,
+                user_id=user.id,
+                email=user.email,
+                ip=ip_address,
+                ua=user_agent,
+                success=False,
+                reason="setup_bad_password",
+            )
+            raise UnauthorizedError(detail=INVALID_CREDENTIALS_MESSAGE)
+
         cred = await self._get_mfa_credential(user.id)
-        if cred is not None and cred.enabled:
+        if user.mfaEnabled or (cred is not None and cred.enabled):
+            # User already has working MFA — they must prove they still
+            # control the existing factor before we replace it.
+            if not current_totp:
+                await self._audit(
+                    event=AuthEvent.MFA_ENABLED,
+                    user_id=user.id,
+                    email=user.email,
+                    ip=ip_address,
+                    ua=user_agent,
+                    success=False,
+                    reason="setup_missing_totp",
+                )
+                raise UnauthorizedError(
+                    detail="Code MFA actuel requis pour ré-enrôler",
+                )
+            existing = cred  # cred is guaranteed non-None when mfaEnabled True
+            if existing is None:
+                # Defensive: mfaEnabled=True but no credential row -> data
+                # inconsistency. Refuse loudly rather than silently allow.
+                raise UnauthorizedError(detail="État MFA incohérent")
+            secret_plain = decrypt_secret(existing.secret)
+            ok = verify_totp(secret_plain, current_totp)
+            if not ok:
+                matched, updated = consume_recovery_code(
+                    list(existing.recoveryCodesHashed or []), current_totp
+                )
+                if matched:
+                    existing.recoveryCodesHashed = updated
+                    ok = True
+            if not ok:
+                await self._audit(
+                    event=AuthEvent.MFA_FAILED,
+                    user_id=user.id,
+                    email=user.email,
+                    ip=ip_address,
+                    ua=user_agent,
+                    success=False,
+                    reason="setup_bad_totp",
+                )
+                raise UnauthorizedError(detail="Code MFA invalide")
+            # All checks passed — keep the original ConflictError contract
+            # so the API still tells the caller they need to /mfa/disable
+            # first (avoids accidental silent overwrite during normal use).
             raise ConflictError(detail="MFA déjà activé")
 
         secret = generate_secret()

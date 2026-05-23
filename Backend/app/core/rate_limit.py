@@ -23,6 +23,8 @@ from typing import Final
 from loguru import logger
 from redis.asyncio import Redis
 
+from app.core.observability import auth_rate_limit_check_failed_total
+
 # Default tuning. Override per-call where needed.
 LOGIN_EMAIL_LIMIT: Final = 5
 LOGIN_EMAIL_WINDOW_S: Final = 15 * 60
@@ -75,7 +77,16 @@ class RateLimiter:
                 results = await pipe.execute()
             current = int(results[0])
         except Exception as exc:  # pragma: no cover - depends on Redis state
-            logger.warning("rate_limit: Redis unavailable ({}), failing open", exc)
+            # Security fix C-5 — keep fail-open here (UX prioritaire: a Redis
+            # blip should not block all logins) but make the degradation
+            # AUDIBLE via both a structured log and a Prometheus counter so
+            # ops/alerting sees it within seconds.
+            auth_rate_limit_check_failed_total.inc()
+            logger.error(
+                "rate_limit: Redis unavailable, failing OPEN (key={}, err={})",
+                full_key,
+                exc,
+            )
             return RateLimitResult(True, 0, limit, window_seconds)
         return RateLimitResult(
             allowed=current <= limit,
