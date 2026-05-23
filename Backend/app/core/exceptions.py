@@ -46,7 +46,18 @@ class ForbiddenError(AppError):
 
 class ValidationFailedError(AppError):
     code = "validation_failed"
-    default_status = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_status = status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+class RateLimitedError(AppError):
+    code = "rate_limited"
+    default_status = status.HTTP_429_TOO_MANY_REQUESTS
+
+
+class RevokedTokenError(AppError):
+    """Raised when an access/refresh token JTI is found in the Redis blacklist."""
+    code = "token_revoked"
+    default_status = status.HTTP_401_UNAUTHORIZED
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:  # noqa: ARG001

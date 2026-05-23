@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.exceptions import UnauthorizedError
-from app.core.security import decode_token
+from app.core.redis import get_redis
+from app.core.security import decode_token, is_token_revoked
 
 # IMPORTANT: bearer scheme. auto_error=False so we can raise our own typed error.
 _bearer_scheme = HTTPBearer(auto_error=False, description="JWT access token")
@@ -40,6 +41,20 @@ async def get_current_user(
     user_id = payload.get("sub")
     if not user_id:
         raise UnauthorizedError(detail="Token missing subject")
+
+    # Module 1 — fast Redis blacklist check on the JTI. Tokens minted before
+    # Module 1 may not carry a jti; we skip the check in that case (graceful
+    # rollout). Redis outage falls back to "allow" (logged inside the helper).
+    jti = payload.get("jti")
+    if jti:
+        try:
+            redis = get_redis()
+            if await is_token_revoked(redis, jti):
+                raise UnauthorizedError(detail="Token révoqué")
+        except UnauthorizedError:
+            raise
+        except Exception:  # pragma: no cover - defensive (Redis down)
+            pass
 
     user = await session.get(User, user_id)
     if user is None:

@@ -34,6 +34,7 @@ from collections.abc import AsyncIterator, Callable
 
 import pytest
 import pytest_asyncio
+from argon2 import PasswordHasher
 from httpx import ASGITransport, AsyncClient
 from redis.asyncio import Redis
 from sqlalchemy import event, text
@@ -60,6 +61,41 @@ from app.shared.enums import UserRole
 # Test isolation knobs --------------------------------------------------------
 TEST_DB_NAME = "gestionee_test"
 TEST_REDIS_DB = 15  # DB jamais utilisee par dev/Celery
+
+
+# ---------------------------------------------------------------------------
+# Redis singleton — force the app's global Redis client (used by
+# `get_current_user` for the JTI blacklist) to point at DB 15. Without this
+# the app would write `auth:revoked:*` and `rl:*` keys to DB 0 (dev/Celery).
+# Done before the first test runs.
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="session", autouse=True)
+def _redirect_app_redis_to_test_db() -> None:
+    from app.core import redis as _redis_mod
+
+    # Force `get_redis()` to instantiate against DB 15 regardless of env.
+    _redis_mod._redis = Redis.from_url(
+        _test_redis_url(), encoding="utf-8", decode_responses=True
+    )
+
+
+# ---------------------------------------------------------------------------
+# Argon2 — relaxed cost in tests (~1ms per hash vs 200ms in prod).
+# In production we use time_cost=3, memory_cost=64*1024, parallelism=4 which
+# is intentionally slow for security. That makes every test that calls
+# `hash_password` or any Argon2 path 200x slower. For Module 1, the auth
+# tests alone hash dozens of times per test (password history, MFA recovery
+# codes), so we monkeypatch the shared PasswordHasher to a fast profile.
+# This is autouse session-scoped — applies to every test run with no opt-in.
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="session", autouse=True)
+def _fast_argon2_for_tests() -> None:
+    """Swap the security module's PasswordHasher to a fast-test profile."""
+    from app.core import security as _security
+
+    _security._argon2 = PasswordHasher(
+        time_cost=1, memory_cost=8, parallelism=1, hash_len=32, salt_len=8
+    )
 
 
 def _swap_db_name(url: str, new_db: str) -> str:
@@ -271,6 +307,27 @@ async def redis_client() -> AsyncIterator[Redis]:
 
 
 # ---------------------------------------------------------------------------
+# Autouse cleanup: flush Redis DB 15 between EVERY test. This is critical
+# for Module 1 — the rate limiter writes to per-IP / per-email keys that
+# would otherwise leak between tests (e.g. one rate-limit test would block
+# every subsequent test using "127.0.0.1").
+# ---------------------------------------------------------------------------
+@pytest_asyncio.fixture(autouse=True, loop_scope="session")
+async def _flush_redis_per_test() -> AsyncIterator[None]:
+    yield
+    try:
+        client: Redis = Redis.from_url(
+            _test_redis_url(), encoding="utf-8", decode_responses=True
+        )
+        try:
+            await client.flushdb()
+        finally:
+            await client.aclose()
+    except Exception:  # pragma: no cover - depends on env
+        pass
+
+
+# ---------------------------------------------------------------------------
 # HTTP client with DB override
 # ---------------------------------------------------------------------------
 @pytest_asyncio.fixture(loop_scope="session")
@@ -279,6 +336,7 @@ async def client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
 
     On override `get_session` pour que les routers utilisent la SAME session
     que le test (les data crees par les factories sont visibles cote API).
+    Redis (DB 15) est deja rediscrit globalement par `_redirect_app_redis_to_test_db`.
     """
 
     async def _get_session_override() -> AsyncIterator[AsyncSession]:

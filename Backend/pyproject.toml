@@ -3,7 +3,7 @@ name = "gestion-ee-backend"
 version = "0.1.0"
 description = "GESTION-EE — Plateforme nationale de gestion scolaire (Backend Python)"
 readme = "../GESTION-EE.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     # Web framework
     "fastapi[standard]>=0.115.0",
@@ -26,6 +26,7 @@ dependencies = [
     "pyjwt[crypto]>=2.10.0",
     "passlib[bcrypt]>=1.7.4",   # to verify legacy NestJS bcrypt hashes
     "cryptography>=43.0.0",
+    "pyotp>=2.9.0",              # TOTP RFC 6238 (Module 1 MFA)
     # Identifiers
     "cuid2>=2.0.1",              # match Prisma cuid() defaults
     # PDF (bulletins) & QR
@@ -53,6 +54,7 @@ dev = [
     "httpx>=0.28.0",
     "factory-boy>=3.3.1",
     "faker>=33.0.0",
+    "freezegun>=1.5.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "types-redis>=4.6.0",

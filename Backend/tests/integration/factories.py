@@ -28,8 +28,17 @@ from factory.alchemy import SQLAlchemyModelFactory
 from faker import Faker
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import hash_password
-from app.modules.auth.models import User
+from datetime import UTC, datetime, timedelta
+
+from app.core.security import hash_password, hash_token
+from app.modules.auth.models import (
+    AuthAuditLog,
+    MfaCredential,
+    PasswordHistory,
+    PasswordResetToken,
+    RefreshTokenSession,
+    User,
+)
 from app.modules.census.models import Student, Teacher
 from app.modules.schools.models import ClassRoom, School
 from app.modules.territory.models import Prefecture, Region, SubPrefecture
@@ -257,6 +266,82 @@ class UserFactory(_AsyncBaseFactory):
     prefectureId = None
     subPrefectureId = None
     schoolId = None
+    # Module 1 columns (default to no-MFA)
+    mfaRequired = False
+    mfaEnabled = False
+    passwordChangedAt = None
+
+
+# ---------------------------------------------------------------------------
+# Module 1 — Auth hardening factories
+# ---------------------------------------------------------------------------
+class MfaCredentialFactory(_AsyncBaseFactory):
+    class Meta:
+        model = MfaCredential
+
+    id = factory.LazyFunction(generate_cuid)
+    userId = ""               # required, set by test
+    secret = ""               # encrypted TOTP secret (test provides encrypted value)
+    enabled = False
+    verifiedAt = None
+    recoveryCodesHashed: list[str] = []  # type: ignore[assignment]
+
+
+class PasswordHistoryFactory(_AsyncBaseFactory):
+    class Meta:
+        model = PasswordHistory
+
+    id = factory.LazyFunction(generate_cuid)
+    userId = ""
+    passwordHash = factory.LazyFunction(lambda: hash_password("Legacy@Pa55word!"))
+
+
+class RefreshTokenSessionFactory(_AsyncBaseFactory):
+    class Meta:
+        model = RefreshTokenSession
+
+    id = factory.LazyFunction(generate_cuid)
+    userId = ""
+    tokenHash = factory.LazyFunction(
+        lambda: hash_token(f"refresh-{generate_cuid()}")
+    )
+    userAgent = "pytest-ua"
+    ipAddress = "127.0.0.1"
+    lastUsedAt = None
+    expiresAt = factory.LazyFunction(
+        lambda: datetime.now(UTC) + timedelta(days=7)
+    )
+    revokedAt = None
+    revokedReason = None
+
+
+class AuthAuditLogFactory(_AsyncBaseFactory):
+    class Meta:
+        model = AuthAuditLog
+
+    id = factory.LazyFunction(generate_cuid)
+    userId = None
+    email = "audit@test.local"
+    event = "LOGIN_SUCCESS"
+    ipAddress = "127.0.0.1"
+    userAgent = "pytest-ua"
+    success = True
+
+
+class PasswordResetTokenFactory(_AsyncBaseFactory):
+    class Meta:
+        model = PasswordResetToken
+
+    id = factory.LazyFunction(generate_cuid)
+    userId = ""
+    tokenHash = factory.LazyFunction(
+        lambda: hash_token(f"reset-{generate_cuid()}")
+    )
+    expiresAt = factory.LazyFunction(
+        lambda: datetime.now(UTC) + timedelta(minutes=30)
+    )
+    usedAt = None
+    ipAddress = "127.0.0.1"
 
 
 # ---------------------------------------------------------------------------

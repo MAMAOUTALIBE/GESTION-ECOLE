@@ -187,6 +187,52 @@ Roles supportes (depuis `app.shared.enums.UserRole`) : `NATIONAL_ADMIN`,
 `SUB_PREFECTURE_ADMIN`, `INSPECTOR`, `SCHOOL_DIRECTOR`, `TEACHER`,
 `CENSUS_AGENT`.
 
+## Tester auth + MFA (Module 1)
+
+Le module 1 (auth durci) ajoute un fixture session-scoped autouse qui
+**rebascule Argon2 sur un profil rapide** (`time_cost=1, memory_cost=8`)
+pour la duree de la suite — sinon chaque test passerait 1 seconde dans
+les hash. Voir `tests/integration/conftest.py::_fast_argon2_for_tests`.
+
+Le fichier `tests/integration/test_auth_module1.py` montre les patterns :
+
+```python
+# 1) Creer un user (PWD_OK = "Test@Pa55word!") :
+user = await factories.UserFactory.create_async(
+    email="alice@test.local",
+    passwordHash=hash_password("Test@Pa55word!"),
+)
+
+# 2) Activer la MFA + recuperer le secret en clair pour generer un TOTP :
+secret, plain_recovery_codes, _ = await _enable_mfa(db_session, user)
+import pyotp
+code = pyotp.TOTP(secret).now()
+
+# 3) Loger, recuperer le challenge, puis verifier la MFA :
+login = await client.post("/api/auth/login", json={...})
+challenge = login.json()["mfaChallenge"]
+r = await client.post(
+    "/api/auth/mfa/verify",
+    json={"challengeToken": challenge, "code": code},
+)
+```
+
+Pour tester les TTL JWT, on utilise `freezegun` :
+
+```python
+from freezegun import freeze_time
+
+with freeze_time("2026-05-23T12:00:00Z"):
+    challenge = create_mfa_challenge_token(user.id)  # 5-min TTL
+with freeze_time("2026-05-23T12:06:00Z"):
+    with pytest.raises(jwt.ExpiredSignatureError):
+        decode_token(challenge, expected_type="mfa_challenge")
+```
+
+Rate limiter : la DB Redis 15 est `flushdb()` apres chaque test (geree par
+la fixture `redis_client`), donc 5 echecs successifs dans le test N
+n'affectent pas le test N+1.
+
 ## Lancer Locust (tests de charge)
 
 Voir `tests/load/README.md` pour les details. Resume :

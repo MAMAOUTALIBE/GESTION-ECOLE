@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm \"/Volumes/Sans titre 2/GESTION-EE/Docs.md\" \"/Volumes/Sans titre 2/GESTION-EE/Plan_Developpement.md\" \"/Volumes/Sans titre 2/GESTION-EE/Legal Agreement & Copyright Notice.txt\" \"/Volumes/Sans titre 2/GESTION-EE/Backend/README.md\" \"/Volumes/Sans titre 2/GESTION-EE/Final/README.md\" && echo \"OK supprimés\" && ls \"/Volumes/Sans titre 2/GESTION-EE/\")",
+      "Bash(brew list *)",
+      "Bash(brew services *)",
+      "Bash(colima status *)",
+
+      "Bash(uv *)",
+      "Bash(alembic *)",
+      "Bash(uvicorn *)",
+      "Bash(pytest*)",
+      "Bash(ruff *)",
+      "Bash(mypy *)",
+      "Bash(celery *)",
+      "Bash(python3 *)",
+      "Bash(python *)",
+
+      "Bash(psql *)",
+      "Bash(/Library/PostgreSQL/17/bin/*)",
+      "Bash(PGPASSWORD=* *)",
+
+      "Bash(curl http://localhost:*)",
+      "Bash(curl -fsS http://localhost:*)",
+      "Bash(curl -fsSL http://localhost:*)",
+      "Bash(curl -X POST http://localhost:*)",
+      "Bash(curl -X GET http://localhost:*)",
+
+      "Bash(find Backend*)",
+      "Bash(find Backend *)",
+      "Bash(ls Backend*)",
+      "Bash(ls -la Backend*)",
+      "Bash(cat /tmp/*)"
+    ],
+    "additionalDirectories": [
+      "/Volumes/Sans titre 2/GESTION-EE"
+    ]
+  }
+}
