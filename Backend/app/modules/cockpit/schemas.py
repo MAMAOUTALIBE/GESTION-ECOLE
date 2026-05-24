@@ -63,6 +63,9 @@ class NationalKpiResponse(BaseModel):
     # Module 2D — Écoles en sous-dotation enseignants critique (ratio
     # élèves/enseignant > 70). 0 si aucun snapshot calculé.
     criticalStaffingSchools: int = 0
+    # Module 3C — Écoles classées TRES_HAUTE + HAUTE priorité
+    # d'investissement (score composite >= 50). 0 si pas encore calculé.
+    highInvestmentPriority: int = 0
     items: dict[str, float] = Field(default_factory=dict)
     generatedAt: datetime
     cached: bool = False

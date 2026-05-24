@@ -687,6 +687,90 @@ async def get_white_zones_enriched(
 
 
 # ===========================================================================
+# 7. Module 3C — Score d'investissement par école (points colorés)
+# ===========================================================================
+async def get_investment_priority_geo(session: AsyncSession) -> dict[str, Any]:
+    """FeatureCollection des écoles avec leur ``priorityCategory`` colorée.
+
+    Source : table ``InvestmentPriorityScore`` (Module 3C). Si aucun score
+    n'a été calculé, renvoie une collection vide.
+
+    Couleurs implicites côté frontend :
+
+    * TRES_HAUTE → rouge / urgence
+    * HAUTE      → orange
+    * MOYENNE    → jaune
+    * BASSE      → vert
+    """
+    from app.modules.investment.models import InvestmentPriorityScore
+
+    stmt = (
+        select(
+            School.id,
+            School.name,
+            School.code,
+            School.latitude,
+            School.longitude,
+            School.regionId,
+            School.prefectureId,
+            InvestmentPriorityScore.infrastructureScore,
+            InvestmentPriorityScore.saturationScore,
+            InvestmentPriorityScore.equityScore,
+            InvestmentPriorityScore.accessibilityScore,
+            InvestmentPriorityScore.totalScore,
+            InvestmentPriorityScore.priorityCategory,
+        )
+        .join(
+            InvestmentPriorityScore,
+            InvestmentPriorityScore.schoolId == School.id,
+        )
+        .where(
+            School.latitude.isnot(None),
+            School.longitude.isnot(None),
+        )
+    )
+    rows = (await session.execute(stmt)).all()
+    features: list[dict[str, Any]] = []
+    for r in rows:
+        category = (
+            r.priorityCategory.value
+            if hasattr(r.priorityCategory, "value")
+            else str(r.priorityCategory)
+        )
+        features.append(
+            {
+                "type": "Feature",
+                "id": f"invest-{r.id}",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [float(r.longitude), float(r.latitude)],
+                },
+                "properties": {
+                    "schoolId": r.id,
+                    "name": r.name,
+                    "code": r.code,
+                    "regionId": r.regionId,
+                    "prefectureId": r.prefectureId,
+                    "infrastructureScore": int(r.infrastructureScore),
+                    "saturationScore": int(r.saturationScore),
+                    "equityScore": int(r.equityScore),
+                    "accessibilityScore": int(r.accessibilityScore),
+                    "totalScore": int(r.totalScore),
+                    "priorityCategory": category,
+                },
+            }
+        )
+    return {
+        "type": "FeatureCollection",
+        "features": features,
+        "meta": {
+            "count": len(features),
+            "layer": "investment-priority",
+        },
+    }
+
+
+# ===========================================================================
 # Helpers de groupement / classification (exportés pour tests)
 # ===========================================================================
 def group_features_by_property(
@@ -710,6 +794,7 @@ __all__ = [
     "get_critical_staffing_schools_geo",
     "get_gpi_critical_regions",
     "get_infrastructure_gaps_geo",
+    "get_investment_priority_geo",
     "get_white_zones_enriched",
     "get_zone_type_layer",
     "group_features_by_property",

@@ -116,6 +116,7 @@ class CockpitService:
             urban_rural_gap,
             projected_critical_schools,
             critical_staffing_schools,
+            high_investment_priority,
         ) = await asyncio.gather(
             self._count_students(),
             self._compute_attendance_rate_recent(),
@@ -126,6 +127,7 @@ class CockpitService:
             self._compute_urban_rural_gap_latest_year(),
             self._count_projected_critical_schools(),
             self._count_critical_staffing_schools(),
+            self._count_high_investment_priority(),
             return_exceptions=False,
         )
 
@@ -139,6 +141,7 @@ class CockpitService:
             urbanRuralGap=urban_rural_gap,
             projectedCriticalSchools=int(projected_critical_schools),
             criticalStaffingSchools=int(critical_staffing_schools),
+            highInvestmentPriority=int(high_investment_priority),
             items={
                 KpiKey.STUDENTS_TOTAL.value: float(students_total),
                 KpiKey.ATTENDANCE_RATE.value: round(float(attendance_rate), 2),
@@ -158,6 +161,10 @@ class CockpitService:
                 # Module 2D — Écoles CRITICAL staffing (ratio > 70).
                 KpiKey.SCHOOLS_CRITICAL_STAFFING_COUNT.value: float(
                     critical_staffing_schools,
+                ),
+                # Module 3C — Écoles TRES_HAUTE + HAUTE priorité investissement.
+                KpiKey.HIGH_INVESTMENT_PRIORITY_COUNT.value: float(
+                    high_investment_priority,
                 ),
             },
             generatedAt=_now_utc(),
@@ -597,6 +604,10 @@ class CockpitService:
             KpiKey.SCHOOLS_CRITICAL_STAFFING_COUNT: float(
                 kpis.criticalStaffingSchools,
             ),
+            # Module 3C — snapshot count écoles TRES_HAUTE + HAUTE priorité.
+            KpiKey.HIGH_INVESTMENT_PRIORITY_COUNT: float(
+                kpis.highInvestmentPriority,
+            ),
         }
         for key, value in items_map.items():
             row = CockpitKpiSnapshot(
@@ -881,6 +892,31 @@ class CockpitService:
         except Exception as exc:
             logger.warning(
                 "cockpit._count_critical_staffing_schools failed: {}", exc,
+            )
+            return 0
+
+    async def _count_high_investment_priority(self) -> int:
+        """Module 3C — Compte écoles TRES_HAUTE + HAUTE priorité investissement.
+
+        Retourne 0 si la table InvestmentPriorityScore est vide (pas encore
+        calculé) ou en cas d'erreur (le KPI ne casse pas le payload).
+        """
+        try:
+            from app.modules.investment.enums import PriorityCategory
+            from app.modules.investment.models import InvestmentPriorityScore
+
+            stmt = (
+                select(func.count(InvestmentPriorityScore.id))
+                .where(
+                    InvestmentPriorityScore.priorityCategory.in_(
+                        [PriorityCategory.TRES_HAUTE, PriorityCategory.HAUTE],
+                    )
+                )
+            )
+            return int((await self.session.execute(stmt)).scalar_one() or 0)
+        except Exception as exc:
+            logger.warning(
+                "cockpit._count_high_investment_priority failed: {}", exc,
             )
             return 0
 

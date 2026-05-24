@@ -68,6 +68,7 @@ SUPPORTED_LAYERS: frozenset[str] = frozenset(
         "infrastructure-gaps",
         "zone-type",
         "white-zones-enriched",
+        "investment-priority",
     }
 )
 
@@ -834,6 +835,10 @@ class CartographyService:
                         cartography_layers.WHITE_ZONE_DEFAULT_POPULATION_THRESHOLD,
                     )
                 ),
+            )
+        elif name == "investment-priority":
+            fc = await cartography_layers.get_investment_priority_geo(
+                self.session,
             )
         else:  # pragma: no cover - garde-fou défensif
             raise NotFoundError(detail=f"Unknown cartography layer: '{name}'.")

@@ -371,3 +371,19 @@ async def layer_white_zones_enriched(
         {"radiusKm": radiusKm, "populationThreshold": populationThreshold},
         user,
     )
+
+
+@router.get(
+    "/layers/investment-priority",
+    summary="Écoles colorées par score de priorité d'investissement (Module 3C → 3A)",
+)
+async def layer_investment_priority(
+    user: LayerUserDep,
+    service: CartoSvc,
+) -> dict[str, Any]:
+    """FeatureCollection des écoles avec leur ``priorityCategory``.
+
+    Source : table ``InvestmentPriorityScore`` (Module 3C). Si aucun score
+    n'a encore été calculé, la couche renvoie une collection vide.
+    """
+    return await service.get_layer("investment-priority", {}, user)

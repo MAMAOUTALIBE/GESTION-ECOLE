@@ -628,7 +628,11 @@ async def test_infrastructure_gaps_excludes_complete_schools(
 # 13. Hardening — sanity checks indépendants
 # ===========================================================================
 def test_supported_layers_match_router_endpoints() -> None:
-    """Les 6 noms exposés par le service doivent correspondre 1:1 au router."""
+    """Les noms exposés par le service doivent correspondre 1:1 au router.
+
+    Module 3C ajoute ``investment-priority`` ; les 6 couches d'origine
+    restent inchangées.
+    """
     expected = {
         "gpi-critical-regions",
         "capacity-critical-schools",
@@ -636,6 +640,7 @@ def test_supported_layers_match_router_endpoints() -> None:
         "infrastructure-gaps",
         "zone-type",
         "white-zones-enriched",
+        "investment-priority",
     }
     assert frozenset(expected) == SUPPORTED_LAYERS
 
