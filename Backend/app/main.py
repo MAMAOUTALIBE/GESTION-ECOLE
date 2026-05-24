@@ -121,6 +121,12 @@ def create_app() -> FastAPI:
     from app.modules.predictions.router import router as predictions_router
     from app.modules.realtime.router import router as realtime_router
     from app.modules.schoollife.router import router as schoollife_router
+    from app.modules.schoollife.routers import (
+        discipline_router as schoollife_discipline_router,
+        health_router as schoollife_health_router,
+        meals_router as schoollife_meals_router,
+        transport_router as schoollife_transport_router,
+    )
     from app.modules.sms.router import router as sms_router
     from app.modules.library.router import router as library_router
     from app.modules.notifications.router import router as notifications_router
@@ -161,6 +167,23 @@ def create_app() -> FastAPI:
     app.include_router(finance_router, prefix=f"{settings.api_prefix}/finance")
     # Phase 13 — vie scolaire (discipline / santé / transport / cantines / emploi du temps)
     app.include_router(schoollife_router, prefix=f"{settings.api_prefix}/schoollife")
+    # Module 7 — 4 routers métier (discipline / health / meals / transport)
+    app.include_router(
+        schoollife_discipline_router,
+        prefix=f"{settings.api_prefix}/schoollife/discipline",
+    )
+    app.include_router(
+        schoollife_health_router,
+        prefix=f"{settings.api_prefix}/schoollife/health",
+    )
+    app.include_router(
+        schoollife_meals_router,
+        prefix=f"{settings.api_prefix}/schoollife/meals",
+    )
+    app.include_router(
+        schoollife_transport_router,
+        prefix=f"{settings.api_prefix}/schoollife/transport",
+    )
     # Phase 13bis — paramètres plateforme
     app.include_router(admin_router, prefix=f"{settings.api_prefix}/admin")
     # Phase 14 — Prédictions (détection précoce décrochage, forecasts)
