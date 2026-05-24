@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.database import dispose_engine
 from app.core.database import healthcheck as db_healthcheck
 from app.core.exceptions import AppError, app_error_handler
+from app.core.maintenance import MaintenanceModeMiddleware
 from app.core.observability import RequestIdMiddleware
 from app.core.redis import close_redis, get_redis
 from app.core.redis import healthcheck as redis_healthcheck
@@ -80,6 +81,9 @@ def create_app() -> FastAPI:
     )
     # Phase 8 — propagate / mint X-Request-Id and bind it to loguru
     app.add_middleware(RequestIdMiddleware)
+    # Module 15 — read-only platform mode. Added AFTER RequestId so the
+    # 503 still carries a request id header.
+    app.add_middleware(MaintenanceModeMiddleware)
 
     app.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]
 

@@ -1,12 +1,31 @@
-"""Endpoints admin/configuration plateforme."""
-import json
+"""Module 15 — Routeur admin / settings plateforme.
+
+Endpoints
+---------
+* ``GET    /api/admin/settings``                    — liste tout (RBAC NATIONAL/MINISTRY)
+* ``PUT    /api/admin/settings/{key}``              — upsert typé          (idem)
+* ``GET    /api/admin/feature-flags``               — liste flags         (idem)
+* ``PUT    /api/admin/feature-flags/{key}``         — upsert flag         (idem)
+* ``POST   /api/admin/maintenance/enable``          — bascule lecture seule (idem)
+* ``POST   /api/admin/maintenance/disable``         — désactive            (idem)
+* ``GET    /api/admin/maintenance``                 — lecture statut       (idem)
+* ``GET    /api/admin/changes``                     — audit history        (idem)
+"""
+from __future__ import annotations
+
+from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
 
-from app.modules.admin.models import PlatformSetting
+from app.core.exceptions import NotFoundError
+from app.modules.admin.models import (
+    FeatureFlag,
+    PlatformSetting,
+    SettingChangeLog,
+)
+from app.modules.admin.service import AdminService
 from app.modules.auth.models import User
 from app.shared.deps import DbSession, get_current_user
 from app.shared.enums import UserRole
@@ -14,49 +33,82 @@ from app.shared.permissions import require_roles
 
 ADMIN_ROLES = (UserRole.NATIONAL_ADMIN, UserRole.MINISTRY_ADMIN)
 
+CurrentUserDep = Annotated[User, Depends(get_current_user)]
+AdminGuard = Annotated[User, Depends(require_roles(*ADMIN_ROLES))]
 
+
+# ---------------------------------------------------------------------------
+# Schemas
+# ---------------------------------------------------------------------------
 class SettingRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: str
     key: str
-    value: Any  # déserialisé du JSON
-    category: str
-    label: str
+    type: str
+    value: Any = Field(alias="valueJson")
     description: str | None = None
-    valueType: str
     updatedById: str | None = None
+    updatedAt: datetime
 
 
-class UpdateSettingRequest(BaseModel):
+class UpsertSettingRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
-
     value: Any
-    label: str | None = Field(default=None, max_length=200)
+    type: str | None = Field(default=None, max_length=20)
     description: str | None = Field(default=None, max_length=2000)
 
 
+class FeatureFlagRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    key: str
+    enabled: bool
+    rolloutPercentage: int
+    description: str | None = None
+    updatedAt: datetime
+
+
+class UpsertFeatureFlagRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    enabled: bool
+    rolloutPercentage: int = Field(default=0, ge=0, le=100)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class MaintenanceStatus(BaseModel):
+    enabled: bool
+
+
+class ChangeLogRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    key: str
+    kind: str
+    oldValue: Any | None = None
+    newValue: Any | None = None
+    changedById: str | None = None
+    changedAt: datetime
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def _setting_to_read(s: PlatformSetting) -> SettingRead:
+    return SettingRead.model_validate(s)
+
+
+def _flag_to_read(f: FeatureFlag) -> FeatureFlagRead:
+    return FeatureFlagRead.model_validate(f)
+
+
+def _change_to_read(c: SettingChangeLog) -> ChangeLogRead:
+    return ChangeLogRead.model_validate(c)
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 router = APIRouter(tags=["admin"])
-
-CurrentUserDep = Annotated[User, Depends(get_current_user)]
-
-
-def _to_read(s: PlatformSetting) -> SettingRead:
-    """Désérialise le `value` JSON-encodé."""
-    try:
-        decoded = json.loads(s.value)
-    except (ValueError, TypeError):
-        decoded = s.value
-    return SettingRead(
-        id=s.id,
-        key=s.key,
-        value=decoded,
-        category=s.category,
-        label=s.label,
-        description=s.description,
-        valueType=s.valueType,
-        updatedById=s.updatedById,
-    )
 
 
 @router.get(
@@ -64,36 +116,123 @@ def _to_read(s: PlatformSetting) -> SettingRead:
     response_model=list[SettingRead],
     summary="Liste des paramètres plateforme",
 )
-async def list_settings(user: CurrentUserDep, session: DbSession) -> list[SettingRead]:
+async def list_settings(user: AdminGuard, session: DbSession) -> list[SettingRead]:
     _ = user
-    rows = (await session.execute(
-        select(PlatformSetting).order_by(
-            PlatformSetting.category.asc(), PlatformSetting.label.asc(),
-        )
-    )).scalars().all()
-    return [_to_read(s) for s in rows]
+    svc = AdminService(session)
+    rows = await svc.list_settings()
+    return [_setting_to_read(s) for s in rows]
 
 
-@router.patch(
+@router.put(
     "/settings/{key}",
     response_model=SettingRead,
-    dependencies=[Depends(require_roles(*ADMIN_ROLES))],
-    summary="Mettre à jour la valeur d'un paramètre (admin national/ministère)",
+    summary="Crée ou met à jour un paramètre typé",
 )
-async def update_setting(
-    key: str, dto: UpdateSettingRequest, user: CurrentUserDep, session: DbSession,
+async def upsert_setting(
+    key: str,
+    body: UpsertSettingRequest,
+    user: AdminGuard,
+    session: DbSession,
 ) -> SettingRead:
-    setting = (await session.execute(
-        select(PlatformSetting).where(PlatformSetting.key == key)
-    )).scalar_one_or_none()
-    if setting is None:
-        raise HTTPException(status_code=404, detail="Paramètre introuvable")
-    setting.value = json.dumps(dto.value)
-    if dto.label is not None:
-        setting.label = dto.label
-    if dto.description is not None:
-        setting.description = dto.description
-    setting.updatedById = user.id
-    await session.commit()
-    await session.refresh(setting)
-    return _to_read(setting)
+    svc = AdminService(session)
+    setting = await svc.set_setting(
+        key,
+        body.value,
+        type_=body.type,
+        description=body.description,
+        actor_id=user.id,
+    )
+    return _setting_to_read(setting)
+
+
+@router.get(
+    "/feature-flags",
+    response_model=list[FeatureFlagRead],
+    summary="Liste des feature flags",
+)
+async def list_feature_flags(user: AdminGuard, session: DbSession) -> list[FeatureFlagRead]:
+    _ = user
+    svc = AdminService(session)
+    rows = await svc.list_feature_flags()
+    return [_flag_to_read(f) for f in rows]
+
+
+@router.put(
+    "/feature-flags/{key}",
+    response_model=FeatureFlagRead,
+    summary="Crée ou met à jour un feature flag",
+)
+async def upsert_feature_flag(
+    key: str,
+    body: UpsertFeatureFlagRequest,
+    user: AdminGuard,
+    session: DbSession,
+) -> FeatureFlagRead:
+    svc = AdminService(session)
+    flag = await svc.set_feature_flag(
+        key,
+        enabled=body.enabled,
+        rollout_percentage=body.rolloutPercentage,
+        description=body.description,
+        actor_id=user.id,
+    )
+    return _flag_to_read(flag)
+
+
+@router.post(
+    "/maintenance/enable",
+    response_model=MaintenanceStatus,
+    summary="Active le mode maintenance (lecture seule globale)",
+)
+async def enable_maintenance(
+    user: AdminGuard, session: DbSession,
+) -> MaintenanceStatus:
+    svc = AdminService(session)
+    await svc.enable_maintenance_mode(actor_id=user.id)
+    return MaintenanceStatus(enabled=True)
+
+
+@router.post(
+    "/maintenance/disable",
+    response_model=MaintenanceStatus,
+    summary="Désactive le mode maintenance",
+)
+async def disable_maintenance(
+    user: AdminGuard, session: DbSession,
+) -> MaintenanceStatus:
+    svc = AdminService(session)
+    await svc.disable_maintenance_mode(actor_id=user.id)
+    return MaintenanceStatus(enabled=False)
+
+
+@router.get(
+    "/maintenance",
+    response_model=MaintenanceStatus,
+    summary="Statut courant du mode maintenance",
+)
+async def maintenance_status(
+    user: AdminGuard, session: DbSession,
+) -> MaintenanceStatus:
+    _ = user
+    svc = AdminService(session)
+    return MaintenanceStatus(enabled=await svc.is_maintenance_mode())
+
+
+@router.get(
+    "/changes",
+    response_model=list[ChangeLogRead],
+    summary="Historique d'audit des changements (paginé)",
+)
+async def list_changes(
+    user: AdminGuard,
+    session: DbSession,
+    key: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[ChangeLogRead]:
+    _ = user
+    svc = AdminService(session)
+    rows = await svc.list_changes(key=key, limit=limit)
+    return [_change_to_read(c) for c in rows]
+
+
+__all__ = ["NotFoundError", "router"]
