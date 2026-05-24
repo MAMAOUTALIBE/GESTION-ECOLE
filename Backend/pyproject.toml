@@ -141,6 +141,18 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
     "N801", "N803", "N815", "UP037",
     "RUF001", "RUF002", "RUF003",
 ]
+# Module 2A — projections : colonnes camelCase (Prisma) côté ORM, schemas
+# Pydantic exposent les mêmes noms (schoolYearFromId, classLevelFrom,
+# isOutlier, sampleSize...) pour rester aligné avec le frontend Angular.
+# RUF001/RUF002/RUF003 tolérés pour les chaînes FR.
+"app/modules/projections/*" = [
+    "N801", "N803", "N815", "UP037",
+    "RUF001", "RUF002", "RUF003",
+]
+"app/workers/projection_tasks.py" = [
+    "N801", "N803", "N815", "UP037",
+    "RUF001", "RUF002", "RUF003",
+]
 # Module 1C — schools / territory : colonnes camelCase (Prisma) côté ORM,
 # schemas Pydantic exposent les mêmes noms (regionId, defaultZoneType,
 # zoneType, prefectureId...) pour rester aligné avec le frontend Angular.
