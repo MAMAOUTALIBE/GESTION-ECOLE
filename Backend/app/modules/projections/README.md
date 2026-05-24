@@ -163,3 +163,151 @@ région.
   préserve la traçabilité des rapports IIPE.
 * **Module 2B** : la projection cohorte multi-années lit directement
   les rates persistés ; pas de re-calcul à chaque projection.
+
+---
+
+# Module 2B — Projection effectifs horizon 5 ans
+
+## Objectif métier
+
+À partir des effectifs déclarés au recensement (année de base) et des
+taux de transition Module 2A, projeter les effectifs des années t+1 à
+t+5 (et jusqu'à t+10 max). Utilisé pour :
+
+1. **Planifier les recrutements d'enseignants** par région à 5 ans.
+2. **Anticiper les besoins en infrastructure** (classes manquantes).
+3. **Comparer des scénarios** ("baseline" vs "+10 % filles scolarisées
+   à horizon 2030").
+
+## Algorithme cohortes IIPE-UNESCO
+
+```
+projection[region, levelN, gender, t+k] =
+    enrollment[region, levelN-1, gender, t+k-1]
+    × transition_rate[region, levelN-1 → levelN, gender]
+```
+
+Pour **MATERNELLE_1** (premier niveau, pas de niveau précédent) :
+
+```
+projection[region, MATERNELLE_1, gender, t+k] =
+    enrollment[region, MATERNELLE_1, gender, t+k-1]
+    × (1 + demographic_growth)
+```
+
+`demographic_growth` est porté par le scénario (par défaut 2.4 % —
+taux INS Guinée 2024).
+
+### Stratégie de fallback (rate manquant)
+
+| Étape | Rate utilisé                                |
+| ----- | ------------------------------------------- |
+| 1     | REGIONAL (region, level_from, gender)       |
+| 2     | NATIONAL (level_from, gender) — fallback    |
+| 3     | Aucun → on garde le count précédent (signal data quality) |
+
+Les effectifs projetés sont **toujours arrondis à l'entier**
+(half-even) : on parle d'élèves, pas de moyennes.
+
+## Modèle de données
+
+### `ProjectionScenario`
+
+| Colonne                   | Type             | Notes                              |
+| ------------------------- | ---------------- | ---------------------------------- |
+| `id`                      | `String(30) PK`  | cuid ou `'BASELINE'`               |
+| `name`                    | `String(80) UQ`  | nom court                          |
+| `description`             | `String(500)?`   |                                    |
+| `demographicGrowthRate`   | `NUMERIC(5,4)`   | défaut 0.0240                      |
+| `customTransitionRates`   | `JSONB?`         | surcharges optionnelles            |
+| `createdById`             | `FK User?`       |                                    |
+| `createdAt`               | `DateTime`       |                                    |
+
+Le scénario `BASELINE` est **seedé par la migration 0027** — sert de
+défaut pour ``RunProjectionRequest``.
+
+### `ProjectedEnrollment`
+
+| Colonne              | Type             | Notes                                  |
+| -------------------- | ---------------- | -------------------------------------- |
+| `id`                 | `String(30) PK`  | cuid                                   |
+| `baseSchoolYearId`   | `FK SchoolYear`  | année source des effectifs initiaux    |
+| `projectedYear`      | `Integer`        | année calendrier projetée (ex. 2028)   |
+| `scope`              | `TransitionScope`| NATIONAL / REGIONAL                    |
+| `entityId`           | `String(30)?`    | regionId si REGIONAL, NULL sinon       |
+| `classLevel`         | `EnrollmentClassLevel` | niveau projeté                   |
+| `gender`             | `Gender`         | FEMALE / MALE / OTHER                  |
+| `projectedCount`     | `Integer`        | effectifs projetés (entier)            |
+| `scenarioId`         | `FK ProjectionScenario` | défaut `'BASELINE'`             |
+| `computedAt`         | `DateTime`       |                                        |
+| `createdAt`          | `DateTime`       |                                        |
+
+Index :
+* `(baseSchoolYearId, projectedYear, scope, entityId)` — dashboard.
+* `(scenarioId)` — comparaison entre scénarios.
+
+Unique :
+* `(baseSchoolYearId, projectedYear, scope, entityId, classLevel,
+   gender, scenarioId)` — upsert idempotent.
+
+## Endpoints API
+
+### `POST /api/projections/run`
+
+RBAC : NATIONAL_ADMIN / MINISTRY_ADMIN.
+
+Body :
+```json
+{
+  "baseSchoolYearId": "clxxx...year2024",
+  "horizonYears": 5,
+  "scenarioId": "BASELINE"
+}
+```
+
+Réponse :
+```json
+{
+  "scenarioId": "BASELINE",
+  "projectedRows": 240,
+  "regionsCovered": 8,
+  "horizonYears": 5,
+  "computedAt": "2026-05-24T12:00:00+00:00"
+}
+```
+
+### `GET /api/projections`
+
+Query params : `baseSchoolYearId`, `projectedYear`, `scope`,
+`entityId`, `classLevel`, `gender`, `scenarioId`, `limit` (≤ 1000),
+`offset`.
+
+Scope territorial appliqué :
+* NATIONAL_SCOPE_ROLES → tout.
+* REGIONAL_SCOPE_ROLES → NATIONAL + REGIONAL de leur région.
+* Autres rôles → NATIONAL uniquement.
+
+### `POST /api/projections/scenarios`
+
+RBAC : NATIONAL_ADMIN / MINISTRY_ADMIN.
+
+Body :
+```json
+{
+  "name": "OPTIMISTE_FILLES_2030",
+  "description": "+10% rétention filles primaire",
+  "demographicGrowthRate": 0.025,
+  "customTransitionRates": { "CP1->CP2:FEMALE": 0.95 }
+}
+```
+
+### `GET /api/projections/scenarios`
+
+Liste tous les scénarios visibles. Aucun scope territorial — un
+scénario est national par construction.
+
+## Tâche Celery
+
+`run_projection_task(base_school_year_id, horizon_years=5,
+scenario_id="BASELINE")` — lancé manuellement, jamais en beat
+(comme `compute_transitions_task`).

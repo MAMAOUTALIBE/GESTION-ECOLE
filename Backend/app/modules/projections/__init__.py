@@ -1,11 +1,26 @@
-"""Module 2A — Projections IIPE-UNESCO : taux de transition par cohortes.
+"""Module 2A + 2B — Projections IIPE-UNESCO.
 
-Module dédié aux calculs prospectifs (taux de transition, projections cohorte).
-Fondation Phase 2 carte scolaire :
+Module dédié aux calculs prospectifs :
 * 2A — Transitions par paire de niveaux (CP1→CP2, …, CM1→CM2).
-* 2B (à venir) — Projections cohorte multi-années depuis ces taux.
+* 2B — Projections cohorte multi-années horizon 1..10 ans à partir
+  de ces taux.
 """
-from app.modules.projections.enums import TransitionScope
-from app.modules.projections.models import TransitionRate
+from app.modules.projections.enums import (
+    BASELINE_SCENARIO_ID,
+    DEMOGRAPHIC_GROWTH_RATE_DEFAULT,
+    TransitionScope,
+)
+from app.modules.projections.models import (
+    ProjectedEnrollment,
+    ProjectionScenario,
+    TransitionRate,
+)
 
-__all__ = ["TransitionRate", "TransitionScope"]
+__all__ = [
+    "BASELINE_SCENARIO_ID",
+    "DEMOGRAPHIC_GROWTH_RATE_DEFAULT",
+    "ProjectedEnrollment",
+    "ProjectionScenario",
+    "TransitionRate",
+    "TransitionScope",
+]

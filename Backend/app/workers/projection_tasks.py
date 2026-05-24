@@ -115,4 +115,80 @@ def compute_transitions_task(
         ) from exc
 
 
-__all__ = ["compute_transitions_task"]
+# ===========================================================================
+# Module 2B — Task run_projection_task
+# ===========================================================================
+async def _run_projection(
+    base_school_year_id: str,
+    horizon_years: int = 5,
+    scenario_id: str = "BASELINE",
+) -> dict[str, Any]:
+    from app.modules.projections.schemas import RunProjectionRequest
+    from app.modules.projections.service import ProjectionService
+
+    factory = _async_session_factory()
+    async with factory() as session:
+        try:
+            actor = await _resolve_system_admin(session)
+            if actor is None:
+                return {
+                    "ok": False,
+                    "error": (
+                        "Aucun NATIONAL_ADMIN actif — créez un compte "
+                        "admin avant de lancer cette tâche."
+                    ),
+                }
+
+            svc = ProjectionService(session)
+            result = await svc.run_projection(
+                RunProjectionRequest(
+                    baseSchoolYearId=base_school_year_id,
+                    horizonYears=horizon_years,
+                    scenarioId=scenario_id,
+                ),
+                actor,
+            )
+            await session.commit()
+            return {
+                "ok": True,
+                "scenarioId": result.scenarioId,
+                "projectedRows": result.projectedRows,
+                "regionsCovered": result.regionsCovered,
+                "horizonYears": result.horizonYears,
+            }
+        except Exception as exc:
+            await session.rollback()
+            return {"ok": False, "error": str(exc)}
+
+
+@celery_app.task(
+    name="projections.run_projection", bind=True, max_retries=2,
+)
+def run_projection_task(
+    self,
+    base_school_year_id: str,
+    horizon_years: int = 5,
+    scenario_id: str = "BASELINE",
+) -> dict[str, Any]:
+    """Calcule une projection horizon ``horizon_years`` ans.
+
+    Déclenchée manuellement après ``compute_transitions_task`` :
+    sans rates Module 2A persistés, la projection n'a aucun sens.
+    """
+    try:
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(
+                _run_projection(
+                    base_school_year_id, horizon_years, scenario_id,
+                ),
+            )
+        finally:
+            loop.close()
+    except Exception as exc:
+        raise self.retry(
+            exc=exc, countdown=60 * (2 ** self.request.retries),
+        ) from exc
+
+
+__all__ = ["compute_transitions_task", "run_projection_task"]
