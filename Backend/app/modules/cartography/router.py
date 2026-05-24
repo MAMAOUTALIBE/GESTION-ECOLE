@@ -1,22 +1,30 @@
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Path, Query, Response, status
 
 from app.modules.auth.models import User
+from app.modules.cartography.isochrones import isochrone_set
 from app.modules.cartography.schemas import (
     CatchmentsQuery,
     CoverageGapsQuery,
+    DensityResponse,
     FeatureCollection,
     GeocodeRequest,
     GeocodeResponse,
     IndicatorsQuery,
     IndicatorsResponse,
+    IsochroneRequest,
     NearbyQuery,
     NearbyResponse,
+    RegionDistanceResponse,
     SchoolsGeoQuery,
 )
 from app.modules.cartography.service import CartographyService
+from app.modules.cartography.tiles import MAX_ZOOM
 from app.shared.deps import DbSession, get_current_user
+
+# MVT tile media type per the Mapbox Vector Tile spec.
+MVT_MEDIA_TYPE = "application/vnd.mapbox-vector-tile"
 
 
 def _service(session: DbSession) -> CartographyService:
@@ -167,3 +175,87 @@ async def queue_geocode(
     task = geocode_address.delay(dto.address)
     _ = user  # auth still required, but the worker doesn't need scope context
     return GeocodeResponse(taskId=task.id, address=dto.address)
+
+
+# =====================================================================
+# Module 5 — Vector tiles (MVT) + walking isochrones + density choropleth
+# =====================================================================
+@router.get(
+    "/tiles/{z}/{x}/{y}.mvt",
+    summary="Mapbox Vector Tile (z/x/y) for the schools layer",
+    responses={
+        200: {"content": {MVT_MEDIA_TYPE: {}}},
+        503: {"description": "PostGIS extension not installed on the server."},
+    },
+)
+async def schools_mvt(
+    user: CurrentUserDep,
+    service: CartoSvc,
+    z: Annotated[int, Path(ge=0, le=MAX_ZOOM)],
+    x: Annotated[int, Path(ge=0)],
+    y: Annotated[int, Path(ge=0)],
+) -> Response:
+    """Return one MVT tile for the schools layer.
+
+    * Authentication required (national data — not anonymous).
+    * Cached in Redis for 1 hour (key `mvt:{z}:{x}:{y}`).
+    * Empty tiles still return 200 with a zero-byte body — that's how
+      MapLibre signals "transparent tile" without exploding the cache.
+    """
+    _ = user  # auth required; no per-user scope on national tile data
+    tile_bytes = await service.get_tile(z, x, y)
+    return Response(content=tile_bytes, media_type=MVT_MEDIA_TYPE)
+
+
+@router.post(
+    "/isochrones",
+    summary="Walking isochrones (approximated Haversine buffer)",
+    response_model=None,  # GeoJSON FeatureCollection — kept as dict for flexibility
+)
+async def walking_isochrones(
+    dto: IsochroneRequest,
+    user: CurrentUserDep,
+) -> dict[str, Any]:
+    """Return a GeoJSON FeatureCollection of concentric walking isochrones.
+
+    The MVP uses a Haversine circular buffer — Module 17 will swap in OSRM
+    routing. The endpoint contract (FeatureCollection of Polygons with
+    ``timeMin`` properties) stays stable so the Flutter client keeps working.
+    """
+    _ = user
+    return isochrone_set(
+        lat=dto.lat,
+        lon=dto.lon,
+        intervals_min=dto.intervals,
+        speed_kmh=dto.speedKmh,
+    )
+
+
+@router.get(
+    "/density/subprefectures",
+    response_model=DensityResponse,
+    summary="Choropleth feed: student density per sub-prefecture (PostGIS)",
+)
+async def density_subprefectures(
+    user: CurrentUserDep,
+    service: CartoSvc,
+) -> DensityResponse:
+    """Per-sub-prefecture aggregate of student counts and convex-hull area.
+
+    Returns 503 if PostGIS is unavailable (the area calculation is
+    PostGIS-only). Respects the caller's territorial scope.
+    """
+    return await service.get_subprefecture_density(user)
+
+
+@router.get(
+    "/distance-stats/regions",
+    response_model=RegionDistanceResponse,
+    summary="Per-region average inter-school distance (km)",
+)
+async def distance_stats_regions(
+    user: CurrentUserDep,
+    service: CartoSvc,
+) -> RegionDistanceResponse:
+    """Average nearest-neighbour school distance for each region in scope."""
+    return await service.get_region_distance_stats(user)
