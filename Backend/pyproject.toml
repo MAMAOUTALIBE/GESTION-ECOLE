@@ -45,6 +45,10 @@ dependencies = [
     "anthropic>=0.99.0",
     # Fuzzy matching (Module 2 — census dédoublonnage)
     "rapidfuzz>=3.10.0",
+    # Module 8 — Prédictions ML (dropout)
+    "scikit-learn>=1.5.0",
+    "joblib>=1.4.0",
+    "numpy>=2.0.0",
 ]
 
 [dependency-groups]
@@ -80,11 +84,15 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
 # avec les conventions Prisma de la base. On accepte N815/N803 sur tout le
 # package (schemas, services, routers).
 "app/modules/schoollife/*" = ["N801", "N803", "N815"]
+# Module 8 — predictions : X/y sont la convention sklearn, et on a aussi
+# des colonnes camelCase (Prisma) côté ORM. On tolère N803/N806/N815/N801.
+"app/modules/predictions/*" = ["N801", "N803", "N806", "N815"]
+"app/workers/prediction_tasks.py" = ["N801", "N803", "N815"]
 # Les factories et fixtures de tests refletent les noms de colonnes Prisma
 # (camelCase) — on tolere donc N803/N815/N801 dans tests/. Et `from app.modules
 # import *` est intentionnel pour declencher l'enregistrement des modeles
 # sur Base.metadata avant create_all().
-"tests/integration/*" = ["N801", "N803", "N815", "F401", "F403", "RUF100", "UP037"]
+"tests/integration/*" = ["N801", "N803", "N806", "N815", "F401", "F403", "RUF100", "UP037"]
 "tests/load/*" = ["N801", "N803", "N815"]
 
 [tool.mypy]

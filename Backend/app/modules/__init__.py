@@ -15,3 +15,4 @@ from app.modules.inspections import models as _inspections_models  # noqa: F401
 from app.modules.finance import models as _finance_models  # noqa: F401
 from app.modules.schoollife import models as _schoollife_models  # noqa: F401
 from app.modules.admin import models as _admin_models  # noqa: F401
+from app.modules.predictions import models as _predictions_models  # noqa: F401

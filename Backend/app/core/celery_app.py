@@ -16,6 +16,7 @@ celery_app = Celery(
         "app.workers.notification_tasks",
         "app.workers.attendance_tasks",
         "app.workers.workflow_tasks",
+        "app.workers.prediction_tasks",
     ],
 )
 
