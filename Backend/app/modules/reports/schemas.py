@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.shared.enums import AcademicValidationStatus
+from app.shared.enums import AcademicValidationStatus, ReportCardPdfStatus
 
 
 class GenerateBulletinsRequest(BaseModel):
@@ -42,3 +42,24 @@ class BulletinVerifyResponse(BaseModel):
     totalStudents: int | None = None
     status: AcademicValidationStatus | None = None
     issuedAt: datetime | None = None
+
+
+# ---------------------------------------------------------------------------
+# Module 4 — génération asynchrone d'un bulletin PDF
+# ---------------------------------------------------------------------------
+class ReportCardGenerationStatus(BaseModel):
+    """Réponse pour les endpoints async :
+    * POST /api/reports/student/{student_id}/period/{period_id}/generate
+    * GET  /api/reports/{report_card_id}/status
+
+    On expose toujours la même structure pour simplifier le polling côté
+    Angular (un seul type à matcher quel que soit l'état).
+    """
+    reportCardId: str
+    status: ReportCardPdfStatus
+    taskId: str | None = None
+    pollUrl: str | None = None
+    downloadUrl: str | None = None
+    generatedAt: datetime | None = None
+    sha256: str | None = None
+    errorMessage: str | None = None

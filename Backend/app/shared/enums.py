@@ -285,3 +285,13 @@ class DayOfWeek(StrEnum):
     THURSDAY = "THURSDAY"
     FRIDAY = "FRIDAY"
     SATURDAY = "SATURDAY"
+
+
+# ---------------------------------------------------------------------------
+# Module 4 — état du PDF d'un ReportCard (génération async)
+# ---------------------------------------------------------------------------
+class ReportCardPdfStatus(StrEnum):
+    PENDING = "PENDING"        # demande enregistrée, task pas encore picked up
+    PROCESSING = "PROCESSING"  # worker en cours
+    DONE = "DONE"              # PDF présent dans S3 (pdfS3Key non null)
+    FAILED = "FAILED"          # erreur fatale après retries (pdfErrorMessage non null)

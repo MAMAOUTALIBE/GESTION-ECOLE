@@ -1,3 +1,5 @@
+import os
+
 from celery import Celery
 
 from app.core.config import settings
@@ -29,3 +31,11 @@ celery_app.conf.update(
     worker_max_tasks_per_child=200,
     broker_connection_retry_on_startup=True,
 )
+
+# Module 4 — pour les tests d'intégration on veut exécuter les tasks
+# synchronement (pas besoin d'un worker Celery réel en CI). Activé via la
+# variable d'environnement ``CELERY_TASK_ALWAYS_EAGER=1`` que la conftest
+# pytest peut poser.
+if os.environ.get("CELERY_TASK_ALWAYS_EAGER", "").lower() in {"1", "true", "yes"}:
+    celery_app.conf.task_always_eager = True
+    celery_app.conf.task_eager_propagates = True

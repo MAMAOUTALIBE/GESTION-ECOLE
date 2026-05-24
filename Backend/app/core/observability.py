@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from fastapi import Request, Response
 from loguru import logger
-from prometheus_client import Counter
+from prometheus_client import Counter, Histogram
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # ---------------------------------------------------------------------
@@ -76,6 +76,35 @@ census_merge_total = Counter(
     "gestionee_census_merge_total",
     "Total des fusions de fiches census",
     labelnames=("entity", "result"),  # result ∈ ok | not_found | forbidden
+)
+
+
+# ---------------------------------------------------------------------------
+# Module 4 — génération PDF asynchrone des bulletins
+# ---------------------------------------------------------------------------
+# Une demande de génération (HTTP POST). On compte aussi les hits "cache" :
+# si un bulletin est déjà DONE, on incrémente quand même cette métrique (et
+# `reports_pdf_completed_total{status="cache_hit"}`).
+reports_pdf_requested_total = Counter(
+    "gestionee_reports_pdf_requested_total",
+    "Demandes de génération de bulletin PDF (incluant cache hits)",
+)
+# Fin de cycle d'un bulletin — labellé par le résultat. ``status`` ∈
+# ``done | failed | cache_hit``. ``done`` = upload S3 réussi ce coup-ci ;
+# ``cache_hit`` = la requête HTTP a renvoyé un DONE pré-existant ;
+# ``failed`` = le worker a abandonné après retries.
+reports_pdf_completed_total = Counter(
+    "gestionee_reports_pdf_completed_total",
+    "Bulletins PDF terminés (par résultat)",
+    labelnames=("status",),
+)
+# Durée du rendu côté worker (rendu HTML + WeasyPrint + upload S3). Histo en
+# secondes avec des buckets adaptés au temps de génération (centaines de ms à
+# quelques secondes pour des bulletins riches en grades).
+reports_pdf_duration_seconds = Histogram(
+    "gestionee_reports_pdf_duration_seconds",
+    "Durée totale de génération d'un bulletin PDF (rendu + upload)",
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
 )
 
 
