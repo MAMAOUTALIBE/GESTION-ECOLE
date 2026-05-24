@@ -230,3 +230,91 @@ section of `tests/integration/test_auth_module1.py`.
   `app/core/rate_limit.py::RateLimiter.check_and_increment`,
   `app/core/observability.py` (2 new counters).
 * **Test**: `test_get_current_user_fails_closed_when_redis_down`.
+
+---
+
+## Module 1.1 — hardening fixes (H-1 .. H-10)
+
+These ten findings come from the independent security review of Module 1.
+Every one has a dedicated test in `tests/integration/test_auth_module1.py`.
+
+### H-1 — MFA counter no longer reset on success
+First-success-reset let a partial-knowledge attacker bruteforce indefinitely
+(limit-1 wrong attempts per successful guess). The counter now expires
+naturally via Redis TTL (15 min).
+Test: `test_mfa_counter_not_reset_on_first_success`.
+
+### H-2 — `GET /api/auth/audit-log` endpoint
+Users now have programmatic access to their own auth events (login attempts,
+MFA challenges, password changes, etc.). Admins (`NATIONAL_ADMIN`,
+`MINISTRY_ADMIN`) can inspect any user via `?userId=`. The `userAgent`
+column is masked to 200 chars in the response (storage cap is 512).
+Tests: `test_audit_log_endpoint_returns_own_logs`,
+`test_audit_log_endpoint_admin_can_filter_by_user`,
+`test_audit_log_endpoint_non_admin_ignores_userId_param`.
+
+### H-3 — `userAgent` / `email` sanitisation in audit + sessions
+Free-form columns are truncated (UA 512, email 320, reason 200) and stripped
+of control characters before persistence. Blocks DoS via giant headers and
+log-injection via CR/LF/NUL.
+Tests: `test_audit_userAgent_truncated_to_512_chars`,
+`test_audit_userAgent_strips_control_chars`.
+
+### H-4 — login timing attack closed
+`/login` now calls `verify_password(dummy_hash)` on the unknown/inactive-user
+branch so an attacker can't enumerate registered emails by latency.
+Test: `test_login_user_not_found_takes_similar_time_as_wrong_password`.
+
+### H-5 — `change_password` / `reset_password` revoke active sessions
+After a password change all other refresh sessions for the user are revoked
+(`revokedReason="password_changed"` / `"password_reset"`). Access tokens
+cannot be invalidated without a per-jti Redis blacklist — the H-6 TTL cap
+(30 min) is the residual window.
+Tests: `test_change_password_revokes_all_other_sessions`,
+`test_reset_password_revokes_all_sessions`.
+
+### H-6 — Access token TTL 480 min → 30 min (OWASP ASVS §3.3.1)
+The frontend MUST implement silent refresh against `/api/auth/refresh`
+(rotation happens on every call) so this is transparent for the user.
+Refresh token TTL stays at 7 days but the session is revoked on password
+change / reset (see H-5), so 30 min is the maximum residual exposure window
+after a credential rotation.
+Test: `test_access_token_ttl_is_30_minutes_in_config`.
+
+**Frontend integration**:
+* Schedule a silent refresh at `~T - 60s` of the access token expiry
+  (`exp` claim is in the JWT, no DB roundtrip needed).
+* On any 401 with `code=unauthorized` and message "Token expired",
+  call `/api/auth/refresh` once before bouncing to `/login`.
+* `LoginResponse.requiresMfa` is the canonical signal for the MFA step
+  (see H-7) — prefer it over inferring from `mfaChallenge !== null`.
+
+### H-7 — `/login` returns 200 OK (was 201 Created)
+`/login` does not create a "Login" resource the client can GET / DELETE;
+RFC 9110 says 200 OK is correct for "request succeeded, here's the body".
+The response now also carries an explicit `requiresMfa: bool` so the
+frontend has an unambiguous signal regardless of how `accessToken` /
+`mfaChallenge` are populated.
+
+### H-8 — Password strength gate (zxcvbn)
+`ChangePasswordRequest.newPassword` and `ResetPasswordRequest.newPassword`
+now reject anything scoring < 3 on zxcvbn (top-N common passwords,
+keyboard walks, low entropy). The 422 response carries the first
+suggestion from zxcvbn to help the user pick a stronger one.
+Tests: `test_change_password_rejects_weak_password`,
+`test_change_password_accepts_strong_password`.
+
+### H-9 — `MFA_SETUP_INITIATED` event
+A pending MFA enrolment used to write `MFA_ENABLED success=False`, polluting
+the "MFA enrolment failure" dashboard with what is in fact a normal
+intermediate step. We now write the dedicated event, leaving
+`MFA_ENABLED success=False` for actual failures.
+Test: `test_mfa_setup_writes_mfa_setup_initiated_event`.
+
+### H-10 — Atomic refresh rotation
+The old order (revoke first, mint new second) caused silent logout if the
+mint failed — the user's old refresh was already in the Redis blacklist.
+The new sequence is: mint new pair (DB insert flushed) → revoke old DB
+row + Redis JTI → flush. If anything in step 1 raises, the SQLAlchemy
+session is rolled back and the OLD refresh stays usable for retry.
+Test: `test_refresh_rollback_keeps_old_session_valid_on_error`.

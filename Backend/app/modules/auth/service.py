@@ -16,7 +16,7 @@ from typing import Any
 
 import jwt
 from loguru import logger
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -34,7 +34,6 @@ from app.core.rate_limit import (
     check_mfa_attempt,
     check_password_reset_request,
     reset_login_counters,
-    reset_mfa_counter,
 )
 from app.core.security import (
     create_access_token,
@@ -75,10 +74,53 @@ from app.modules.auth.schemas import (
     MfaSetupResponse,
     SessionInfo,
 )
+from app.shared.enums import UserRole
 
 INVALID_CREDENTIALS_MESSAGE = "Identifiants invalides"
 PASSWORD_HISTORY_DEPTH = 5
 PASSWORD_RESET_TTL_MIN = 30
+
+# Module 1.1 — H-3 — hard caps on free-form audit columns. Without these
+# bounds a malicious client could write 1 MB user-agent headers (DoS on the
+# Postgres heap) or inject control characters into a log aggregator.
+_AUDIT_USER_AGENT_MAX = 512
+_AUDIT_EMAIL_MAX = 320  # RFC 5321 — 64 (local) + @ + 255 (domain) = 320 max
+_AUDIT_REASON_MAX = 200
+# Allow tab (\x09) so multi-line UAs can keep some structure, but drop every
+# other C0 control character (incl. NUL, BEL, BS, VT, FF, CR, LF, ESC...).
+_CONTROL_CHARS_RE = "".join(chr(c) for c in range(0x00, 0x20) if c != 0x09) + "\x7f"
+
+
+def _sanitize_audit_string(value: str | None, *, max_length: int) -> str | None:
+    """Truncate + strip control characters from a free-form audit string.
+
+    Returns None unchanged (no surprises for callers). Empty string after
+    stripping is also returned as-is — we want auditable evidence that the
+    header was present but contained only junk.
+    """
+    if value is None:
+        return None
+    cleaned = value.translate({ord(c): None for c in _CONTROL_CHARS_RE})
+    return cleaned[:max_length]
+
+
+# Module 1.1 — H-4 — pre-computed dummy Argon2 hash used to equalise the time
+# of a "user not found" login with the time of a "wrong password" login. We
+# compute it once at import (using the production-cost PasswordHasher) so the
+# very first request after a cold start doesn't pay a 200 ms surprise tax.
+def _build_dummy_argon2_hash() -> str:
+    """Compute a fixed Argon2 hash used solely for timing equalisation.
+
+    Picked to be deterministic across processes so debugging is predictable;
+    the *content* is irrelevant (the hash itself is what we feed to
+    `verify_password` on the unhappy login path).
+    """
+    from app.core.security import hash_password as _hp
+
+    return _hp("__timing_attack_dummy_password_module_1_1__")
+
+
+_DUMMY_ARGON2_HASH: str = _build_dummy_argon2_hash()
 
 
 class AuthService:
@@ -130,6 +172,11 @@ class AuthService:
         user = await self._load_user_by_email(normalized_email)
 
         if user is None or not user.isActive:
+            # Module 1.1 — H-4 — burn the Argon2 cost on a dummy hash so the
+            # response time is indistinguishable from a "wrong password" answer.
+            # Without this an attacker can enumerate registered emails by
+            # measuring response latency (Argon2 verify > 100 ms vs DB-miss ~5 ms).
+            verify_password(dto.password, _DUMMY_ARGON2_HASH)
             auth_login_total.labels(
                 result="inactive" if user is not None else "invalid"
             ).inc()
@@ -256,11 +303,20 @@ class AuthService:
             )
             raise UnauthorizedError(detail="Code MFA invalide")
 
-        # Success — reset the MFA counter and revoke the challenge JTI.
+        # Success — revoke the challenge JTI.
+        #
+        # Module 1.1 — H-1 — we DELIBERATELY do NOT reset the MFA counter
+        # here. Resetting on first-success let an attacker who had partial
+        # knowledge (e.g. recovered TOTP seed from a sync log) bruteforce
+        # the second MFA stage essentially forever: 9 wrong + 1 right per
+        # 15 min window. The counter now expires naturally with the TTL
+        # (15 min) — see app.core.rate_limit.MFA_WINDOW_S. We accept a tiny
+        # UX hit (legitimate user who fat-fingered earlier waits up to
+        # 15 min if they reach the limit) in exchange for closing this
+        # bruteforce window.
         if self.redis is not None:
             import contextlib
 
-            await reset_mfa_counter(self.redis, user_id)
             with contextlib.suppress(KeyError):  # challenge always has jti in practice
                 await revoke_token(self.redis, payload["jti"], int(payload["exp"]))
 
@@ -317,7 +373,34 @@ class AuthService:
         if user is None or not user.isActive:
             raise UnauthorizedError(detail="Compte invalide")
 
-        # Rotate: revoke the old DB row + Redis JTI, then issue a new pair.
+        # Module 1.1 — H-10 — ATOMIC rotation.
+        #
+        # Old order: revoke old DB row + Redis JTI -> mint new pair. If the
+        # mint step or its DB insert raised, the user had no working refresh
+        # left and got silently logged out (the previous refresh was now in
+        # the blacklist). The new sequence is:
+        #   1. Mint the new (access, refresh) pair via _issue_session, which
+        #      flushes the new RefreshTokenSession row inside the same
+        #      AsyncSession (no autocommit — conftest wraps it in a savepoint
+        #      anyway).
+        #   2. Mark the old session row revoked + add the JTI to Redis.
+        #   3. Final flush to persist the revocation alongside the new row.
+        # If anything in step 1 raises, the SQLAlchemy session is rolled back
+        # by the FastAPI dep / Db middleware, leaving the OLD refresh valid
+        # for the client to retry. We deliberately do NOT touch Redis before
+        # step 1 succeeds, so a transient DB hiccup never turns into a forced
+        # logout.
+        try:
+            new_response = await self._issue_session(
+                user, ip_address=ip_address, user_agent=user_agent
+            )
+        except Exception:
+            # Bubble up — caller / FastAPI exception handler rolls back the
+            # session. The OLD session_row is unchanged (we haven't touched
+            # it yet) so the client's existing refresh token stays usable.
+            raise
+
+        # New pair is in DB; now invalidate the old one.
         session_row.revokedAt = now
         session_row.revokedReason = "rotated"
         if self.redis is not None:
@@ -332,9 +415,7 @@ class AuthService:
             ua=user_agent,
             success=True,
         )
-        return await self._issue_session(
-            user, ip_address=ip_address, user_agent=user_agent
-        )
+        return new_response
 
     # =========================================================================
     # /logout — revoke access (best effort) + refresh (DB row + Redis JTI)
@@ -439,6 +520,22 @@ class AuthService:
         )
         user.passwordHash = hash_password(new)
         user.passwordChangedAt = datetime.now(UTC)
+        # Module 1.1 — H-5 — invalidate every active refresh session so a
+        # stolen-but-still-valid refresh token cannot mint a fresh access
+        # token after the user changed their password. Access tokens (no DB
+        # row) are NOT invalidated here — H-6 caps their TTL at 30 min,
+        # which is the residual exposure window.
+        await self.session.execute(
+            update(RefreshTokenSession)
+            .where(
+                RefreshTokenSession.userId == user.id,
+                RefreshTokenSession.revokedAt.is_(None),
+            )
+            .values(
+                revokedAt=datetime.now(UTC),
+                revokedReason="password_changed",
+            )
+        )
         await self.session.flush()
 
         await self._audit(
@@ -557,6 +654,20 @@ class AuthService:
         user.passwordHash = hash_password(new_password)
         user.passwordChangedAt = now
         row.usedAt = now
+        # Module 1.1 — H-5 — same logic as change_password: a password reset
+        # is by definition a security event, so every active refresh session
+        # for this user is revoked. The user must /login again after reset.
+        await self.session.execute(
+            update(RefreshTokenSession)
+            .where(
+                RefreshTokenSession.userId == user.id,
+                RefreshTokenSession.revokedAt.is_(None),
+            )
+            .values(
+                revokedAt=now,
+                revokedReason="password_reset",
+            )
+        )
         await self.session.flush()
 
         await self._audit(
@@ -674,13 +785,20 @@ class AuthService:
             cred.verifiedAt = None
         await self.session.flush()
 
+        # Module 1.1 — H-9 — write an explicit MFA_SETUP_INITIATED event
+        # (success=True). The previous code wrote MFA_ENABLED with
+        # success=False at this point, which polluted the "MFA enrolment
+        # failure" dashboard with what is actually a normal happy-path step
+        # (the user just kicked off the QR-scan flow and will confirm via
+        # /mfa/verify-setup). MFA_ENABLED success=False is now reserved for
+        # actual enrolment failures (bad password, missing TOTP, etc.).
         await self._audit(
-            event=AuthEvent.MFA_ENABLED,
+            event=AuthEvent.MFA_SETUP_INITIATED,
             user_id=user.id,
             email=user.email,
             ip=ip_address,
             ua=user_agent,
-            success=False,
+            success=True,
             reason="setup_pending",
         )
         return MfaSetupResponse(
@@ -880,13 +998,20 @@ class AuthService:
         refresh = create_refresh_token(user.id, claims=claims)
 
         # Persist the refresh session (source of truth for revocation).
+        # Module 1.1 — H-3 — sanitize the user-agent before INSERT: Postgres
+        # rejects NUL bytes (0x00) in TEXT columns, and a malicious client
+        # could otherwise crash /login by sending a header with embedded NULs.
+        # We apply the same cap as the audit log for consistency.
         refresh_payload = decode_token(refresh, expected_type="refresh")
         expires_at = datetime.fromtimestamp(int(refresh_payload["exp"]), tz=UTC)
+        safe_ua = _sanitize_audit_string(
+            user_agent, max_length=_AUDIT_USER_AGENT_MAX
+        )
         self.session.add(
             RefreshTokenSession(
                 userId=user.id,
                 tokenHash=hash_token(refresh),
-                userAgent=user_agent,
+                userAgent=safe_ua,
                 ipAddress=ip_address,
                 expiresAt=expires_at,
                 lastUsedAt=datetime.now(UTC),
@@ -912,6 +1037,47 @@ class AuthService:
             user=LoginUser.model_validate(user),
         )
 
+    # =========================================================================
+    # /audit-log — Module 1.1 H-2 — let users see their own auth events
+    # =========================================================================
+    async def list_audit_log(
+        self,
+        *,
+        current_user: User,
+        target_user_id: str | None = None,
+        limit: int = 50,
+    ) -> list[AuthAuditLog]:
+        """Return audit rows the caller is allowed to read.
+
+        Authorisation matrix:
+            * Regular user -> can only read their own rows.
+            * NATIONAL_ADMIN / MINISTRY_ADMIN -> can read any user's rows by
+              passing ``target_user_id``. When omitted, defaults to their
+              own rows (same as a regular user).
+        """
+        # Resolve the effective filter respecting RBAC. NEVER trust the caller:
+        # a non-admin who passes target_user_id MUST still get only their own.
+        if (
+            target_user_id is not None
+            and current_user.role in (UserRole.NATIONAL_ADMIN, UserRole.MINISTRY_ADMIN)
+        ):
+            filter_user_id = target_user_id
+        else:
+            filter_user_id = current_user.id
+
+        # Limit clamped at the service layer too (defense in depth — router
+        # also clamps via Query(le=200)).
+        capped_limit = max(1, min(int(limit), 200))
+
+        stmt = (
+            select(AuthAuditLog)
+            .where(AuthAuditLog.userId == filter_user_id)
+            .order_by(desc(AuthAuditLog.createdAt))
+            .limit(capped_limit)
+        )
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return list(rows)
+
     async def _audit(
         self,
         *,
@@ -923,16 +1089,26 @@ class AuthService:
         success: bool = True,
         reason: str | None = None,
     ) -> None:
+        # Module 1.1 — H-3 — every free-form column gets bounded length and
+        # control characters stripped. Two attack vectors blocked at once:
+        #   * DoS: a malicious client sending 1 MB User-Agent headers would
+        #     bloat the AuthAuditLog table; truncate at 512 bytes.
+        #   * Log injection: CR/LF/NUL/ESC bytes in UA / email would break
+        #     downstream log shippers and SIEM parsers, or smuggle fake
+        #     entries into Loguru's stdout sink.
+        safe_ua = _sanitize_audit_string(ua, max_length=_AUDIT_USER_AGENT_MAX)
+        safe_email = _sanitize_audit_string(email, max_length=_AUDIT_EMAIL_MAX)
+        safe_reason = _sanitize_audit_string(reason, max_length=_AUDIT_REASON_MAX)
         try:
             self.session.add(
                 AuthAuditLog(
                     userId=user_id,
-                    email=email,
+                    email=safe_email,
                     event=event,
                     ipAddress=ip,
-                    userAgent=ua,
+                    userAgent=safe_ua,
                     success=success,
-                    failureReason=reason,
+                    failureReason=safe_reason,
                 )
             )
             await self.session.flush()

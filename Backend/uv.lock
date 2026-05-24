@@ -797,6 +797,7 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
     { name = "weasyprint" },
+    { name = "zxcvbn" },
 ]
 
 [package.dev-dependencies]
@@ -851,6 +852,7 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
     { name = "weasyprint", specifier = ">=63.0" },
+    { name = "zxcvbn", specifier = ">=4.4.28" },
 ]
 
 [package.metadata.requires-dev]
@@ -2434,4 +2436,13 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/e3/1b/51f7c28d4cde639cac4f5d47ff615548c1d9809f43cbacdd66eba5cd679d/zopfli-0.4.1-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:5a4c22b6161f47f5bd34637dbaee6735abd287cd64e0d1ce28ef1871bf625f4b", size = 1863957, upload-time = "2026-02-13T14:17:19.259Z" },
     { url = "https://files.pythonhosted.org/packages/ae/4d/1ef17017d38eabe7ae28f18ef0f16d48966cc23a5657e4555fff61704539/zopfli-0.4.1-cp310-abi3-win32.whl", hash = "sha256:a899eca405662a23ae75054affa3517a060362eae1185d3d791c86a50153c4dd", size = 82314, upload-time = "2026-02-13T14:17:20.795Z" },
     { url = "https://files.pythonhosted.org/packages/0f/94/806bc84b389c7d70051d7c9a0179cff52de8b9f8dc2fc25bcf0bca302986/zopfli-0.4.1-cp310-abi3-win_amd64.whl", hash = "sha256:84a31ba9edc921b1d3a4449929394a993888f32d70de3a3617800c428a947b9b", size = 102186, upload-time = "2026-02-13T14:17:21.622Z" },
+]
+
+[[package]]
+name = "zxcvbn"
+version = "4.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/40/9366940b1484fd4e9423c8decbbf34a73bf52badb36281e082fe02b57aca/zxcvbn-4.5.0.tar.gz", hash = "sha256:70392c0fff39459d7f55d0211151401e79e76fcc6e2c22b61add62900359c7c1", size = 411249, upload-time = "2025-02-19T19:03:02.699Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c2/16/7410f8e714a109d43d17f4e27c8eabb351557653a9b570db1bd7dfdfd822/zxcvbn-4.5.0-py2.py3-none-any.whl", hash = "sha256:2b6eed621612ce6d65e6e4c7455b966acee87d0280e257956b1f06ccc66bd5ff", size = 409397, upload-time = "2025-02-19T19:03:00.521Z" },
 ]
