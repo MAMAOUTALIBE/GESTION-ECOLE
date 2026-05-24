@@ -22,6 +22,7 @@ from app.modules.predictions import models as _predictions_models  # noqa: F401
 from app.modules.projections import models as _projections_models  # noqa: F401
 from app.modules.schoollife import models as _schoollife_models  # noqa: F401
 from app.modules.schools import models as _schools_models  # noqa: F401
+from app.modules.simulator import models as _simulator_models  # noqa: F401
 from app.modules.sms import models as _sms_models  # noqa: F401
 from app.modules.territory import models as _territory_models  # noqa: F401
 from app.modules.workflow import models as _workflow_models  # noqa: F401
