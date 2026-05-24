@@ -9,11 +9,17 @@ from app.modules.territory.schemas import (
     PrefectureListItem,
     PrefectureRead,
     RegionRead,
+    SetZoneTypeRequest,
     SubPrefectureListItem,
     SubPrefectureRead,
+    SubPrefectureZoneItem,
 )
-from app.modules.territory.service import TerritoryService
+from app.modules.territory.service import (
+    SET_SUBPREFECTURE_ZONE_ROLES,
+    TerritoryService,
+)
 from app.shared.deps import DbSession, get_current_user
+from app.shared.permissions import require_roles
 
 router = APIRouter(tags=["territory"])
 
@@ -82,3 +88,34 @@ async def create_sub_prefecture(
     dto: CreateSubPrefectureRequest, user: CurrentUserDep, service: TerritorySvc
 ) -> SubPrefectureRead:
     return await service.create_sub_prefecture(user, dto)
+
+
+# ---------------------------------------------------------------------------
+# Module 1C — zone urbain / rural d'une sous-préfecture (référentiel INS)
+# ---------------------------------------------------------------------------
+@router.get(
+    "/sub-prefectures/zones",
+    response_model=list[SubPrefectureZoneItem],
+    summary="Liste des sous-préfectures avec leur zone INS + compteur écoles",
+)
+async def list_sub_prefectures_with_zone(
+    user: CurrentUserDep, service: TerritorySvc,
+) -> list[SubPrefectureZoneItem]:
+    return await service.list_sub_prefectures_with_zone(user)
+
+
+@router.put(
+    "/sub-prefectures/{sub_prefecture_id}/zone-type",
+    response_model=SubPrefectureRead,
+    dependencies=[Depends(require_roles(*SET_SUBPREFECTURE_ZONE_ROLES))],
+    summary="Modifie la zone INS d'une sous-préfecture (NATIONAL/MINISTRY)",
+)
+async def set_sub_prefecture_zone_type(
+    sub_prefecture_id: str,
+    dto: SetZoneTypeRequest,
+    user: CurrentUserDep,
+    service: TerritorySvc,
+) -> SubPrefectureRead:
+    return await service.set_sub_prefecture_zone_type(
+        sub_prefecture_id, dto.zoneType, user,
+    )

@@ -17,7 +17,7 @@ from app.modules.enrollment.enums import (
     GpiScope,
 )
 from app.modules.enrollment.parity import GpiSeverity
-from app.shared.enums import Gender
+from app.shared.enums import Gender, ZoneType
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +102,9 @@ class AggregateRequest(BaseModel):
     classLevel: EnrollmentClassLevel | None = None
     gender: Gender | None = None
     source: EnrollmentSource = EnrollmentSource.CENSUS_DECLARED
+    # Module 1C — si True, on calcule un breakdown supplémentaire par zone
+    # effective (COALESCE School.zoneType, SubPrefecture.defaultZoneType).
+    byZoneType: bool = False
 
 
 class EnrollmentAggregate(BaseModel):
@@ -118,6 +121,21 @@ class EnrollmentAggregate(BaseModel):
     gpi: float | None = None
 
 
+class ZoneTypeAggregate(BaseModel):
+    """Une cellule d'agrégat par zone effective (Module 1C).
+
+    ``girlsCount``/``boysCount`` permettent de calculer un GPI urbain vs
+    rural en clair côté frontend ; ``gpi`` est aussi pré-calculé pour
+    éviter l'arithmétique JS.
+    """
+
+    zoneType: ZoneType
+    girlsCount: int = 0
+    boysCount: int = 0
+    total: int = 0
+    gpi: float | None = None
+
+
 class AggregateResponse(BaseModel):
     scope: AggregateScope
     schoolYearId: str
@@ -125,6 +143,9 @@ class AggregateResponse(BaseModel):
     byLevel: list[EnrollmentAggregate]
     byGender: list[EnrollmentAggregate]
     breakdown: list[EnrollmentAggregate]
+    # Module 1C — populé uniquement si byZoneType=True (sinon liste vide
+    # pour rester contractuel et éviter ``None`` côté Angular).
+    byZoneType: list[ZoneTypeAggregate] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -187,4 +208,5 @@ __all__ = [
     "GpiScope",
     "GpiSeverity",
     "GpiSnapshotsRunResponse",
+    "ZoneTypeAggregate",
 ]

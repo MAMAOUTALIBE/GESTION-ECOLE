@@ -9,6 +9,7 @@ from app.shared.enums import (
     SchoolAffiliation,
     ValidationStatus,
     WaterSource,
+    ZoneType,
 )
 
 
@@ -136,8 +137,23 @@ class SchoolRead(BaseModel):
     multiShift: bool = False
     distanceToHealthCenterKm: float | None = None
     affiliation: SchoolAffiliation | None = None
+    # Module 1C — override zone urbain/rural (NULL = hérite de la sous-préf).
+    zoneType: ZoneType | None = None
     createdAt: datetime
     updatedAt: datetime
+
+
+# ---------------------------------------------------------------------------
+# Module 1C — Body de PUT /api/schools/{id}/zone-type
+# ---------------------------------------------------------------------------
+class SetSchoolZoneTypeRequest(BaseModel):
+    """Body de PUT /schools/{id}/zone-type.
+
+    ``zoneType=None`` retire l'override (l'école revient à la valeur INS
+    de sa sous-préfecture).
+    """
+
+    zoneType: ZoneType | None = None
 
 
 class SchoolBriefForClass(BaseModel):

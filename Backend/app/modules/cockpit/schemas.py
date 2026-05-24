@@ -10,6 +10,33 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.modules.cockpit.enums import AlertSeverity, KpiKey
 
 
+class UrbanRuralGapResponse(BaseModel):
+    """Module 1C — Écart de GPI urbain vs rural au niveau national.
+
+    Indicateur clé "corriger disparités urbain/rural" du programme gouv.
+    On expose à la fois les GPI par zone (URBAN/RURAL/PERI_URBAN) et la
+    différence absolue ``deltaGpi = |urbanGpi - ruralGpi|`` (la péri-urbaine
+    n'entre pas dans le delta, on l'expose à titre informatif).
+    """
+
+    schoolYearId: str
+    urbanGpi: Decimal | None = None
+    ruralGpi: Decimal | None = None
+    periUrbanGpi: Decimal | None = None
+    deltaGpi: Decimal | None = None
+    urbanGirlsCount: int = 0
+    urbanBoysCount: int = 0
+    ruralGirlsCount: int = 0
+    ruralBoysCount: int = 0
+    periUrbanGirlsCount: int = 0
+    periUrbanBoysCount: int = 0
+    urbanCount: int = 0  # total élèves zone urbaine
+    ruralCount: int = 0
+    periUrbanCount: int = 0
+    generatedAt: datetime
+    cached: bool = False
+
+
 class NationalKpiResponse(BaseModel):
     """KPI agrégés nationaux servis par GET /api/cockpit/kpis/national.
 
@@ -28,6 +55,8 @@ class NationalKpiResponse(BaseModel):
     # n'a encore été calculé (les ops doivent lancer
     # ``compute_gpi_snapshots`` au moins une fois).
     nationalGpi: Decimal | None = None
+    # Module 1C — écart urbain/rural. None si pas d'effectifs déclarés.
+    urbanRuralGap: UrbanRuralGapResponse | None = None
     items: dict[str, float] = Field(default_factory=dict)
     generatedAt: datetime
     cached: bool = False
@@ -122,4 +151,5 @@ __all__ = [
     "TopAlertRegionRow",
     "TopAlertSchoolRow",
     "TopAlertsResponse",
+    "UrbanRuralGapResponse",
 ]

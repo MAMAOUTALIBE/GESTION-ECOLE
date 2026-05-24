@@ -56,6 +56,7 @@ from app.modules.cockpit.schemas import (
     TopAlertRegionRow,
     TopAlertSchoolRow,
     TopAlertsResponse,
+    UrbanRuralGapResponse,
 )
 from app.modules.finance.models import Budget, Expense
 from app.modules.predictions.enums import DropoutRiskLevel
@@ -112,6 +113,7 @@ class CockpitService:
             critical_anomalies,
             alerts_open,
             national_gpi,
+            urban_rural_gap,
         ) = await asyncio.gather(
             self._count_students(),
             self._compute_attendance_rate_recent(),
@@ -119,6 +121,7 @@ class CockpitService:
             self._count_critical_open_anomalies(),
             self._count_alerts_open(),
             self._compute_national_gpi(),
+            self._compute_urban_rural_gap_latest_year(),
             return_exceptions=False,
         )
 
@@ -129,6 +132,7 @@ class CockpitService:
             criticalAnomaliesOpen=int(critical_anomalies),
             alertsOpen=int(alerts_open),
             nationalGpi=national_gpi,
+            urbanRuralGap=urban_rural_gap,
             items={
                 KpiKey.STUDENTS_TOTAL.value: float(students_total),
                 KpiKey.ATTENDANCE_RATE.value: round(float(attendance_rate), 2),
@@ -147,6 +151,35 @@ class CockpitService:
         )
         await self._cache_set("kpis:national", response.model_dump(mode="json"))
         return response
+
+    async def _compute_urban_rural_gap_latest_year(
+        self,
+    ) -> UrbanRuralGapResponse | None:
+        """Calcule l'écart urbain/rural sur la dernière année scolaire active.
+
+        Retourne ``None`` si aucune SchoolYear active ou aucun effectif
+        déclaré (cas démarrage à froid). Ce calcul est wrappé d'un
+        try/except : tout échec retourne ``None`` plutôt que de faire
+        tomber le payload KPI complet (cf. convention du service).
+        """
+        try:
+            from app.modules.academics.models import SchoolYear
+
+            stmt = (
+                select(SchoolYear.id)
+                .where(SchoolYear.isActive == True)  # noqa: E712
+                .order_by(SchoolYear.startDate.desc())
+                .limit(1)
+            )
+            active_year = (await self.session.execute(stmt)).scalar_one_or_none()
+            if active_year is None:
+                return None
+            return await self.get_urban_rural_gap(active_year)
+        except Exception as exc:
+            logger.warning(
+                "cockpit._compute_urban_rural_gap_latest_year failed: {}", exc,
+            )
+            return None
 
     # ==================================================================
     # TOP ALERTS
@@ -766,6 +799,113 @@ class CockpitService:
         except Exception as exc:
             logger.warning("cockpit._compute_national_gpi failed: {}", exc)
             return None
+
+    # ==================================================================
+    # Module 1C — Urban / Rural gap
+    # ==================================================================
+    async def get_urban_rural_gap(
+        self,
+        school_year_id: str,
+    ) -> UrbanRuralGapResponse:
+        """KPI Module 1C : écart de GPI entre zones urbaine et rurale.
+
+        On agrège ``Enrollment`` filtré sur ``CENSUS_DECLARED`` × ``school_year_id``
+        et on calcule par zone effective (``COALESCE(School.zoneType,
+        SubPrefecture.defaultZoneType)``). Cache Redis 30s.
+        """
+        cache_key = f"urban_rural_gap:{school_year_id}"
+        cached = await self._cache_get(cache_key)
+        if cached is not None:
+            cached["cached"] = True
+            return UrbanRuralGapResponse(**cached)
+
+        from decimal import Decimal as _Decimal
+
+        from app.modules.enrollment.enums import EnrollmentSource
+        from app.modules.enrollment.models import Enrollment
+        from app.modules.territory.models import SubPrefecture as _SubPref
+        from app.shared.enums import Gender as _Gender
+        from app.shared.enums import ZoneType as _ZoneType
+
+        effective_zone = func.coalesce(
+            School.zoneType, _SubPref.defaultZoneType,
+        ).label("effective_zone")
+
+        stmt = (
+            select(
+                effective_zone,
+                Enrollment.gender,
+                func.coalesce(func.sum(Enrollment.count), 0).label("total"),
+            )
+            .select_from(Enrollment)
+            .join(School, School.id == Enrollment.schoolId)
+            .outerjoin(_SubPref, _SubPref.id == School.subPrefectureId)
+            .where(
+                and_(
+                    Enrollment.schoolYearId == school_year_id,
+                    Enrollment.source == EnrollmentSource.CENSUS_DECLARED,
+                )
+            )
+            .group_by(effective_zone, Enrollment.gender)
+        )
+        rows = (await self.session.execute(stmt)).all()
+
+        # Aggregate par zone -> {gender: count}
+        by_zone: dict[_ZoneType, dict[_Gender, int]] = {
+            _ZoneType.URBAN: {_Gender.FEMALE: 0, _Gender.MALE: 0},
+            _ZoneType.RURAL: {_Gender.FEMALE: 0, _Gender.MALE: 0},
+            _ZoneType.PERI_URBAN: {_Gender.FEMALE: 0, _Gender.MALE: 0},
+        }
+        for zone_raw, gender, total in rows:
+            zone = (
+                _ZoneType(zone_raw)
+                if zone_raw is not None
+                else _ZoneType.RURAL
+            )
+            if gender in (_Gender.FEMALE, _Gender.MALE):
+                by_zone[zone][gender] += int(total)
+
+        def _gpi(g: int, b: int) -> _Decimal | None:
+            if b <= 0:
+                return None
+            return (_Decimal(g) / _Decimal(b)).quantize(_Decimal("0.0001"))
+
+        urban_g = by_zone[_ZoneType.URBAN][_Gender.FEMALE]
+        urban_b = by_zone[_ZoneType.URBAN][_Gender.MALE]
+        rural_g = by_zone[_ZoneType.RURAL][_Gender.FEMALE]
+        rural_b = by_zone[_ZoneType.RURAL][_Gender.MALE]
+        peri_g = by_zone[_ZoneType.PERI_URBAN][_Gender.FEMALE]
+        peri_b = by_zone[_ZoneType.PERI_URBAN][_Gender.MALE]
+
+        urban_gpi = _gpi(urban_g, urban_b)
+        rural_gpi = _gpi(rural_g, rural_b)
+        peri_gpi = _gpi(peri_g, peri_b)
+
+        if urban_gpi is not None and rural_gpi is not None:
+            delta = abs(urban_gpi - rural_gpi)
+        else:
+            delta = None
+
+        response = UrbanRuralGapResponse(
+            schoolYearId=school_year_id,
+            urbanGpi=urban_gpi,
+            ruralGpi=rural_gpi,
+            periUrbanGpi=peri_gpi,
+            deltaGpi=delta,
+            urbanGirlsCount=urban_g,
+            urbanBoysCount=urban_b,
+            ruralGirlsCount=rural_g,
+            ruralBoysCount=rural_b,
+            periUrbanGirlsCount=peri_g,
+            periUrbanBoysCount=peri_b,
+            urbanCount=urban_g + urban_b,
+            ruralCount=rural_g + rural_b,
+            periUrbanCount=peri_g + peri_b,
+            generatedAt=_now_utc(),
+            cached=False,
+        )
+        await self._cache_set(cache_key, response.model_dump(mode="json"))
+        return response
 
     # ==================================================================
     # Redis cache helpers

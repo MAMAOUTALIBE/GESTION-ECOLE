@@ -7,7 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.shared.enums import ValidationStatus
+from app.shared.enums import ValidationStatus, ZoneType
 
 
 # --- Requests ---
@@ -101,7 +101,41 @@ class SubPrefectureRead(BaseModel):
     createdAt: datetime
     updatedAt: datetime
     prefecture: PrefectureNested | None = None
+    # Module 1C — zone déclarée par l'INS. Toujours non-null en base (default
+    # serveur RURAL pose en migration 0025).
+    defaultZoneType: ZoneType = ZoneType.RURAL
 
 
 class SubPrefectureListItem(SubPrefectureRead):
     _count: SubPrefectureCounts = SubPrefectureCounts()
+
+
+# ---------------------------------------------------------------------------
+# Module 1C — Schémas zone urbain / rural
+# ---------------------------------------------------------------------------
+class SetZoneTypeRequest(BaseModel):
+    """Body de PUT /territory/sub-prefectures/{id}/zone-type."""
+
+    zoneType: ZoneType
+
+
+class SubPrefectureZoneItem(BaseModel):
+    """Une ligne de GET /territory/sub-prefectures/zones.
+
+    Inclut le compteur d'écoles dans chaque zone (utile pour l'INS pour
+    valider la cohérence du référentiel).
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    code: str
+    prefectureId: str
+    regionId: str
+    defaultZoneType: ZoneType
+    # Décompte effectif par zone (override appliqué).
+    urbanSchoolsCount: int = 0
+    ruralSchoolsCount: int = 0
+    periUrbanSchoolsCount: int = 0
+    totalSchoolsCount: int = 0

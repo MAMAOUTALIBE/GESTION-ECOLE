@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,6 +23,7 @@ from app.shared.enums import (
     SchoolAffiliation,
     ValidationStatus,
     WaterSource,
+    ZoneType,
 )
 
 if TYPE_CHECKING:
@@ -45,6 +47,13 @@ class School(Base, TimestampMixin):
         Index("ix_School_regionId_status", "regionId", "status"),
         Index("ix_School_prefectureId_status", "prefectureId", "status"),
         Index("ix_School_subPrefectureId_status", "subPrefectureId", "status"),
+        # Module 1C — index partiel sur l'override zone (économise place :
+        # la majorité des écoles n'ont pas d'override → NULL → exclu).
+        Index(
+            "ix_School_zoneType",
+            "zoneType",
+            postgresql_where=text('"zoneType" IS NOT NULL'),
+        ),
     )
 
     id: Mapped[str] = cuid_pk()
@@ -119,6 +128,15 @@ class School(Base, TimestampMixin):
     distanceToHealthCenterKm: Mapped[float | None] = mapped_column(Float, nullable=True)
     affiliation: Mapped[SchoolAffiliation | None] = mapped_column(
         Enum(SchoolAffiliation, name="SchoolAffiliation", native_enum=True),
+        nullable=True,
+    )
+
+    # Module 1C — Override zone urbain/rural pour les cas frontaliers
+    # (école dans un quartier urbain d'une sous-préf rurale dominante).
+    # NULL = hérite de SubPrefecture.defaultZoneType.
+    # Voir ``app.modules.territory.zone_type.effective_zone_type``.
+    zoneType: Mapped[ZoneType | None] = mapped_column(
+        Enum(ZoneType, name="ZoneType", native_enum=True),
         nullable=True,
     )
 
