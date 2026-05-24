@@ -1,8 +1,12 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
 
 from app.modules.auth.models import User
+from app.modules.notifications.i18n import seed_default_templates
+from app.modules.notifications.models import NotificationTemplate
 from app.modules.notifications.schemas import (
     BulkCommunicationRequest,
     BulkCommunicationResponse,
@@ -119,3 +123,71 @@ async def dispatch_test(
 ) -> DispatchTestResponse:
     _ = user
     return await service.dispatch_test(dto)
+
+
+# ===========================================================================
+# Module 6 — i18n templates catalogue (admin)
+# ===========================================================================
+TEMPLATE_ADMIN_ROLES = (UserRole.NATIONAL_ADMIN, UserRole.MINISTRY_ADMIN)
+
+
+class NotificationTemplateRead(BaseModel):
+    """Row shape returned by GET /api/notifications/templates."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    key: str
+    language: str
+    channel: str
+    subject: str | None = None
+    body: str
+    variables: list[str] | None = None
+
+
+class SeedTemplatesResponse(BaseModel):
+    inserted: int
+
+
+@router.get(
+    "/notifications/templates",
+    response_model=list[NotificationTemplateRead],
+    dependencies=[Depends(require_roles(*TEMPLATE_ADMIN_ROLES))],
+    summary="Lister les templates i18n (admin national/ministère)",
+)
+async def list_templates(
+    session: DbSession,
+    user: CurrentUserDep,
+    language: Annotated[str | None, Query()] = None,
+    key: Annotated[str | None, Query()] = None,
+    channel: Annotated[str | None, Query()] = None,
+) -> list[NotificationTemplateRead]:
+    _ = user
+    stmt = select(NotificationTemplate).order_by(
+        NotificationTemplate.key.asc(),
+        NotificationTemplate.language.asc(),
+        NotificationTemplate.channel.asc(),
+    )
+    if language:
+        stmt = stmt.where(NotificationTemplate.language == language)
+    if key:
+        stmt = stmt.where(NotificationTemplate.key == key)
+    if channel:
+        stmt = stmt.where(NotificationTemplate.channel == channel)
+    rows = (await session.execute(stmt)).scalars().all()
+    return [NotificationTemplateRead.model_validate(r) for r in rows]
+
+
+@router.post(
+    "/notifications/templates/seed",
+    response_model=SeedTemplatesResponse,
+    dependencies=[Depends(require_roles(UserRole.NATIONAL_ADMIN))],
+    summary="Insérer (idempotent) les templates par défaut Module 6",
+)
+async def seed_templates(
+    session: DbSession,
+    user: CurrentUserDep,
+) -> SeedTemplatesResponse:
+    _ = user
+    inserted = await seed_default_templates(session)
+    return SeedTemplatesResponse(inserted=inserted)

@@ -16,8 +16,10 @@ from app.modules.workflow.schemas import (
     ValidationRequestRead,
 )
 from app.modules.workflow.service import WorkflowService
+from app.modules.workflow.sla import check_overdue_requests
 from app.shared.deps import DbSession, get_current_user
-from app.shared.enums import ValidationStatus
+from app.shared.enums import UserRole, ValidationStatus
+from app.shared.permissions import require_roles
 
 
 def _service(session: DbSession) -> WorkflowService:
@@ -90,3 +92,24 @@ async def mark_notification_read(
     notification_id: str, user: CurrentUserDep, service: WfSvc
 ) -> NotificationRead:
     return await service.mark_notification_read(user, notification_id)
+
+
+# --- Module 6 — SLA status (admin) ---------------------------------------
+SLA_ADMIN_ROLES = (UserRole.NATIONAL_ADMIN, UserRole.MINISTRY_ADMIN)
+
+
+@router.get(
+    "/workflow/sla-status",
+    response_model=list[ValidationRequestRead],
+    dependencies=[Depends(require_roles(*SLA_ADMIN_ROLES))],
+    summary="Lister les demandes en retard (admin national/ministère)",
+)
+async def sla_status(
+    session: DbSession,
+    user: CurrentUserDep,
+) -> list[ValidationRequestRead]:
+    _ = user
+    overdue = await check_overdue_requests(session)
+    # `requestedBy` / `reviewer` are not eagerly loaded — ValidationRequestRead
+    # treats them as optional so this is fine for the admin overview endpoint.
+    return [ValidationRequestRead.model_validate(r) for r in overdue]

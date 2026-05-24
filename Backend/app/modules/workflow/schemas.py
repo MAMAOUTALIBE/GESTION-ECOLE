@@ -53,6 +53,10 @@ class ValidationRequestRead(BaseModel):
     reviewedAt: datetime | None = None
     createdAt: datetime
     updatedAt: datetime
+    # Module 6 — SLA bookkeeping
+    slaDeadline: datetime | None = None
+    escalatedAt: datetime | None = None
+    escalationLevel: int = 0
     requestedBy: UserBrief | None = None
     reviewer: UserBrief | None = None
 

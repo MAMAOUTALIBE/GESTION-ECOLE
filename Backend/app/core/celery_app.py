@@ -15,6 +15,7 @@ celery_app = Celery(
         "app.workers.geocoding_tasks",
         "app.workers.notification_tasks",
         "app.workers.attendance_tasks",
+        "app.workers.workflow_tasks",
     ],
 )
 
