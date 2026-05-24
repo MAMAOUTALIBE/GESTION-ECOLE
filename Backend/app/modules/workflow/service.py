@@ -23,6 +23,7 @@ from app.modules.workflow.schemas import (
     UnreadCountResponse,
     ValidationRequestRead,
 )
+from app.modules.workflow.sla import compute_sla_deadline
 from app.shared.enums import (
     NotificationType,
     UserRole,
@@ -56,6 +57,7 @@ class WorkflowService:
         self, target: ValidationTarget
     ) -> ValidationRequest:
         """Insert a ValidationRequest and notify all matching reviewers."""
+        now = datetime.now(UTC)
         request = ValidationRequest(
             entityType=target.entity_type,
             entityId=target.entity_id,
@@ -65,6 +67,7 @@ class WorkflowService:
             reviewerRegionId=target.reviewer_region_id,
             reviewerPrefectureId=target.reviewer_prefecture_id,
             reviewerSubPrefectureId=target.reviewer_sub_prefecture_id,
+            slaDeadline=compute_sla_deadline(target.entity_type, now),
         )
         self.session.add(request)
         await self.session.flush()
@@ -155,7 +158,8 @@ class WorkflowService:
             request.entityType, request.entityId, user.id, new_status, cleaned_reason
         )
 
-        # Notify the requester
+        # Notify the requester — legacy in-app Notification row (kept for
+        # backwards compatibility with the existing frontend bell dropdown).
         if new_status == ValidationStatus.APPROVED:
             title = "Demande validée"
             message = "Votre demande a été validée par la hiérarchie."
@@ -180,6 +184,16 @@ class WorkflowService:
             )
         )
         await self.session.flush()
+
+        # Module 6 — additionally dispatch an i18n notification across SMS,
+        # email and in_app channels using the requester's preferred language.
+        await self._dispatch_review_i18n(
+            request=request,
+            requester=request.requestedBy,
+            reviewer=user,
+            new_status=new_status,
+            reason=cleaned_reason,
+        )
 
         # Reload with relations for the response
         loaded = (
@@ -309,6 +323,51 @@ class WorkflowService:
                 or request.reviewerSubPrefectureId == user.subPrefectureId
             )
         )
+
+    async def _dispatch_review_i18n(
+        self,
+        *,
+        request: ValidationRequest,
+        requester: User,
+        reviewer: User,
+        new_status: ValidationStatus,
+        reason: str | None,
+    ) -> None:
+        """Send cross-channel i18n notification to the requester after a
+        review decision (Module 6).
+
+        Failures are swallowed: the legacy in-app row was already written,
+        so the user is never left in the dark even if SMS/email transport
+        explodes.
+        """
+        # Local import to avoid a service ↔ notifications circular import at
+        # module load time. Both services are stateless apart from session.
+        from app.modules.notifications.service import NotificationsService
+
+        template_key = (
+            "validation.approved"
+            if new_status == ValidationStatus.APPROVED
+            else "validation.rejected"
+        )
+        variables: dict[str, object] = {
+            "entityLabel": f"{request.entityType.value} {request.entityId}",
+            "recipientName": requester.fullName,
+            "reviewerName": reviewer.fullName,
+            "reason": reason or "",
+        }
+        notif_service = NotificationsService(self.session)
+        for channel in ("sms", "email", "in_app"):
+            try:
+                await notif_service.send_via_template(
+                    user_id=requester.id,
+                    channel=channel,
+                    template_key=template_key,
+                    variables=variables,
+                    language=requester.preferredLanguage,
+                )
+            except Exception:
+                # Notification failure must not block the review commit.
+                continue
 
     async def _update_entity_status(
         self,

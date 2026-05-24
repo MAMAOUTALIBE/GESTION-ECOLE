@@ -25,6 +25,7 @@ from app.modules.auth.schemas import (
     ResetPasswordRequest,
     SessionInfo,
     UserListItem,
+    UserUpdate,
 )
 from app.modules.auth.service import AuthService
 from app.shared.deps import DbSession, get_current_user
@@ -83,6 +84,22 @@ async def login(
     summary="Profil de l'utilisateur authentifié",
 )
 async def me(current_user: Annotated[User, Depends(get_current_user)]) -> MeResponse:
+    return AuthService.me(current_user)
+
+
+@router.patch(
+    "/me",
+    response_model=MeResponse,
+    summary="Mettre à jour son profil (langue préférée — Module 6)",
+)
+async def update_me(
+    dto: UserUpdate,
+    session: DbSession,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> MeResponse:
+    if dto.preferredLanguage is not None:
+        current_user.preferredLanguage = dto.preferredLanguage
+        await session.flush()
     return AuthService.me(current_user)
 
 

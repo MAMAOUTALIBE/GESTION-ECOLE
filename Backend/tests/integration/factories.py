@@ -270,6 +270,8 @@ class UserFactory(_AsyncBaseFactory):
     mfaRequired = False
     mfaEnabled = False
     passwordChangedAt = None
+    # Module 6 i18n
+    preferredLanguage = "fr"
 
 
 # ---------------------------------------------------------------------------

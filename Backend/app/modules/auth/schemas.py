@@ -17,8 +17,9 @@ Module 1 hardening
 """
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.modules.notifications.i18n import SUPPORTED_LANGUAGES
 from app.shared.enums import UserRole
 
 
@@ -90,6 +91,8 @@ class MeUser(BaseModel):
     # Module 1 — additive flags so the frontend can render an MFA banner.
     mfaRequired: bool = False
     mfaEnabled: bool = False
+    # Module 6 — additive i18n preference.
+    preferredLanguage: str = "fr"
 
 
 class MeResponse(BaseModel):
@@ -115,8 +118,32 @@ class UserListItem(BaseModel):
     prefecture: TerritorialEntitySummary | None = None
     subPrefecture: TerritorialEntitySummary | None = None
     school: TerritorialEntitySummary | None = None
+    preferredLanguage: str = "fr"  # Module 6 — additive
     createdAt: str
     updatedAt: str
+
+
+class UserUpdate(BaseModel):
+    """PATCH /api/auth/me — partial profile update (Module 6).
+
+    Only ``preferredLanguage`` is currently supported, but the model is
+    designed for additive growth (e.g. ``timezone`` later). Validators
+    reject unknown language codes with HTTP 422.
+    """
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    preferredLanguage: str | None = None
+
+    @field_validator("preferredLanguage")
+    @classmethod
+    def _check_language(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if value not in SUPPORTED_LANGUAGES:
+            raise ValueError(
+                f"preferredLanguage doit être l'une de {SUPPORTED_LANGUAGES}"
+            )
+        return value
 
 
 # ---------------------------------------------------------------------------

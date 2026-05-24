@@ -65,6 +65,12 @@ class User(Base, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
 
+    # --- Module 6 i18n column ---
+    # ISO 639-1/3 code among ['fr', 'ff', 'sus', 'man'] — fallback 'fr'.
+    preferredLanguage: Mapped[str] = mapped_column(
+        String(8), default="fr", server_default="fr", nullable=False
+    )
+
     # --- Relationships ---
     region: Mapped["Region | None"] = relationship(back_populates="users", lazy="raise")
     prefecture: Mapped["Prefecture | None"] = relationship(back_populates="users", lazy="raise")
