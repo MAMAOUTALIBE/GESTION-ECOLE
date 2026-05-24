@@ -99,6 +99,10 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
 # + forward-refs "User"/"Student"/"School" pour éviter les imports circulaires
 # côté service. RUF002/RUF003 tolérés pour les commentaires/docstrings FR.
 "app/modules/diplomas/*" = ["N801", "N803", "N806", "N815", "UP037", "RUF002", "RUF003"]
+# Module 12 — open data : colonnes camelCase (Prisma) côté ORM + champs
+# mixedCase (regionName, schoolCount…) dans les datasets publics. RUF002/
+# RUF003 tolérés pour les docstrings FR.
+"app/modules/opendata/*" = ["N801", "N803", "N806", "N815", "UP037", "RUF002", "RUF003"]
 # Les factories et fixtures de tests refletent les noms de colonnes Prisma
 # (camelCase) — on tolere donc N803/N815/N801 dans tests/. Et `from app.modules
 # import *` est intentionnel pour declencher l'enregistrement des modeles

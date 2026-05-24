@@ -19,3 +19,4 @@ from app.modules.predictions import models as _predictions_models  # noqa: F401
 from app.modules.anomalies import models as _anomalies_models  # noqa: F401
 from app.modules.assistant import models as _assistant_models  # noqa: F401
 from app.modules.diplomas import models as _diplomas_models  # noqa: F401
+from app.modules.opendata import models as _opendata_models  # noqa: F401
