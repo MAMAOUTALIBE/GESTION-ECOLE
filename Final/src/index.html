@@ -7,24 +7,37 @@
   <title>Nowa</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1d6b3a">
   <link rel="icon" href="./assets/images/brand-logos/favicon.ico" type="image/x-icon">
+  <link rel="manifest" href="manifest.webmanifest">
   <script src="https://maps.google.com/maps/api/js?key=AIzaSyBBm4b4JR9pe-V7Pe4FRCvDKDnjmVzSBeI"></script>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
   <script>
-    // Phase 9 cleanup: a previous PWA on 127.0.0.1:4200 (SNBGEE-GN / "Pilote
+    // Module 16 PWA cleanup: a previous app on 127.0.0.1:4200 (SNBGEE-GN / "Pilote
     // Local Conakry") had registered Service Workers and CacheStorage that
-    // intercepted requests. Wipe them on every load so the current app is
-    // never shadowed. Cheap to run when nothing is registered.
+    // intercepted requests. We now unregister ONLY foreign SWs (not ngsw-worker.js
+    // which is our Angular Service Worker installed in production). Cheap to run.
     (function () {
       if (!('serviceWorker' in navigator)) return;
       navigator.serviceWorker.getRegistrations().then(function (regs) {
-        regs.forEach(function (r) { r.unregister(); });
+        regs.forEach(function (r) {
+          var url = (r.active && r.active.scriptURL) || (r.installing && r.installing.scriptURL) || (r.waiting && r.waiting.scriptURL) || '';
+          // Keep our Angular Service Worker (ngsw-worker.js); unregister legacy SWs.
+          if (url.indexOf('ngsw-worker.js') === -1) {
+            r.unregister();
+          }
+        });
       }).catch(function () { /* best-effort */ });
       if (typeof caches !== 'undefined') {
         caches.keys().then(function (keys) {
-          keys.forEach(function (k) { caches.delete(k); });
+          keys.forEach(function (k) {
+            // Preserve Angular SW caches (prefix "ngsw:") and clear legacy ones.
+            if (k.indexOf('ngsw:') !== 0) {
+              caches.delete(k);
+            }
+          });
         }).catch(function () { /* best-effort */ });
       }
     })();

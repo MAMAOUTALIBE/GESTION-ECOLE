@@ -1,6 +1,7 @@
-import { ApplicationConfig, importProvidersFrom, provideZonelessChangeDetection } from '@angular/core';
+import { ApplicationConfig, importProvidersFrom, provideZonelessChangeDetection, isDevMode } from '@angular/core';
 import { provideRouter, RouterOutlet } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideServiceWorker } from '@angular/service-worker';
 import { routes } from './app.routes';
 import { NgCircleProgressModule } from 'ng-circle-progress';
 import { AngularFireModule } from '@angular/fire/compat';
@@ -40,6 +41,13 @@ export const appConfig: ApplicationConfig = {
     // Optional configuration
     fireOnInit: false,
     dismissOnDestroy: true,
+    }),
+    // Module 16 PWA: register the Angular Service Worker only in production
+    // builds. In dev mode (`ng serve`) it stays disabled so hot-reload is not
+    // shadowed by cached responses.
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      registrationStrategy: 'registerWhenStable:30000',
     }),
     importProvidersFrom(
 
