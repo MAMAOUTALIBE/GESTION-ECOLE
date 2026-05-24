@@ -120,6 +120,12 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
 # avec le frontend Angular / le payload WhatsApp Cloud API. RUF002/RUF003
 # tolérés pour les docstrings FR.
 "app/modules/parent_portal/*" = ["N801", "N803", "N806", "N815", "UP037", "RUF002", "RUF003"]
+# Module 19 — cockpit ministériel : colonnes camelCase (Prisma) côté ORM,
+# schemas exposent les mêmes noms (studentsTotal, attendanceRate, regionId...)
+# pour rester aligné avec le frontend Angular du cabinet. RUF002/RUF003
+# tolérés pour les docstrings FR.
+"app/modules/cockpit/*" = ["N801", "N803", "N806", "N815", "UP037", "RUF002", "RUF003"]
+"app/workers/cockpit_tasks.py" = ["N801", "N803", "N815", "RUF002", "RUF003"]
 "app/core/maintenance.py" = ["RUF002", "RUF003"]
 # Les factories et fixtures de tests refletent les noms de colonnes Prisma
 # (camelCase) — on tolere donc N803/N815/N801 dans tests/. Et `from app.modules

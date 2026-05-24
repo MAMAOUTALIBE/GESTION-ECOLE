@@ -9,6 +9,7 @@ from app.modules.assistant import models as _assistant_models  # noqa: F401
 from app.modules.attendance import models as _attendance_models  # noqa: F401
 from app.modules.auth import models as _auth_models  # noqa: F401
 from app.modules.census import models as _census_models  # noqa: F401
+from app.modules.cockpit import models as _cockpit_models  # noqa: F401
 from app.modules.diplomas import models as _diplomas_models  # noqa: F401
 from app.modules.finance import models as _finance_models  # noqa: F401
 from app.modules.inspections import models as _inspections_models  # noqa: F401

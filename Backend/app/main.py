@@ -117,6 +117,7 @@ def create_app() -> FastAPI:
     from app.modules.auth.router import router as auth_router
     from app.modules.cartography.router import router as cartography_router
     from app.modules.census.router import router as census_router
+    from app.modules.cockpit.router import router as cockpit_router
     from app.modules.diplomas.router import router as diplomas_router
     from app.modules.finance.router import router as finance_router
     from app.modules.imports.router import router as imports_router
@@ -214,6 +215,10 @@ def create_app() -> FastAPI:
     # Module 18 — Portail parent (WhatsApp + USSD enrichi + page publique légère)
     app.include_router(
         parent_portal_router, prefix=f"{settings.api_prefix}/parent-portal"
+    )
+    # Module 19 — Cockpit ministériel (KPI live + briefing automatique)
+    app.include_router(
+        cockpit_router, prefix=f"{settings.api_prefix}/cockpit"
     )
 
     return app
