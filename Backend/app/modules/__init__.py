@@ -17,3 +17,4 @@ from app.modules.schoollife import models as _schoollife_models  # noqa: F401
 from app.modules.admin import models as _admin_models  # noqa: F401
 from app.modules.predictions import models as _predictions_models  # noqa: F401
 from app.modules.anomalies import models as _anomalies_models  # noqa: F401
+from app.modules.assistant import models as _assistant_models  # noqa: F401
