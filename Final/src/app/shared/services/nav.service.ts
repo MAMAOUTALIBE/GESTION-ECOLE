@@ -121,6 +121,14 @@ export class NavService implements OnDestroy {
     },
     { headTitle: 'REGISTRES SCOLAIRES' },
     {
+      title: 'Équité (GPI)',
+      icon: '<i class="ri-scales-3-line side-menu__icon"></i>',
+      path: '/school-census/equite',
+      type: 'link',
+      dirchange: false,
+      nochild: true,
+    },
+    {
       title: 'Territoires',
       icon: `
         <svg xmlns="http://www.w3.org/2000/svg" class="side-menu__icon" width="24" height="24" viewBox="0 0 24 24"><path d="M12 2 3 6v6c0 5.55 3.84 9.74 9 10 5.16-.26 9-4.45 9-10V6l-9-4zm0 2.19 7 3.11V12c0 4.39-2.91 7.58-7 7.98C7.91 19.58 5 16.39 5 12V7.3l7-3.11z"/><path d="M8 9h8v2H8zm0 4h5v2H8z"/></svg>
@@ -475,6 +483,7 @@ export class NavService implements OnDestroy {
         : compactGroup('Dashboards', 'Dashboards', []),
       { headTitle: 'MODULES' },
       compactGroup('Recensement scolaire', 'Établissements', [
+        'Équité (GPI)',
         'Territoires',
         'Établissements',
         'Carte scolaire',

@@ -1,0 +1,102 @@
+<div class="equite-page">
+  <!-- Header -->
+  <div class="row">
+    <div class="col-xl-12">
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div>
+          <p class="text-uppercase fw-semibold text-primary mb-1 fs-12">
+            Pilotage équité — Carte scolaire
+          </p>
+          <h3 class="fw-semibold mb-1">Dashboard Équité (GPI &amp; zone)</h3>
+          <p class="text-muted mb-0">
+            Parité filles/garçons · écart urbain/rural · écoles à risque
+            (seuils UNESCO/IIPE).
+          </p>
+        </div>
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          [disabled]="loading()"
+          (click)="refresh()"
+          aria-label="Actualiser les indicateurs d'équité"
+        >
+          <i class="ri-refresh-line me-1"></i> Actualiser
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (error(); as err) {
+    <div class="alert alert-warning" role="alert">{{ err }}</div>
+  }
+
+  <!-- Zone 1 : KPI Hero -->
+  <div class="row g-3 mb-3">
+    <div class="col-xl-3 col-md-6">
+      <app-equite-kpi-card
+        title="GPI national"
+        [value]="nationalGpiLabel()"
+        [severity]="nationalGpi()?.severity ?? null"
+        [badgeLabel]="nationalGpiBadge()"
+        subtitle="Indice de parité filles/garçons"
+        icon="ri-scales-3-line"
+      />
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <app-equite-kpi-card
+        title="Filles inscrites"
+        [value]="totalGirlsLabel()"
+        subtitle="Effectifs nationaux (recensement)"
+        icon="ri-women-line"
+      />
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <app-equite-kpi-card
+        title="Garçons inscrits"
+        [value]="totalBoysLabel()"
+        subtitle="Effectifs nationaux (recensement)"
+        icon="ri-men-line"
+      />
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <app-equite-kpi-card
+        title="Écart urbain/rural"
+        [value]="urbanRuralDelta()"
+        [severity]="urbanRuralSeverity()"
+        [badgeLabel]="urbanRuralSeverity() === 'NORMAL' ? 'OK' : 'À surveiller'"
+        subtitle="| GPI urbain − GPI rural |"
+        icon="ri-building-line"
+      />
+    </div>
+  </div>
+
+  <!-- Zone 2 : Carte + Donut -->
+  <div class="row g-3 mb-3">
+    <div class="col-xl-8">
+      <app-equite-region-map [regions]="regionalGpi()" />
+    </div>
+    <div class="col-xl-4">
+      <app-equite-zone-donut [zones]="zoneRows()" />
+    </div>
+  </div>
+
+  <!-- Zone 3 : Bar chart régions -->
+  <div class="row g-3 mb-3">
+    <div class="col-xl-12">
+      <app-equite-region-chart [rows]="regionalGpi()" />
+    </div>
+  </div>
+
+  <!-- Zone 4 : Table critiques -->
+  <div class="row g-3">
+    <div class="col-xl-12">
+      <app-equite-critical-schools-table [schools]="criticalSchools()" />
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="text-center text-muted py-3" aria-live="polite">
+      <i class="ri-loader-4-line ri-spin"></i> Chargement…
+    </div>
+  }
+</div>

@@ -1,0 +1,14 @@
+.equite-page {
+  padding: 0;
+
+  .ri-spin {
+    display: inline-block;
+    animation: equite-spin 1s linear infinite;
+  }
+}
+
+@keyframes equite-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

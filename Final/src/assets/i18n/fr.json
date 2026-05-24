@@ -40,5 +40,34 @@
   "status": {
     "online": "En ligne",
     "offline": "Hors ligne"
+  },
+  "equite": {
+    "title": "Dashboard Équité (GPI & zone)",
+    "subtitle": "Parité filles/garçons · écart urbain/rural · écoles à risque (seuils UNESCO/IIPE).",
+    "refresh": "Actualiser",
+    "kpi": {
+      "national": "GPI national",
+      "girls": "Filles inscrites",
+      "boys": "Garçons inscrits",
+      "gap": "Écart urbain/rural"
+    },
+    "severity": {
+      "NORMAL": "Parité",
+      "WARNING_GIRLS": "Alerte filles",
+      "CRITICAL_GIRLS": "Critique filles",
+      "WARNING_BOYS": "Alerte garçons"
+    },
+    "errors": {
+      "load": "Données d'équité indisponibles — backend ou cache à vérifier."
+    },
+    "tables": {
+      "criticalSchools": "Écoles à GPI critique",
+      "noCritical": "Aucune école avec GPI critique."
+    },
+    "charts": {
+      "byRegion": "GPI par région",
+      "byZone": "Effectifs par zone",
+      "map": "Carte GPI régional"
+    }
   }
 }
