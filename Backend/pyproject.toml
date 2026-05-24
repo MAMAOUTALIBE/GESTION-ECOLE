@@ -133,12 +133,23 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
 # tolérés pour les docstrings FR.
 "app/modules/cockpit/*" = ["N801", "N803", "N806", "N815", "UP037", "RUF002", "RUF003"]
 "app/workers/cockpit_tasks.py" = ["N801", "N803", "N815", "RUF002", "RUF003"]
+# Module 1A — enrollment : colonnes camelCase (Prisma) côté ORM, schemas
+# Pydantic exposent les mêmes noms (schoolYearId, classLevel, recordedAt,
+# recordedById...) pour rester aligné avec le frontend Angular. RUF001/
+# RUF002/RUF003 tolérés pour les chaînes FR (« niveau × genre »).
+"app/modules/enrollment/*" = [
+    "N801", "N803", "N815", "UP037",
+    "RUF001", "RUF002", "RUF003",
+]
 "app/core/maintenance.py" = ["RUF002", "RUF003"]
 # Les factories et fixtures de tests refletent les noms de colonnes Prisma
 # (camelCase) — on tolere donc N803/N815/N801 dans tests/. Et `from app.modules
 # import *` est intentionnel pour declencher l'enregistrement des modeles
 # sur Base.metadata avant create_all().
-"tests/integration/*" = ["N801", "N803", "N806", "N815", "F401", "F403", "RUF100", "UP037"]
+"tests/integration/*" = [
+    "N801", "N803", "N806", "N815", "F401", "F403", "RUF100", "UP037",
+    "RUF001", "RUF002", "RUF003",
+]
 "tests/load/*" = ["N801", "N803", "N815"]
 
 [tool.mypy]

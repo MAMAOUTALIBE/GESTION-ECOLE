@@ -119,6 +119,7 @@ def create_app() -> FastAPI:
     from app.modules.census.router import router as census_router
     from app.modules.cockpit.router import router as cockpit_router
     from app.modules.diplomas.router import router as diplomas_router
+    from app.modules.enrollment.router import router as enrollment_router
     from app.modules.finance.router import router as finance_router
     from app.modules.imports.router import router as imports_router
     from app.modules.inspections.router import router as inspections_router
@@ -219,6 +220,10 @@ def create_app() -> FastAPI:
     # Module 19 — Cockpit ministériel (KPI live + briefing automatique)
     app.include_router(
         cockpit_router, prefix=f"{settings.api_prefix}/cockpit"
+    )
+    # Module 1A — Enrollment désagrégé (fondation Phase 1 carte scolaire IIPE)
+    app.include_router(
+        enrollment_router, prefix=f"{settings.api_prefix}/enrollment"
     )
 
     return app
