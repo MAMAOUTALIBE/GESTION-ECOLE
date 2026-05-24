@@ -61,9 +61,11 @@ from app.modules.enrollment.schemas import (
     GpiEvolutionPoint,
     GpiResult,
     GpiSnapshotsRunResponse,
+    ZoneTypeAggregate,
 )
 from app.modules.schools.models import ClassRoom, School
-from app.shared.enums import Gender, UserRole
+from app.modules.territory.models import SubPrefecture
+from app.shared.enums import Gender, UserRole, ZoneType
 from app.shared.permissions import (
     NATIONAL_SCOPE_ROLES,
     PREFECTURE_SCOPE_ROLES,
@@ -291,6 +293,10 @@ class EnrollmentService:
 
         total = sum(count for _, count in by_level_rows)
 
+        by_zone_type: list[ZoneTypeAggregate] = []
+        if req.byZoneType:
+            by_zone_type = await self._aggregate_by_zone_type(req, scope_user)
+
         return AggregateResponse(
             scope=req.scope,
             schoolYearId=req.schoolYearId,
@@ -298,7 +304,96 @@ class EnrollmentService:
             byLevel=by_level,
             byGender=by_gender,
             breakdown=breakdown,
+            byZoneType=by_zone_type,
         )
+
+    async def _aggregate_by_zone_type(
+        self,
+        req: AggregateRequest,
+        scope_user: User,
+    ) -> list[ZoneTypeAggregate]:
+        """Aggregate effectifs par zone effective (override OU défaut sous-préf).
+
+        Implémentation : LEFT JOIN School + SubPrefecture, et on COALESCE
+        l'override école avec le défaut sous-préf. Pour les écoles sans
+        sous-préf (legacy), on retombe sur RURAL côté Python (le COALESCE
+        SQL produit NULL dans ce cas).
+        """
+        # On part de la base query (déjà jointe sur School) et on rejoint
+        # SubPrefecture côté agrégation.
+        effective_zone = func.coalesce(
+            School.zoneType, SubPrefecture.defaultZoneType,
+        ).label("effective_zone")
+
+        # On rebâtit la query à la main pour ajouter le LEFT JOIN sur
+        # SubPrefecture (manquant dans _aggregate_base_query).
+        stmt = (
+            select(
+                effective_zone,
+                Enrollment.gender,
+                func.coalesce(func.sum(Enrollment.count), 0).label("total"),
+            )
+            .select_from(Enrollment)
+            .join(School, School.id == Enrollment.schoolId)
+            .outerjoin(
+                SubPrefecture, SubPrefecture.id == School.subPrefectureId,
+            )
+            .where(Enrollment.schoolYearId == req.schoolYearId)
+            .where(Enrollment.source == req.source)
+        )
+
+        if req.regionId:
+            stmt = stmt.where(School.regionId == req.regionId)
+        if req.prefectureId:
+            stmt = stmt.where(School.prefectureId == req.prefectureId)
+        if req.subPrefectureId:
+            stmt = stmt.where(School.subPrefectureId == req.subPrefectureId)
+        if req.schoolId:
+            stmt = stmt.where(School.id == req.schoolId)
+        if req.classLevel:
+            stmt = stmt.where(Enrollment.classLevel == req.classLevel)
+        if req.gender:
+            stmt = stmt.where(Enrollment.gender == req.gender)
+
+        stmt = self._apply_school_scope(stmt, scope_user)
+        stmt = stmt.group_by(effective_zone, Enrollment.gender)
+
+        rows = (await self.session.execute(stmt)).all()
+
+        # Reconstitue ZoneType -> {gender: total} ; les rows None
+        # (école sans sous-préf et sans override) sont mappées sur RURAL.
+        by_zone: dict[ZoneType, dict[Gender, int]] = {
+            ZoneType.URBAN: {Gender.FEMALE: 0, Gender.MALE: 0},
+            ZoneType.RURAL: {Gender.FEMALE: 0, Gender.MALE: 0},
+            ZoneType.PERI_URBAN: {Gender.FEMALE: 0, Gender.MALE: 0},
+        }
+        for zone_raw, gender, total in rows:
+            zone = (
+                ZoneType(zone_raw)
+                if zone_raw is not None
+                else ZoneType.RURAL
+            )
+            if gender in (Gender.FEMALE, Gender.MALE):
+                by_zone[zone][gender] = by_zone[zone].get(gender, 0) + int(total)
+
+        result: list[ZoneTypeAggregate] = []
+        for zone in (ZoneType.URBAN, ZoneType.RURAL, ZoneType.PERI_URBAN):
+            girls = by_zone[zone].get(Gender.FEMALE, 0)
+            boys = by_zone[zone].get(Gender.MALE, 0)
+            total = girls + boys
+            gpi: float | None = (
+                round(girls / boys, 3) if boys > 0 else None
+            )
+            # On émet une ligne pour chaque zone même à 0 — le frontend
+            # peut alors afficher "0 école RURAL" sans cas spécial.
+            result.append(ZoneTypeAggregate(
+                zoneType=zone,
+                girlsCount=girls,
+                boysCount=boys,
+                total=total,
+                gpi=gpi,
+            ))
+        return result
 
     async def compute_from_students(
         self, school_year_id: str, actor: User

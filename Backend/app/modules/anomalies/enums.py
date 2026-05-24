@@ -29,6 +29,10 @@ class AnomalyType(StrEnum):
     # ``EnrollmentService.compute_gpi_snapshots`` (pas un détecteur SQL
     # générique : il est dépendant d'un schoolYearId explicite).
     CRITICAL_GPI = "CRITICAL_GPI"
+    # Module 1C — écart de GPI urbain/rural > 0.10 sur une région.
+    # Objectif gouv : corriger les disparités urbain vs rural. Détecteur
+    # déclenché manuellement ou via un job CRON après chaque recalcul GPI.
+    URBAN_RURAL_GPI_GAP = "URBAN_RURAL_GPI_GAP"
 
 
 class AnomalySeverity(StrEnum):

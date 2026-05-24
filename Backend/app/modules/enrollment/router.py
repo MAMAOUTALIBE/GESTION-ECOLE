@@ -145,6 +145,7 @@ async def aggregate(
     classLevel: EnrollmentClassLevel | None = None,
     gender: Gender | None = None,
     source: EnrollmentSource = EnrollmentSource.CENSUS_DECLARED,
+    byZoneType: bool = False,
 ) -> AggregateResponse:
     req = AggregateRequest(
         scope=scope,
@@ -156,6 +157,7 @@ async def aggregate(
         classLevel=classLevel,
         gender=gender,
         source=source,
+        byZoneType=byZoneType,
     )
     return await service.aggregate(req, user)
 

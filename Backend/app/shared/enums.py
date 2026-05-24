@@ -51,6 +51,27 @@ class Gender(StrEnum):
     OTHER = "OTHER"
 
 
+# ---------------------------------------------------------------------------
+# Module 1C — Segmentation urbain / rural / péri-urbain
+# ---------------------------------------------------------------------------
+class ZoneType(StrEnum):
+    """Zone de classification d'un territoire scolaire (Module 1C).
+
+    Référentiel déclaratif INS/MEN posé sur la sous-préfecture (1 ligne par
+    sous-préf). L'override par école reste possible pour les cas frontaliers
+    (école dans un quartier urbain d'une sous-préfecture majoritairement
+    rurale). Ce sont les SEULES 3 valeurs autorisées par la nomenclature
+    statistique nationale guinéenne — pas d'« undefined », pas de « mixed » :
+    la classification doit être tranchée pour produire des agrégats
+    comparables. Si l'INS ne sait pas trancher, on laisse le défaut RURAL
+    (valeur de précaution la plus fréquente : ~70% du territoire).
+    """
+
+    URBAN = "URBAN"
+    RURAL = "RURAL"
+    PERI_URBAN = "PERI_URBAN"
+
+
 class AttendanceStatus(StrEnum):
     PRESENT = "PRESENT"
     LATE = "LATE"

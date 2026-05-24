@@ -511,6 +511,126 @@ async def detect_critical_gpi(
 
 
 # ---------------------------------------------------------------------------
+# 8. Module 1C — Écart de GPI urbain vs rural (> 0.10) sur une région
+# ---------------------------------------------------------------------------
+async def detect_urban_rural_gpi_gap(
+    session: AsyncSession,
+    school_year_id: str,
+    *,
+    delta_threshold: float = 0.10,
+) -> list[AnomalyDetection]:
+    """Détecte les régions où |GPI urbain - GPI rural| > seuil.
+
+    Lit les ``Enrollment`` ``CENSUS_DECLARED`` pour la year et calcule par
+    région le GPI dans chacune des deux zones (URBAN vs RURAL), via
+    ``COALESCE(School.zoneType, SubPrefecture.defaultZoneType)``. Une
+    région où l'écart dépasse ``delta_threshold`` (par défaut 0.10) est
+    matérialisée en anomalie HIGH.
+
+    On compare uniquement URBAN vs RURAL : le PERI_URBAN est exposé dans
+    les KPI cockpit mais ne déclenche pas d'alerte (zone tampon, valeur
+    informative).
+    """
+    from decimal import Decimal as _Decimal
+
+    from app.modules.enrollment.enums import EnrollmentSource
+    from app.modules.enrollment.models import Enrollment
+    from app.modules.territory.models import Region as _Region
+    from app.modules.territory.models import SubPrefecture as _SubPref
+    from app.shared.enums import Gender as _Gender
+    from app.shared.enums import ZoneType as _ZoneType
+
+    effective_zone = func.coalesce(
+        School.zoneType, _SubPref.defaultZoneType,
+    ).label("effective_zone")
+
+    stmt = (
+        select(
+            School.regionId,
+            _Region.name.label("region_name"),
+            effective_zone,
+            Enrollment.gender,
+            func.coalesce(func.sum(Enrollment.count), 0).label("total"),
+        )
+        .select_from(Enrollment)
+        .join(School, School.id == Enrollment.schoolId)
+        .outerjoin(_SubPref, _SubPref.id == School.subPrefectureId)
+        .join(_Region, _Region.id == School.regionId)
+        .where(
+            Enrollment.schoolYearId == school_year_id,
+            Enrollment.source == EnrollmentSource.CENSUS_DECLARED,
+        )
+        .group_by(
+            School.regionId, _Region.name,
+            effective_zone, Enrollment.gender,
+        )
+        .limit(PER_DETECTOR_LIMIT * 10)
+    )
+    rows = (await session.execute(stmt)).all()
+
+    # Reconstitue par (regionId, zone) -> {gender: count}.
+    by_region_zone: dict[tuple[str, _ZoneType], dict[_Gender, int]] = {}
+    region_names: dict[str, str] = {}
+    for region_id, region_name, zone_raw, gender, total in rows:
+        zone = (
+            _ZoneType(zone_raw)
+            if zone_raw is not None
+            else _ZoneType.RURAL
+        )
+        key = (region_id, zone)
+        entry = by_region_zone.setdefault(
+            key, {_Gender.FEMALE: 0, _Gender.MALE: 0},
+        )
+        if gender in (_Gender.FEMALE, _Gender.MALE):
+            entry[gender] += int(total)
+        region_names[region_id] = region_name
+
+    def _gpi(g: int, b: int) -> _Decimal | None:
+        if b <= 0:
+            return None
+        return (_Decimal(g) / _Decimal(b)).quantize(_Decimal("0.0001"))
+
+    out: list[AnomalyDetection] = []
+    region_ids = {key[0] for key in by_region_zone}
+    for region_id in region_ids:
+        urban = by_region_zone.get((region_id, _ZoneType.URBAN))
+        rural = by_region_zone.get((region_id, _ZoneType.RURAL))
+        if not urban or not rural:
+            # Pas comparable : il faut des effectifs dans les 2 zones.
+            continue
+        urban_gpi = _gpi(urban[_Gender.FEMALE], urban[_Gender.MALE])
+        rural_gpi = _gpi(rural[_Gender.FEMALE], rural[_Gender.MALE])
+        if urban_gpi is None or rural_gpi is None:
+            continue
+        delta = abs(urban_gpi - rural_gpi)
+        if float(delta) <= delta_threshold:
+            continue
+        out.append(_make(
+            a_type=AnomalyType.URBAN_RURAL_GPI_GAP,
+            severity=AnomalySeverity.HIGH,
+            entity_type="Region",
+            entity_id=region_id,
+            description=(
+                f"Écart GPI urbain/rural dans la région {region_names.get(region_id, region_id)} : "
+                f"|{urban_gpi} - {rural_gpi}| = {delta} > seuil {delta_threshold}."
+            ),
+            evidence={
+                "regionId": region_id,
+                "regionName": region_names.get(region_id),
+                "schoolYearId": school_year_id,
+                "urbanGpi": float(urban_gpi),
+                "ruralGpi": float(rural_gpi),
+                "deltaGpi": float(delta),
+                "thresholdMax": delta_threshold,
+            },
+            region_id=region_id,
+        ))
+        if len(out) >= PER_DETECTOR_LIMIT:
+            break
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Registry — exposé au service pour lancer un run complet
 # ---------------------------------------------------------------------------
 ALL_DETECTORS = (
@@ -535,4 +655,5 @@ __all__ = [
     "detect_impossible_grades",
     "detect_late_birthdate",
     "detect_suspicious_attendance_100",
+    "detect_urban_rural_gpi_gap",
 ]

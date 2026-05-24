@@ -9,10 +9,14 @@ from app.modules.schools.schemas import (
     CreateSchoolRequest,
     DeletedResponse,
     SchoolRead,
+    SetSchoolZoneTypeRequest,
     UpdateClassRoomRequest,
     UpdateSchoolRequest,
 )
-from app.modules.schools.service import SchoolsService
+from app.modules.schools.service import (
+    SET_SCHOOL_ZONE_OVERRIDE_ROLES,
+    SchoolsService,
+)
 from app.shared.deps import DbSession, get_current_user
 from app.shared.enums import UserRole
 from app.shared.permissions import require_roles
@@ -87,6 +91,26 @@ async def delete_school(
 ) -> DeletedResponse:
     result = await service.delete_school(user, school_id)
     return DeletedResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Module 1C — override zone urbain / rural pour une école
+# ---------------------------------------------------------------------------
+@schools_router.put(
+    "/{school_id}/zone-type",
+    response_model=SchoolRead,
+    dependencies=[Depends(require_roles(*SET_SCHOOL_ZONE_OVERRIDE_ROLES))],
+    summary="Pose / retire l'override zone urbain/rural d'une école",
+)
+async def set_school_zone_type(
+    school_id: str,
+    dto: SetSchoolZoneTypeRequest,
+    user: CurrentUserDep,
+    service: SchoolsSvc,
+) -> SchoolRead:
+    return await service.set_school_zone_type_override(
+        school_id, dto.zoneType, user,
+    )
 
 
 # /api/classes router

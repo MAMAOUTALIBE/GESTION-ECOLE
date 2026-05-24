@@ -27,6 +27,7 @@ from app.modules.cockpit.schemas import (
     NationalKpiResponse,
     TimeSeriesResponse,
     TopAlertsResponse,
+    UrbanRuralGapResponse,
 )
 from app.modules.cockpit.service import CockpitService
 from app.shared.deps import DbSession
@@ -120,6 +121,22 @@ async def get_comparison(
     service: Svc,
 ) -> ComparisonResponse:
     return await service.compare_with_yesterday(kpi_key)
+
+
+# ---------------------------------------------------------------------------
+# Module 1C — écart urbain / rural
+# ---------------------------------------------------------------------------
+@router.get(
+    "/kpis/urban-rural-gap",
+    response_model=UrbanRuralGapResponse,
+    dependencies=[Depends(require_roles(*COCKPIT_ROLES))],
+    summary="Écart de GPI urbain vs rural sur une année scolaire (cache 30s)",
+)
+async def get_urban_rural_gap(
+    service: Svc,
+    schoolYearId: Annotated[str, Query(max_length=30)],
+) -> UrbanRuralGapResponse:
+    return await service.get_urban_rural_gap(schoolYearId)
 
 
 __all__ = ["router"]

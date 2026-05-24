@@ -1,11 +1,12 @@
 from datetime import UTC, datetime
 
+from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
-from app.modules.auth.models import User
+from app.modules.auth.models import AuthAuditLog, User
 from app.modules.schools.models import School
 from app.modules.territory.models import Prefecture, Region, SubPrefecture
 from app.modules.territory.schemas import (
@@ -17,18 +18,27 @@ from app.modules.territory.schemas import (
     SubPrefectureCounts,
     SubPrefectureListItem,
     SubPrefectureRead,
+    SubPrefectureZoneItem,
 )
 from app.modules.workflow.service import ValidationTarget, WorkflowService
 from app.shared.enums import (
     UserRole,
     ValidationEntityType,
     ValidationStatus,
+    ZoneType,
 )
 from app.shared.permissions import (
     NATIONAL_SCOPE_ROLES,
     PREFECTURE_SCOPE_ROLES,
     REGIONAL_SCOPE_ROLES,
     SUB_PREFECTURE_SCOPE_ROLES,
+)
+
+# Module 1C — seuls les admins centraux peuvent réécrire la nomenclature
+# INS. La sous-préfecture est une donnée structurante (impacte les KPIs
+# urbain/rural du cabinet), pas une donnée de saisie courante.
+SET_SUBPREFECTURE_ZONE_ROLES: frozenset[UserRole] = frozenset(
+    {UserRole.NATIONAL_ADMIN, UserRole.MINISTRY_ADMIN}
 )
 
 
@@ -369,3 +379,161 @@ class TerritoryService:
         ).scalar_one_or_none()
         if existing is not None:
             raise ConflictError(detail="Ce code sous-préfecture est déjà utilisé")
+
+    # ==================================================================
+    # Module 1C — Segmentation urbain / rural
+    # ==================================================================
+    async def set_sub_prefecture_zone_type(
+        self,
+        sub_prefecture_id: str,
+        zone_type: ZoneType,
+        actor: User,
+    ) -> SubPrefectureRead:
+        """Pose / modifie la zone déclarée par l'INS pour une sous-préfecture.
+
+        RBAC: NATIONAL_ADMIN ou MINISTRY_ADMIN uniquement. C'est une donnée
+        structurante (KPIs cabinet urbain/rural en dépendent).
+        AuditLog: ``SET_SUBPREFECTURE_ZONE_TYPE`` avec old/new values.
+        Cache: invalide le cache cockpit (l'écart urbain/rural national
+        peut changer).
+        """
+        if actor.role not in SET_SUBPREFECTURE_ZONE_ROLES:
+            raise ForbiddenError(
+                detail=(
+                    "Seul un administrateur central peut modifier la zone "
+                    "INS d'une sous-préfecture."
+                ),
+                extra={
+                    "required_any_of": sorted(
+                        r.value for r in SET_SUBPREFECTURE_ZONE_ROLES
+                    )
+                },
+            )
+
+        sub = await self.session.get(SubPrefecture, sub_prefecture_id)
+        if sub is None:
+            raise NotFoundError(detail="Sous-préfecture introuvable")
+
+        old_value = sub.defaultZoneType
+        if old_value == zone_type:
+            # No-op : pas d'audit ni d'invalidation cache si rien ne change.
+            return await self._load_sub_prefecture_read(sub_prefecture_id)
+
+        sub.defaultZoneType = zone_type
+
+        # AuditLog — on réutilise AuthAuditLog (table append-only existante)
+        # avec un event string dédié ; la sémantique reste fidèle (qui a
+        # touché à quoi, quand).
+        self.session.add(AuthAuditLog(
+            userId=actor.id,
+            email=actor.email,
+            event="SET_SUBPREFECTURE_ZONE_TYPE",
+            success=True,
+            failureReason=(
+                f"subPrefectureId={sub_prefecture_id} "
+                f"old={old_value.value} new={zone_type.value}"
+            ),
+        ))
+        await self.session.flush()
+
+        # Invalidate cockpit cache (urban-rural gap dépend de ces lignes).
+        await self._invalidate_urban_rural_cache()
+
+        return await self._load_sub_prefecture_read(sub_prefecture_id)
+
+    async def _load_sub_prefecture_read(
+        self, sub_prefecture_id: str,
+    ) -> SubPrefectureRead:
+        """Recharge une SubPrefecture avec les relations nécessaires pour le DTO."""
+        stmt = (
+            select(SubPrefecture)
+            .where(SubPrefecture.id == sub_prefecture_id)
+            .options(
+                selectinload(SubPrefecture.prefecture).selectinload(
+                    Prefecture.region
+                )
+            )
+        )
+        loaded = (await self.session.execute(stmt)).scalar_one()
+        return SubPrefectureRead.model_validate(loaded)
+
+    async def list_sub_prefectures_with_zone(
+        self, user: User,
+    ) -> list[SubPrefectureZoneItem]:
+        """Liste des sous-préfectures avec leur zone INS + compteurs écoles.
+
+        Renvoie pour chaque sous-préf le décompte d'écoles par zone effective
+        (override appliqué) — utile pour l'INS afin de détecter des sous-préfs
+        où beaucoup d'écoles overrident (signe que la valeur déclarée
+        gagnerait à être revue).
+        """
+        stmt = (
+            select(SubPrefecture)
+            .order_by(SubPrefecture.name.asc())
+        )
+        stmt = self._scope_sub_prefecture_query(stmt, user)
+        subs = (await self.session.execute(stmt)).scalars().unique().all()
+        if not subs:
+            return []
+
+        sub_ids = [s.id for s in subs]
+        sub_default_by_id = {s.id: s.defaultZoneType for s in subs}
+
+        # Charge la liste (subPrefectureId, schoolOverride) pour calculer les
+        # compteurs effectifs en Python (COALESCE équivalent côté code).
+        rows = (await self.session.execute(
+            select(School.subPrefectureId, School.zoneType)
+            .where(School.subPrefectureId.in_(sub_ids))
+        )).all()
+
+        counts: dict[str, dict[ZoneType, int]] = {
+            sid: dict.fromkeys(ZoneType, 0) for sid in sub_ids
+        }
+        for sub_id, override in rows:
+            if sub_id is None:
+                continue
+            effective = override if override is not None else sub_default_by_id.get(sub_id)
+            if effective is None:
+                effective = ZoneType.RURAL
+            counts[sub_id][effective] += 1
+
+        result: list[SubPrefectureZoneItem] = []
+        for s in subs:
+            c = counts.get(s.id, dict.fromkeys(ZoneType, 0))
+            urban = c.get(ZoneType.URBAN, 0)
+            rural = c.get(ZoneType.RURAL, 0)
+            peri = c.get(ZoneType.PERI_URBAN, 0)
+            result.append(SubPrefectureZoneItem(
+                id=s.id,
+                name=s.name,
+                code=s.code,
+                prefectureId=s.prefectureId,
+                regionId=s.regionId,
+                defaultZoneType=s.defaultZoneType,
+                urbanSchoolsCount=urban,
+                ruralSchoolsCount=rural,
+                periUrbanSchoolsCount=peri,
+                totalSchoolsCount=urban + rural + peri,
+            ))
+        return result
+
+    async def _invalidate_urban_rural_cache(self) -> None:
+        """Best-effort : drop la clé cockpit urban-rural-gap dans Redis."""
+        try:
+            from app.core.redis import get_redis
+
+            redis = get_redis()
+            # Supprime toutes les variantes (par schoolYearId).
+            cursor = 0
+            while True:
+                cursor, keys = await redis.scan(
+                    cursor=cursor,
+                    match="cockpit:urban_rural_gap:*",
+                    count=100,
+                )
+                if keys:
+                    await redis.delete(*keys)
+                if cursor == 0:
+                    break
+        except Exception as exc:  # pragma: no cover - redis offline
+            logger.warning("invalidate_urban_rural_cache failed: {}", exc)

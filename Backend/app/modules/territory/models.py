@@ -5,7 +5,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.base import Base, TimestampMixin, cuid_pk
-from app.shared.enums import ValidationStatus
+from app.shared.enums import ValidationStatus, ZoneType
 
 if TYPE_CHECKING:
     from app.modules.auth.models import User
@@ -62,6 +62,7 @@ class SubPrefecture(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_SubPrefecture_regionId_status", "regionId", "status"),
         Index("ix_SubPrefecture_prefectureId_status", "prefectureId", "status"),
+        Index("ix_SubPrefecture_defaultZoneType", "defaultZoneType"),
     )
 
     id: Mapped[str] = cuid_pk()
@@ -81,6 +82,16 @@ class SubPrefecture(Base, TimestampMixin):
     createdById: Mapped[str | None] = mapped_column(String(30), nullable=True)
     approvedById: Mapped[str | None] = mapped_column(String(30), nullable=True)
     approvedAt: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Module 1C — zone déclarée par l'INS/MEN. NOT NULL DEFAULT 'RURAL' :
+    # valeur de précaution la plus fréquente (~70% du pays), modifiable par
+    # NATIONAL_ADMIN / MINISTRY_ADMIN via PUT /territory/sub-prefectures/{id}/zone-type.
+    defaultZoneType: Mapped[ZoneType] = mapped_column(
+        Enum(ZoneType, name="ZoneType", native_enum=True),
+        default=ZoneType.RURAL,
+        server_default=ZoneType.RURAL.value,
+        nullable=False,
+    )
 
     prefecture: Mapped["Prefecture"] = relationship(
         back_populates="subPrefectures", lazy="raise"

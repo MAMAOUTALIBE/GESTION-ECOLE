@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
+from loguru import logger
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -12,7 +13,7 @@ from app.core.exceptions import (
     ValidationFailedError,
 )
 from app.modules.attendance.models import AttendanceRecord
-from app.modules.auth.models import User
+from app.modules.auth.models import AuthAuditLog, User
 from app.modules.census.models import Student, Teacher
 from app.modules.schools.models import ClassRoom, School
 from app.modules.schools.schemas import (
@@ -32,12 +33,25 @@ from app.shared.enums import (
     UserRole,
     ValidationEntityType,
     ValidationStatus,
+    ZoneType,
 )
 from app.shared.permissions import (
     NATIONAL_SCOPE_ROLES,
     PREFECTURE_SCOPE_ROLES,
     REGIONAL_SCOPE_ROLES,
     SUB_PREFECTURE_SCOPE_ROLES,
+)
+
+# Module 1C — qui peut poser un override zone sur une école.
+# On accepte REGIONAL_ADMIN en plus de NATIONAL/MINISTRY parce que l'override
+# concerne un cas frontalier local (école dans un quartier urbain isolé) ;
+# le directeur régional connait son terrain mieux que le ministère.
+SET_SCHOOL_ZONE_OVERRIDE_ROLES: frozenset[UserRole] = frozenset(
+    {
+        UserRole.NATIONAL_ADMIN,
+        UserRole.MINISTRY_ADMIN,
+        UserRole.REGIONAL_ADMIN,
+    }
 )
 
 
@@ -416,6 +430,97 @@ class SchoolsService:
         if existing is not None:
             raise ConflictError(detail="Ce code école est déjà utilisé")
 
+    # ==================================================================
+    # Module 1C — Override zone urbain / rural au niveau école
+    # ==================================================================
+    async def set_school_zone_type_override(
+        self,
+        school_id: str,
+        zone_type: ZoneType | None,
+        actor: User,
+    ) -> SchoolRead:
+        """Pose / retire un override zone sur une école.
+
+        ``zone_type=None`` retire l'override (l'école revient à hériter de
+        sa sous-préfecture).
+
+        RBAC: NATIONAL_ADMIN, MINISTRY_ADMIN, REGIONAL_ADMIN (et REGIONAL
+        doit avoir l'école dans sa région via les checks existants).
+        AuditLog: ``SET_SCHOOL_ZONE_TYPE_OVERRIDE`` avec old/new.
+        """
+        if actor.role not in SET_SCHOOL_ZONE_OVERRIDE_ROLES:
+            raise ForbiddenError(
+                detail=(
+                    "Seul un administrateur national, ministériel ou "
+                    "régional peut poser un override zone sur une école."
+                ),
+                extra={
+                    "required_any_of": sorted(
+                        r.value for r in SET_SCHOOL_ZONE_OVERRIDE_ROLES
+                    )
+                },
+            )
+
+        # Vérif scope territorial classique (regional limité à sa région).
+        await self._assert_can_access_school(actor, school_id)
+
+        school = await self.session.get(School, school_id)
+        if school is None:
+            raise NotFoundError(detail="École introuvable")
+
+        old_value = school.zoneType
+        if old_value == zone_type:
+            return await self.get_school(actor, school_id)
+
+        school.zoneType = zone_type
+
+        self.session.add(AuthAuditLog(
+            userId=actor.id,
+            email=actor.email,
+            event="SET_SCHOOL_ZONE_TYPE_OVERRIDE",
+            success=True,
+            failureReason=(
+                f"schoolId={school_id} "
+                f"old={old_value.value if old_value else 'INHERIT'} "
+                f"new={zone_type.value if zone_type else 'INHERIT'}"
+            ),
+        ))
+        await self.session.flush()
+        await self._invalidate_urban_rural_cache()
+        return await self.get_school(actor, school_id)
+
+    async def clear_school_zone_type_override(
+        self,
+        school_id: str,
+        actor: User,
+    ) -> SchoolRead:
+        """Retire l'override zone — alias clair sur ``set_..._override(None)``."""
+        return await self.set_school_zone_type_override(
+            school_id, None, actor,
+        )
+
+    async def _invalidate_urban_rural_cache(self) -> None:
+        """Best-effort : drop la clé cockpit urban-rural-gap dans Redis."""
+        try:
+            from app.core.redis import get_redis
+
+            redis = get_redis()
+            cursor = 0
+            while True:
+                cursor, keys = await redis.scan(
+                    cursor=cursor,
+                    match="cockpit:urban_rural_gap:*",
+                    count=100,
+                )
+                if keys:
+                    await redis.delete(*keys)
+                if cursor == 0:
+                    break
+        except Exception as exc:  # pragma: no cover - redis offline
+            logger.warning(
+                "schools._invalidate_urban_rural_cache failed: {}", exc,
+            )
+
     async def _assert_unique_class_name(
         self, school_id: str, name: str, ignored_id: str | None = None
     ) -> None:
@@ -539,6 +644,7 @@ class SchoolsService:
             multiShift=school.multiShift,
             distanceToHealthCenterKm=school.distanceToHealthCenterKm,
             affiliation=school.affiliation,
+            zoneType=school.zoneType,
             createdAt=school.createdAt,
             updatedAt=school.updatedAt,
         )
