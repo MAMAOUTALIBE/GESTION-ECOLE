@@ -1,13 +1,22 @@
-"""Module 2A — Service TransitionRate.
+"""Module 2A + 2B — Services du module Projections.
 
-Encapsule la logique métier des taux de transition :
-
+Module 2A — TransitionRate
+--------------------------
 * ``compute_transitions`` : recalcul + persistance des rates pour une
   liste d'années sources. Idempotent (upsert via unique).
 * ``list_rates`` : lecture filtrée + scope RBAC territorial.
 * ``get_outliers`` : lecture filtrée sur les rates flaggés ``isOutlier``.
 
-Toutes les méthodes sont ``async``. Le calcul s'appuie sur les
+Module 2B — Projections horizon 5 ans
+-------------------------------------
+* ``ProjectionService.run_projection`` : applique les rates Module 2A
+  sur les effectifs CENSUS_DECLARED de l'année de base pour produire
+  les projections horizon k=1..N. Idempotent (delete-then-insert par
+  ``(baseSchoolYearId, scenarioId)``).
+* ``get_projections`` : lecture filtrée + scope RBAC territorial.
+* ``create_scenario`` / ``list_scenarios`` : paramétrage des projections.
+
+Toutes les méthodes sont ``async``. Les calculs s'appuient sur les
 agrégats ``Enrollment`` (source = ``CENSUS_DECLARED``).
 """
 from __future__ import annotations
@@ -15,11 +24,13 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
+    ConflictError,
     ForbiddenError,
     NotFoundError,
 )
@@ -27,10 +38,28 @@ from app.modules.academics.models import SchoolYear
 from app.modules.auth.models import User
 from app.modules.enrollment.enums import EnrollmentClassLevel, EnrollmentSource
 from app.modules.enrollment.models import Enrollment
-from app.modules.projections.enums import TransitionScope
-from app.modules.projections.models import TransitionRate
+from app.modules.projections.enums import (
+    DEMOGRAPHIC_GROWTH_RATE_DEFAULT,
+    TransitionScope,
+)
+from app.modules.projections.models import (
+    ProjectedEnrollment,
+    ProjectionScenario,
+    TransitionRate,
+)
+from app.modules.projections.projection import (
+    EnrollmentMap,
+    TransitionRateMap,
+    project_one_year,
+)
 from app.modules.projections.schemas import (
     ComputeTransitionsResponse,
+    ProjectedEnrollmentRead,
+    ProjectionFilters,
+    ProjectionScenarioCreate,
+    ProjectionScenarioRead,
+    RunProjectionRequest,
+    RunProjectionResponse,
     TransitionRateFilters,
     TransitionRateRead,
 )
@@ -39,6 +68,7 @@ from app.modules.projections.transitions import (
     compute_rate,
 )
 from app.modules.schools.models import School
+from app.shared.base import generate_cuid
 from app.shared.enums import Gender, UserRole
 from app.shared.permissions import (
     NATIONAL_SCOPE_ROLES,
@@ -422,12 +452,401 @@ class TransitionRateService:
         return len(new_anomalies)
 
 
+# Rôles autorisés à déclencher une projection ou créer un scénario.
+PROJECTION_WRITE_ROLES: frozenset[UserRole] = frozenset(
+    {UserRole.NATIONAL_ADMIN, UserRole.MINISTRY_ADMIN}
+)
+
+
+# ===========================================================================
+# Module 2B — ProjectionService
+# ===========================================================================
+class ProjectionService:
+    """Pilote le calcul + la lecture des projections horizon multi-années.
+
+    L'algorithme de cohorte est isolé dans ``projection.py`` (pure). Ce
+    service gère uniquement l'I/O DB (lecture des sources, écriture
+    idempotente des projections) et le RBAC.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    # ==================================================================
+    # run_projection
+    # ==================================================================
+    async def run_projection(
+        self,
+        req: RunProjectionRequest,
+        actor: User,
+    ) -> RunProjectionResponse:
+        """Calcule + persiste les projections horizon ``horizonYears`` ans.
+
+        1. Charge enrollments (CENSUS_DECLARED) année base par
+           ``(regionId, classLevel, gender)``.
+        2. Charge transition rates pour scope REGIONAL + NATIONAL
+           (fallback).
+        3. Itère k=1..horizonYears : applique ``project_one_year`` ;
+           agrège ensuite au scope NATIONAL.
+        4. Delete-then-insert dans ``ProjectedEnrollment`` filtré sur
+           ``(baseSchoolYearId, scenarioId)``.
+
+        Restreint à NATIONAL_ADMIN / MINISTRY_ADMIN.
+        """
+        if actor.role not in PROJECTION_WRITE_ROLES:
+            raise ForbiddenError(
+                detail=(
+                    "Seul un administrateur central peut lancer une "
+                    "projection d'effectifs."
+                ),
+                extra={
+                    "required_any_of": sorted(
+                        r.value for r in PROJECTION_WRITE_ROLES
+                    )
+                },
+            )
+
+        # Validation existence année base.
+        base_year = (
+            await self.session.execute(
+                select(SchoolYear).where(SchoolYear.id == req.baseSchoolYearId)
+            )
+        ).scalars().one_or_none()
+        if base_year is None:
+            raise NotFoundError(
+                detail=f"SchoolYear introuvable : {req.baseSchoolYearId}",
+            )
+
+        scenario = await self._get_scenario(req.scenarioId)
+        if scenario is None:
+            raise NotFoundError(
+                detail=f"ProjectionScenario introuvable : {req.scenarioId}",
+            )
+
+        # Source des effectifs initiaux (CENSUS_DECLARED).
+        prev_enrollments = await self._aggregate_enrollments(
+            req.baseSchoolYearId,
+        )
+        # Rates persistés Module 2A (REGIONAL + NATIONAL).
+        rates = await self._load_rates(req.baseSchoolYearId)
+
+        # Surcharge optionnelle du scénario.
+        rates = _apply_custom_rates(rates, scenario.customTransitionRates)
+
+        growth = (
+            scenario.demographicGrowthRate
+            if scenario.demographicGrowthRate is not None
+            else DEMOGRAPHIC_GROWTH_RATE_DEFAULT
+        )
+
+        # Wipe les projections existantes (idempotence) pour cette base
+        # year + scénario.
+        await self.session.execute(
+            delete(ProjectedEnrollment).where(
+                ProjectedEnrollment.baseSchoolYearId == req.baseSchoolYearId,
+                ProjectedEnrollment.scenarioId == scenario.id,
+            )
+        )
+
+        # Année de base : l'année calendrier de référence pour
+        # ``projectedYear``. On utilise la year de fin (juin) pour rester
+        # cohérent avec la convention IIPE "année scolaire 2024-2025 →
+        # 2025".
+        base_calendar_year = base_year.endDate.year
+        now = datetime.now(UTC)
+        regions_seen: set[str] = set()
+        total_rows = 0
+
+        for k in range(1, req.horizonYears + 1):
+            projected = project_one_year(
+                prev_enrollments,
+                rates,
+                demographic_growth=growth,
+            )
+            projected_year = base_calendar_year + k
+            # Persistance scope REGIONAL.
+            for (region_id, level, gender), count in projected.items():
+                regions_seen.add(region_id)
+                row = ProjectedEnrollment(
+                    baseSchoolYearId=req.baseSchoolYearId,
+                    projectedYear=projected_year,
+                    scope=TransitionScope.REGIONAL,
+                    entityId=region_id,
+                    classLevel=level,
+                    gender=gender,
+                    projectedCount=count,
+                    scenarioId=scenario.id,
+                    computedAt=now,
+                )
+                self.session.add(row)
+                total_rows += 1
+            # Scope NATIONAL : somme des régions pour chaque (level, gender).
+            national_totals = _aggregate_to_national(projected)
+            for (level, gender), count in national_totals.items():
+                row = ProjectedEnrollment(
+                    baseSchoolYearId=req.baseSchoolYearId,
+                    projectedYear=projected_year,
+                    scope=TransitionScope.NATIONAL,
+                    entityId=None,
+                    classLevel=level,
+                    gender=gender,
+                    projectedCount=count,
+                    scenarioId=scenario.id,
+                    computedAt=now,
+                )
+                self.session.add(row)
+                total_rows += 1
+
+            # La projection de l'année t+k devient le point de départ
+            # de t+k+1.
+            prev_enrollments = projected
+
+        await self.session.flush()
+
+        return RunProjectionResponse(
+            scenarioId=scenario.id,
+            projectedRows=total_rows,
+            regionsCovered=len(regions_seen),
+            horizonYears=req.horizonYears,
+            computedAt=now,
+        )
+
+    # ==================================================================
+    # get_projections
+    # ==================================================================
+    async def get_projections(
+        self,
+        filters: ProjectionFilters,
+        scope_user: User,
+    ) -> list[ProjectedEnrollmentRead]:
+        """Liste les projections persistées avec scope RBAC + pagination.
+
+        Un REGIONAL_ADMIN ne voit que les projections de sa région
+        (REGIONAL.entityId = regionId) + les NATIONAL.
+        """
+        stmt = select(ProjectedEnrollment)
+
+        if filters.baseSchoolYearId is not None:
+            stmt = stmt.where(
+                ProjectedEnrollment.baseSchoolYearId
+                == filters.baseSchoolYearId,
+            )
+        if filters.projectedYear is not None:
+            stmt = stmt.where(
+                ProjectedEnrollment.projectedYear == filters.projectedYear,
+            )
+        if filters.scope is not None:
+            stmt = stmt.where(ProjectedEnrollment.scope == filters.scope)
+        if filters.entityId is not None:
+            stmt = stmt.where(ProjectedEnrollment.entityId == filters.entityId)
+        if filters.classLevel is not None:
+            stmt = stmt.where(
+                ProjectedEnrollment.classLevel == filters.classLevel,
+            )
+        if filters.gender is not None:
+            stmt = stmt.where(ProjectedEnrollment.gender == filters.gender)
+        if filters.scenarioId is not None:
+            stmt = stmt.where(
+                ProjectedEnrollment.scenarioId == filters.scenarioId,
+            )
+
+        stmt = self._apply_projection_scope(stmt, scope_user)
+
+        stmt = stmt.order_by(
+            ProjectedEnrollment.projectedYear.asc(),
+            ProjectedEnrollment.scope.asc(),
+            ProjectedEnrollment.entityId.asc(),
+            ProjectedEnrollment.classLevel.asc(),
+            ProjectedEnrollment.gender.asc(),
+        )
+        stmt = stmt.offset(filters.offset).limit(filters.limit)
+
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return [ProjectedEnrollmentRead.model_validate(r) for r in rows]
+
+    # ==================================================================
+    # Scenarios
+    # ==================================================================
+    async def create_scenario(
+        self,
+        dto: ProjectionScenarioCreate,
+        actor: User,
+    ) -> ProjectionScenarioRead:
+        """Crée un scénario de projection (writeguard NATIONAL/MINISTRY)."""
+        if actor.role not in PROJECTION_WRITE_ROLES:
+            raise ForbiddenError(
+                detail=(
+                    "Seul un administrateur central peut créer un "
+                    "scénario de projection."
+                ),
+                extra={
+                    "required_any_of": sorted(
+                        r.value for r in PROJECTION_WRITE_ROLES
+                    )
+                },
+            )
+
+        existing = (
+            await self.session.execute(
+                select(ProjectionScenario)
+                .where(ProjectionScenario.name == dto.name)
+            )
+        ).scalars().one_or_none()
+        if existing is not None:
+            raise ConflictError(
+                detail=f"Un scénario nommé '{dto.name}' existe déjà.",
+            )
+
+        scenario = ProjectionScenario(
+            id=generate_cuid(),
+            name=dto.name,
+            description=dto.description,
+            demographicGrowthRate=(
+                dto.demographicGrowthRate
+                if dto.demographicGrowthRate is not None
+                else DEMOGRAPHIC_GROWTH_RATE_DEFAULT
+            ),
+            customTransitionRates=dto.customTransitionRates,
+            createdById=actor.id,
+            createdAt=datetime.now(UTC),
+        )
+        self.session.add(scenario)
+        await self.session.flush()
+        return ProjectionScenarioRead.model_validate(scenario)
+
+    async def list_scenarios(self) -> list[ProjectionScenarioRead]:
+        """Liste tous les scénarios visibles (pas de scope territorial :
+        les scénarios sont nationaux par construction)."""
+        rows = (
+            await self.session.execute(
+                select(ProjectionScenario)
+                .order_by(ProjectionScenario.createdAt.desc())
+            )
+        ).scalars().all()
+        return [ProjectionScenarioRead.model_validate(r) for r in rows]
+
+    # ==================================================================
+    # Private helpers
+    # ==================================================================
+    async def _get_scenario(
+        self, scenario_id: str,
+    ) -> ProjectionScenario | None:
+        return (
+            await self.session.execute(
+                select(ProjectionScenario)
+                .where(ProjectionScenario.id == scenario_id)
+            )
+        ).scalars().one_or_none()
+
+    async def _aggregate_enrollments(
+        self, school_year_id: str,
+    ) -> EnrollmentMap:
+        """Aggrège Enrollment (CENSUS_DECLARED) par (region, level, gender)."""
+        stmt = (
+            select(
+                School.regionId,
+                Enrollment.classLevel,
+                Enrollment.gender,
+                func.coalesce(func.sum(Enrollment.count), 0).label("total"),
+            )
+            .join(School, School.id == Enrollment.schoolId)
+            .where(
+                Enrollment.schoolYearId == school_year_id,
+                Enrollment.source == EnrollmentSource.CENSUS_DECLARED,
+            )
+            .group_by(
+                School.regionId, Enrollment.classLevel, Enrollment.gender,
+            )
+        )
+        rows = (await self.session.execute(stmt)).all()
+        out: EnrollmentMap = {}
+        for region_id, level, gender, total in rows:
+            if region_id is None:
+                continue
+            out[(region_id, level, gender)] = int(total)
+        return out
+
+    async def _load_rates(
+        self, school_year_from_id: str,
+    ) -> TransitionRateMap:
+        """Charge les rates persistés Module 2A pour cette année source.
+
+        Pour les rates ``None`` (count_from = 0 du Module 2A), on ne
+        les insère pas dans le dict — l'absence signifie "aucun rate
+        utilisable" et le fallback dans ``project_one_year`` s'applique.
+        """
+        stmt = select(TransitionRate).where(
+            TransitionRate.schoolYearFromId == school_year_from_id,
+        )
+        rates = (await self.session.execute(stmt)).scalars().all()
+        out: TransitionRateMap = {}
+        for r in rates:
+            if r.rate is None:
+                continue
+            key = (r.scope, r.entityId, r.classLevelFrom, r.gender)
+            out[key] = r.rate
+        return out
+
+    def _apply_projection_scope(self, stmt, user: User):
+        """Restreint la lecture au scope territorial du user."""
+        if user.role in NATIONAL_SCOPE_ROLES:
+            return stmt
+        if user.role in REGIONAL_SCOPE_ROLES and user.regionId:
+            return stmt.where(
+                (ProjectedEnrollment.scope == TransitionScope.NATIONAL)
+                | (
+                    (ProjectedEnrollment.scope == TransitionScope.REGIONAL)
+                    & (ProjectedEnrollment.entityId == user.regionId)
+                )
+            )
+        # Roles sans scope (TEACHER, SCHOOL_DIRECTOR) : NATIONAL only.
+        return stmt.where(
+            ProjectedEnrollment.scope == TransitionScope.NATIONAL,
+        )
+
+
+def _aggregate_to_national(
+    projected: EnrollmentMap,
+) -> dict[tuple[EnrollmentClassLevel, Gender], int]:
+    """Somme les projections régionales pour produire le NATIONAL."""
+    out: dict[tuple[EnrollmentClassLevel, Gender], int] = defaultdict(int)
+    for (_region_id, level, gender), count in projected.items():
+        out[(level, gender)] += count
+    return dict(out)
+
+
+def _apply_custom_rates(
+    rates: TransitionRateMap,
+    custom: dict[str, Any] | None,
+) -> TransitionRateMap:
+    """Surcharge un sous-ensemble des rates par les overrides d'un scénario.
+
+    Clé attendue : ``"CP1->CP2:FEMALE"`` ou ``"CP1->CP2:FEMALE:REGIONAL:<id>"``.
+    Valeur : Decimal ou float (converti).
+
+    Implémentation minimaliste — on couvre seulement le cas national
+    (REGIONAL_<entityId> est plus exotique et reportable en 2B.1 si demandé).
+    """
+    if not custom:
+        return rates
+    out = dict(rates)
+    for raw_key, raw_value in custom.items():
+        try:
+            level_pair, gender_str = raw_key.split(":", 1)
+            level_from_str, _level_to_str = level_pair.split("->", 1)
+            level_from = EnrollmentClassLevel(level_from_str)
+            gender = Gender(gender_str)
+            value = Decimal(str(raw_value))
+        except (ValueError, KeyError):
+            # Override mal formé : ignoré (scénario reste utilisable).
+            continue
+        out[(TransitionScope.NATIONAL, None, level_from, gender)] = value
+    return out
+
+
 __all__ = [
     "COMPUTE_TRANSITIONS_ROLES",
+    "PROJECTION_WRITE_ROLES",
+    "ProjectionService",
     "TransitionRateService",
 ]
-
-
-# Référence implicite : ``Decimal`` est utilisé via les rates SQLAlchemy ;
-# on garde l'import sous silence pour le linter au cas où.
-_ = Decimal
