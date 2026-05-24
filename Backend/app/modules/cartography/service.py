@@ -3,25 +3,34 @@
 All public methods accept the authenticated `User` and apply the same
 territorial scope filtering as the schools/census modules.
 """
+import base64
+import contextlib
 from typing import Any
 
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, PostgisUnavailableError
+from app.core.redis import get_redis
 from app.modules.auth.models import User
 from app.modules.cartography.schemas import (
     CatchmentsQuery,
     CoverageGapsQuery,
+    DensityFeature,
+    DensityResponse,
     Feature,
     FeatureCollection,
     IndicatorsResponse,
     NearbyQuery,
     NearbyResponse,
     NearbySchool,
+    RegionDistanceResponse,
+    RegionDistanceStat,
     SchoolsGeoQuery,
     TerritoryIndicator,
 )
+from app.modules.cartography.tiles import generate_mvt
 from app.modules.census.models import Student, Teacher
 from app.modules.schools.models import School
 from app.modules.territory.models import Prefecture, Region, SubPrefecture
@@ -32,6 +41,12 @@ from app.shared.permissions import (
     REGIONAL_SCOPE_ROLES,
     SUB_PREFECTURE_SCOPE_ROLES,
 )
+
+# MVT cache: keep tiles in Redis for an hour. Schools rarely move; the
+# trade-off is invalidation simplicity vs freshness. Operators flush the
+# `mvt:*` namespace manually after a bulk import.
+TILE_CACHE_TTL_SECONDS = 3600
+TILE_CACHE_PREFIX = "mvt"
 
 
 class CartographyService:
@@ -419,3 +434,254 @@ class CartographyService:
             )
         ).all()
         return dict(rows)
+
+    # ==================================================================
+    # Module 5 — Vector tiles (MVT) with Redis cache
+    # ==================================================================
+    async def get_tile(self, z: int, x: int, y: int) -> bytes:
+        """Return the binary MVT for the requested tile, using Redis as
+        a write-through cache (TTL 1h).
+
+        Cache key shape: ``mvt:{z}:{x}:{y}``. Tile bodies are bytes; we
+        base64-encode them before storing so the connection uses
+        ``decode_responses=True`` safely (Redis stores str values).
+        """
+        cache_key = self._tile_cache_key(z, x, y)
+        redis = get_redis()
+
+        # 1. Cache hit path — short-circuit DB roundtrip.
+        cached: str | None = None
+        with contextlib.suppress(Exception):  # pragma: no cover - redis transient
+            cached = await redis.get(cache_key)
+        if cached is not None:
+            with contextlib.suppress(Exception):  # corrupt cache → fall through
+                return base64.b64decode(cached.encode("ascii"))
+
+        # 2. Miss → compute via PostGIS, then persist.
+        tile_bytes = await generate_mvt(self.session, z, x, y)
+        with contextlib.suppress(Exception):  # pragma: no cover - redis transient
+            await redis.set(
+                cache_key,
+                base64.b64encode(tile_bytes).decode("ascii"),
+                ex=TILE_CACHE_TTL_SECONDS,
+            )
+        return tile_bytes
+
+    @staticmethod
+    def _tile_cache_key(z: int, x: int, y: int) -> str:
+        return f"{TILE_CACHE_PREFIX}:{z}:{x}:{y}"
+
+    # ==================================================================
+    # Module 5 — Student density by sub-prefecture (choropleth feed)
+    # ==================================================================
+    async def get_subprefecture_density(self, user: User) -> DensityResponse:
+        """Return student density per sub-prefecture (students per km²).
+
+        The area is computed from the convex hull of in-scope schools when
+        a sub-prefecture polygon is missing from the database (current state
+        — Module 5 doesn't introduce geom columns on territories). The
+        ``areaKm2`` field will therefore be ``0.0`` for sub-prefectures with
+        fewer than 3 geo-located schools; downstream UI hides those rows.
+
+        Raises
+        ------
+        PostgisUnavailableError
+            Surfaced when ``ST_ConvexHull``/``ST_Area`` are missing.
+        """
+        scope_clause = ""
+        params: dict[str, Any] = {}
+        if user.role in NATIONAL_SCOPE_ROLES:
+            pass
+        elif user.role in REGIONAL_SCOPE_ROLES and user.regionId:
+            scope_clause = ' AND sp."regionId" = :user_region'
+            params["user_region"] = user.regionId
+        elif user.role in PREFECTURE_SCOPE_ROLES and user.prefectureId:
+            scope_clause = ' AND sp."prefectureId" = :user_prefecture'
+            params["user_prefecture"] = user.prefectureId
+        elif user.role in SUB_PREFECTURE_SCOPE_ROLES and user.subPrefectureId:
+            scope_clause = ' AND sp.id = :user_subpref'
+            params["user_subpref"] = user.subPrefectureId
+        else:
+            # School-scoped users (TEACHER / DIRECTOR) don't see aggregates.
+            return DensityResponse(items=[])
+
+        sql = text(
+            f"""
+            WITH scoped_schools AS (
+                SELECT s.id, s."subPrefectureId", s.geom
+                FROM "School" s
+                JOIN "SubPrefecture" sp ON sp.id = s."subPrefectureId"
+                WHERE s.geom IS NOT NULL
+                  AND s.status = 'APPROVED'
+                  {scope_clause}
+            ),
+            student_counts AS (
+                SELECT
+                    sp.id AS sub_id,
+                    sp.name AS sub_name,
+                    sp."regionId" AS region_id,
+                    sp."prefectureId" AS prefecture_id,
+                    COUNT(st.id)::int AS student_count
+                FROM "SubPrefecture" sp
+                LEFT JOIN "School" s2 ON s2."subPrefectureId" = sp.id
+                LEFT JOIN "Student" st ON st."schoolId" = s2.id
+                WHERE 1=1 {scope_clause}
+                GROUP BY sp.id, sp.name, sp."regionId", sp."prefectureId"
+            ),
+            hulls AS (
+                SELECT
+                    "subPrefectureId" AS sub_id,
+                    -- ST_Area on geography returns square metres.
+                    COALESCE(
+                        ST_Area(ST_ConvexHull(ST_Collect(geom::geometry))::geography),
+                        0
+                    ) / 1e6 AS area_km2
+                FROM scoped_schools
+                GROUP BY "subPrefectureId"
+            )
+            SELECT
+                sc.sub_id, sc.sub_name, sc.region_id, sc.prefecture_id,
+                sc.student_count,
+                COALESCE(h.area_km2, 0) AS area_km2
+            FROM student_counts sc
+            LEFT JOIN hulls h ON h.sub_id = sc.sub_id
+            ORDER BY sc.student_count DESC;
+            """
+        )
+
+        try:
+            rows = (await self.session.execute(sql, params)).all()
+        except (ProgrammingError, DBAPIError) as exc:
+            message = str(exc).lower()
+            if (
+                "st_convexhull" in message
+                or "st_collect" in message
+                or "st_area" in message
+                or "geography" in message
+            ):
+                raise PostgisUnavailableError(
+                    detail=(
+                        "PostGIS is required for choropleth density "
+                        "calculations — `CREATE EXTENSION postgis;` first."
+                    ),
+                ) from exc
+            raise
+
+        items: list[DensityFeature] = []
+        for r in rows:
+            area = float(r.area_km2 or 0)
+            count = int(r.student_count or 0)
+            density = round(count / area, 3) if area > 0 else 0.0
+            items.append(
+                DensityFeature(
+                    subPrefectureId=r.sub_id,
+                    name=r.sub_name,
+                    regionId=r.region_id,
+                    prefectureId=r.prefecture_id,
+                    studentCount=count,
+                    areaKm2=round(area, 4),
+                    density=density,
+                )
+            )
+        return DensityResponse(items=items)
+
+    # ==================================================================
+    # Module 5 — Average school distance per region (PostGIS)
+    # ==================================================================
+    async def get_region_distance_stats(self, user: User) -> RegionDistanceResponse:
+        """For each in-scope region, compute the mean inter-school distance
+        (km) — a coarse proxy for "how far does a student walk to school".
+
+        Note: this is the average distance between schools (nearest-neighbour
+        per school, averaged), not the average distance a *student* lives
+        from their school. The full version requires student home coords,
+        which are not in the schema yet (backlog Module 6).
+        """
+        scope_clause = ""
+        params: dict[str, Any] = {}
+        if user.role in NATIONAL_SCOPE_ROLES:
+            pass
+        elif user.role in REGIONAL_SCOPE_ROLES and user.regionId:
+            scope_clause = ' AND r.id = :user_region'
+            params["user_region"] = user.regionId
+        elif user.role in PREFECTURE_SCOPE_ROLES and user.prefectureId:
+            # Prefecture admins only see their region (we aggregate at region
+            # level — they get one row).
+            scope_clause = ' AND r.id IN (SELECT "regionId" FROM "Prefecture" WHERE id = :p)'
+            params["p"] = user.prefectureId
+        else:
+            return RegionDistanceResponse(items=[])
+
+        sql = text(
+            f"""
+            WITH scoped AS (
+                SELECT r.id AS region_id, r.name AS region_name,
+                       s.id AS school_id, s.geom
+                FROM "Region" r
+                JOIN "School" s ON s."regionId" = r.id
+                WHERE s.geom IS NOT NULL
+                  AND s.status = 'APPROVED'
+                  {scope_clause}
+            ),
+            nearest AS (
+                SELECT a.region_id, a.school_id,
+                       MIN(ST_Distance(a.geom, b.geom)) AS d_m
+                FROM scoped a
+                JOIN scoped b
+                  ON a.region_id = b.region_id AND a.school_id <> b.school_id
+                GROUP BY a.region_id, a.school_id
+            ),
+            agg AS (
+                SELECT region_id, AVG(d_m) AS avg_d_m, COUNT(*) AS school_count
+                FROM nearest
+                GROUP BY region_id
+            ),
+            students AS (
+                SELECT r.id AS region_id,
+                       COUNT(st.id)::int AS student_count
+                FROM "Region" r
+                LEFT JOIN "School" s ON s."regionId" = r.id
+                LEFT JOIN "Student" st ON st."schoolId" = s.id
+                WHERE 1=1 {scope_clause.replace('r.id =', 'r.id =') if scope_clause else ''}
+                GROUP BY r.id
+            )
+            SELECT
+                r.id AS region_id,
+                r.name AS region_name,
+                agg.avg_d_m,
+                COALESCE(agg.school_count, 0) AS school_count,
+                COALESCE(students.student_count, 0) AS student_count
+            FROM "Region" r
+            LEFT JOIN agg ON agg.region_id = r.id
+            LEFT JOIN students ON students.region_id = r.id
+            WHERE 1=1 {scope_clause}
+            ORDER BY r.name;
+            """
+        )
+
+        try:
+            rows = (await self.session.execute(sql, params)).all()
+        except (ProgrammingError, DBAPIError) as exc:
+            message = str(exc).lower()
+            if "st_distance" in message or "geography" in message:
+                raise PostgisUnavailableError(
+                    detail=(
+                        "PostGIS is required for distance aggregates — "
+                        "`CREATE EXTENSION postgis;` first."
+                    ),
+                ) from exc
+            raise
+
+        items: list[RegionDistanceStat] = []
+        for r in rows:
+            avg_km = round(float(r.avg_d_m) / 1000, 3) if r.avg_d_m else None
+            items.append(
+                RegionDistanceStat(
+                    regionId=r.region_id,
+                    regionName=r.region_name,
+                    avgSchoolDistanceKm=avg_km,
+                    schoolCount=int(r.school_count or 0),
+                    studentCount=int(r.student_count or 0),
+                )
+            )
+        return RegionDistanceResponse(items=items)

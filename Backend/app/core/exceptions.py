@@ -60,6 +60,19 @@ class RevokedTokenError(AppError):
     default_status = status.HTTP_401_UNAUTHORIZED
 
 
+class PostgisUnavailableError(AppError):
+    """Raised when a PostGIS-only feature is requested but the extension is
+    not installed on the running Postgres server.
+
+    Mapped to HTTP 503 because it's an environmental capability gap (not a
+    client mistake). The detail message guides the operator toward
+    ``CREATE EXTENSION postgis``.
+    """
+
+    code = "postgis_unavailable"
+    default_status = status.HTTP_503_SERVICE_UNAVAILABLE
+
+
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:  # noqa: ARG001
     return JSONResponse(
         status_code=exc.status_code,
