@@ -1,0 +1,151 @@
+// =============================================================================
+// GE-Design — Design tokens for GESTION-EE (Module 20)
+// =============================================================================
+//
+// PHILOSOPHIE
+// -----------
+// Ce fichier est ADDITIF : il ajoute des variables CSS préfixées `--ge-*` qui
+// ne remplacent JAMAIS les variables Spruko (`--primary-color`, `--body-bg`,
+// etc.). Les composants `Ge*` consomment exclusivement ces tokens, ce qui
+// permet de faire évoluer la charte nationale GESTION-EE sans toucher au
+// template Spruko et sans casser l'UI existante.
+//
+// PALETTE — inspiration "africaine premium"
+// -----------------------------------------
+// - Ocre Sahel        #c8784a — couleur primaire chaude (terre cuite, latérite)
+// - Vert savane       #2f6b3f — couleur secondaire végétale (acacia, baobab)
+// - Indigo nuit       #1f2c4d — couleur d'accent profonde (boubou, ciel nocturne)
+// - Blanc kaolin      #f7f4ee — surface claire douce (argile blanche)
+// - Noir charbon      #14181f — fond sombre du dark mode
+//
+// MODE
+// ----
+// Les variables sont définies une fois sous `:root` (light) puis redéfinies
+// sous `[data-theme="dark"]`. Le `ThemeService` se contente de positionner
+// l'attribut `data-theme` sur `<html>`. Aucune classe Bootstrap n'est touchée.
+// =============================================================================
+
+:root {
+  // ---------- COULEURS DE MARQUE ----------
+  --ge-color-primary: #c8784a;            // Ocre Sahel — actions principales
+  --ge-color-primary-hover: #b6663a;      // Survol bouton primaire
+  --ge-color-primary-soft: #f6e7dc;       // Fond doux pour badges/alertes
+  --ge-color-primary-contrast: #ffffff;   // Texte sur fond primaire
+
+  --ge-color-secondary: #2f6b3f;          // Vert savane — actions secondaires
+  --ge-color-secondary-hover: #25562f;
+  --ge-color-secondary-soft: #d8ead8;
+  --ge-color-secondary-contrast: #ffffff;
+
+  --ge-color-accent: #1f2c4d;             // Indigo nuit — emphase, headers
+  --ge-color-accent-hover: #16213d;
+  --ge-color-accent-soft: #dde2f0;
+  --ge-color-accent-contrast: #ffffff;
+
+  // ---------- SURFACES ----------
+  --ge-color-surface: #f7f4ee;            // Blanc kaolin — fond pages light
+  --ge-color-surface-raised: #ffffff;     // Cartes light
+  --ge-color-surface-sunken: #ece7dc;     // Zones creusées (skeletons, hover)
+  --ge-color-border: #d8d2c4;             // Bordure douce
+  --ge-color-divider: #ece7dc;
+
+  // ---------- TEXTE ----------
+  --ge-color-text: #1f2c4d;               // Texte principal
+  --ge-color-text-muted: #6b7280;         // Texte secondaire
+  --ge-color-text-inverse: #ffffff;       // Texte sur fond sombre
+
+  // ---------- SÉMANTIQUE ----------
+  --ge-color-success: #2f6b3f;
+  --ge-color-warning: #c8784a;
+  --ge-color-danger:  #b3261e;
+  --ge-color-info:    #1f2c4d;
+
+  // ---------- SPACING SCALE (4px base) ----------
+  --ge-space-1:  0.25rem;   //  4px
+  --ge-space-2:  0.5rem;    //  8px
+  --ge-space-3:  0.75rem;   // 12px
+  --ge-space-4:  1rem;      // 16px
+  --ge-space-5:  1.25rem;   // 20px
+  --ge-space-6:  1.5rem;    // 24px
+  --ge-space-8:  2rem;      // 32px
+  --ge-space-10: 2.5rem;    // 40px
+  --ge-space-12: 3rem;      // 48px
+
+  // ---------- TYPOGRAPHIE ----------
+  --ge-font-sans: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ge-font-display: 'Poppins', system-ui, sans-serif;
+  --ge-font-mono: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+
+  --ge-font-size-xs: 0.75rem;   // 12px
+  --ge-font-size-sm: 0.875rem;  // 14px
+  --ge-font-size-md: 1rem;      // 16px — base
+  --ge-font-size-lg: 1.125rem;  // 18px
+  --ge-font-size-xl: 1.5rem;    // 24px
+  --ge-font-size-2xl: 2rem;     // 32px — titre page
+
+  --ge-font-weight-regular: 400;
+  --ge-font-weight-medium: 500;
+  --ge-font-weight-bold: 700;
+
+  --ge-line-height-tight: 1.25;
+  --ge-line-height-normal: 1.5;
+  --ge-line-height-loose: 1.75;
+
+  // ---------- RADIUS ----------
+  --ge-radius-sm: 0.25rem;      //  4px
+  --ge-radius-md: 0.5rem;       //  8px — défaut
+  --ge-radius-lg: 0.75rem;      // 12px
+  --ge-radius-pill: 999px;
+
+  // ---------- SHADOWS ----------
+  --ge-shadow-0: none;
+  --ge-shadow-1: 0 1px 2px rgba(31, 44, 77, 0.06);
+  --ge-shadow-2: 0 2px 6px rgba(31, 44, 77, 0.08);
+  --ge-shadow-3: 0 6px 16px rgba(31, 44, 77, 0.12);
+
+  // ---------- TRANSITIONS ----------
+  --ge-transition-fast: 120ms ease-out;
+  --ge-transition-base: 200ms ease-out;
+}
+
+// =============================================================================
+// DARK MODE — déclenché par <html data-theme="dark">
+// =============================================================================
+[data-theme="dark"] {
+  // Couleurs de marque réajustées pour fond sombre (saturation et contraste)
+  --ge-color-primary: #e0915f;            // Ocre Sahel éclairci
+  --ge-color-primary-hover: #ecaa7d;
+  --ge-color-primary-soft: #3a261a;
+  --ge-color-primary-contrast: #14181f;
+
+  --ge-color-secondary: #4f9f63;          // Vert savane éclairci
+  --ge-color-secondary-hover: #6cb780;
+  --ge-color-secondary-soft: #1f3a26;
+  --ge-color-secondary-contrast: #14181f;
+
+  --ge-color-accent: #8094c4;             // Indigo nuit éclairci
+  --ge-color-accent-hover: #9eaedb;
+  --ge-color-accent-soft: #1c2438;
+  --ge-color-accent-contrast: #14181f;
+
+  // Surfaces sombres
+  --ge-color-surface: #14181f;            // Noir charbon
+  --ge-color-surface-raised: #1c222c;
+  --ge-color-surface-sunken: #0f131a;
+  --ge-color-border: #2a313d;
+  --ge-color-divider: #232a36;
+
+  // Texte
+  --ge-color-text: #f0eee8;
+  --ge-color-text-muted: #9aa3b2;
+  --ge-color-text-inverse: #14181f;
+
+  --ge-color-success: #4f9f63;
+  --ge-color-warning: #e0915f;
+  --ge-color-danger:  #e07a73;
+  --ge-color-info:    #8094c4;
+
+  --ge-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ge-shadow-2: 0 2px 6px rgba(0, 0, 0, 0.5);
+  --ge-shadow-3: 0 6px 16px rgba(0, 0, 0, 0.6);
+}

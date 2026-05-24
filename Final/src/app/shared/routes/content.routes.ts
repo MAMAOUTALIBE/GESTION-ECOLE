@@ -7,7 +7,16 @@ export const content: Routes = [
   {
     path: '', children: [
       ...dashboardRoutingModule,
-      ...schoolCensusRoutingModule
+      ...schoolCensusRoutingModule,
+      // Module 20 — vitrine du design system GE.
+      {
+        path: 'design-system',
+        loadComponent: () =>
+          import('../../design-system/design-system-demo.component').then(
+            (m) => m.DesignSystemDemoComponent,
+          ),
+        title: 'GE-Design',
+      },
     ]
   }
 ];

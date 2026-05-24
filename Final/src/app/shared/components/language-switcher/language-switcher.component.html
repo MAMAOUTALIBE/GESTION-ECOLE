@@ -1,0 +1,12 @@
+<label class="ge-language-switcher" aria-label="Choisir la langue">
+  <i class="ri-translate-2" aria-hidden="true"></i>
+  <select
+    class="ge-language-switcher__select"
+    [ngModel]="currentLang()"
+    (ngModelChange)="onChange($event)"
+  >
+    @for (opt of options(); track opt.code) {
+      <option [value]="opt.code">{{ opt.nativeLabel }}</option>
+    }
+  </select>
+</label>
