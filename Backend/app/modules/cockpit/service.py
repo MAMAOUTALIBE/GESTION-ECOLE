@@ -111,12 +111,14 @@ class CockpitService:
             budget_consumption,
             critical_anomalies,
             alerts_open,
+            national_gpi,
         ) = await asyncio.gather(
             self._count_students(),
             self._compute_attendance_rate_recent(),
             self._compute_budget_consumption(),
             self._count_critical_open_anomalies(),
             self._count_alerts_open(),
+            self._compute_national_gpi(),
             return_exceptions=False,
         )
 
@@ -126,12 +128,19 @@ class CockpitService:
             budgetConsumption=round(float(budget_consumption), 2),
             criticalAnomaliesOpen=int(critical_anomalies),
             alertsOpen=int(alerts_open),
+            nationalGpi=national_gpi,
             items={
                 KpiKey.STUDENTS_TOTAL.value: float(students_total),
                 KpiKey.ATTENDANCE_RATE.value: round(float(attendance_rate), 2),
                 KpiKey.BUDGET_CONSUMPTION.value: round(float(budget_consumption), 2),
                 KpiKey.CRITICAL_ANOMALIES_OPEN.value: float(critical_anomalies),
                 KpiKey.ALERTS_OPEN.value: float(alerts_open),
+                # Module 1B — GPI national (None encodé en 0.0 dans items
+                # pour rester compatible avec dict[str, float] ; le champ
+                # ``nationalGpi`` typé Decimal|None reste la source de vérité).
+                KpiKey.NATIONAL_GPI.value: (
+                    float(national_gpi) if national_gpi is not None else 0.0
+                ),
             },
             generatedAt=_now_utc(),
             cached=False,
@@ -528,6 +537,11 @@ class CockpitService:
             KpiKey.BUDGET_CONSUMPTION: float(kpis.budgetConsumption),
             KpiKey.CRITICAL_ANOMALIES_OPEN: float(kpis.criticalAnomaliesOpen),
             KpiKey.ALERTS_OPEN: float(kpis.alertsOpen),
+            # Module 1B — snapshot du GPI national (0.0 si non calculé).
+            KpiKey.NATIONAL_GPI: (
+                float(kpis.nationalGpi) if kpis.nationalGpi is not None
+                else 0.0
+            ),
         }
         for key, value in items_map.items():
             row = CockpitKpiSnapshot(
@@ -723,6 +737,35 @@ class CockpitService:
         except Exception as exc:
             logger.warning("cockpit._count_alerts_open failed: {}", exc)
             return 0
+
+    async def _compute_national_gpi(self) -> Any:
+        """GPI national courant (Module 1B).
+
+        Lit le dernier snapshot ``GpiSnapshot(scope=NATIONAL, entityId=NULL)``.
+        Retourne ``None`` si aucun snapshot n'a été calculé (équipe ops doit
+        lancer ``compute_gpi_snapshots`` au moins une fois).
+
+        Renvoyé en ``Decimal`` (pas float) pour préserver la précision —
+        Pydantic le sérialise correctement côté API.
+        """
+        try:
+            from app.modules.enrollment.enums import GpiScope as _GpiScope
+            from app.modules.enrollment.models import GpiSnapshot
+
+            stmt = (
+                select(GpiSnapshot.gpi)
+                .where(
+                    GpiSnapshot.scope == _GpiScope.NATIONAL,
+                    GpiSnapshot.entityId.is_(None),
+                )
+                .order_by(GpiSnapshot.computedAt.desc())
+                .limit(1)
+            )
+            value = (await self.session.execute(stmt)).scalar_one_or_none()
+            return value
+        except Exception as exc:
+            logger.warning("cockpit._compute_national_gpi failed: {}", exc)
+            return None
 
     # ==================================================================
     # Redis cache helpers

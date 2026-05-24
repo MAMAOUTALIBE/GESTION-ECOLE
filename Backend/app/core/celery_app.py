@@ -18,6 +18,7 @@ celery_app = Celery(
         "app.workers.workflow_tasks",
         "app.workers.prediction_tasks",
         "app.workers.cockpit_tasks",
+        "app.workers.enrollment_tasks",
     ],
 )
 

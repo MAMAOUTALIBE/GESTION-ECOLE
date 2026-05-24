@@ -1,10 +1,8 @@
-"""Module 1A — Modèle SQLAlchemy Enrollment.
+"""Module 1A + 1B — Modèles SQLAlchemy Enrollment / GpiSnapshot.
 
-Une row par (schoolYear × school × classLevel × gender × source) — c'est la
-fondation de :
-* Dashboard équité (Module 1D)
-* Indice de parité fille/garçon GPI (Module 1B)
-* Projections par cohorte (Phase 2)
+Une row ``Enrollment`` par (schoolYear × school × classLevel × gender × source).
+Une row ``GpiSnapshot`` par (schoolYear × scope × entity) — fondation du
+Module 1B (Gender Parity Index, alertes auto + comparaison annuelle).
 
 Pourquoi pas calculer "live" depuis Student ?
 ----------------------------------------------
@@ -17,13 +15,15 @@ Pourquoi pas calculer "live" depuis Student ?
 
 Index
 -----
-* (schoolYearId, schoolId) : lookups par école/année (cas dominant UI saisie).
-* (schoolYearId, classLevel, gender) : agrégations nationales (équité fille
-  par niveau).
+* Enrollment : (schoolYearId, schoolId) — saisie UI ; (schoolYearId,
+  classLevel, gender) — agrégats nationaux.
+* GpiSnapshot : (schoolYearId, scope, severity) — points chauds ;
+  (entityId, computedAt DESC) — séries temporelles.
 """
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -32,13 +32,19 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.modules.enrollment.enums import EnrollmentClassLevel, EnrollmentSource
-from app.shared.base import Base, TimestampMixin, cuid_pk
+from app.modules.enrollment.enums import (
+    EnrollmentClassLevel,
+    EnrollmentSource,
+    GpiScope,
+)
+from app.modules.enrollment.parity import GpiSeverity
+from app.shared.base import Base, CreatedAtMixin, TimestampMixin, cuid_pk
 from app.shared.enums import Gender
 
 if TYPE_CHECKING:
@@ -111,4 +117,56 @@ class Enrollment(Base, TimestampMixin):
     recordedBy: Mapped["User | None"] = relationship(lazy="raise")
 
 
-__all__ = ["Enrollment"]
+# ---------------------------------------------------------------------------
+# Module 1B — Snapshot GPI
+# ---------------------------------------------------------------------------
+class GpiSnapshot(Base, CreatedAtMixin):
+    """Snapshot d'un GPI à un instant donné, pour un scope donné.
+
+    * ``scope`` : NATIONAL / REGIONAL / PREFECTURE / SCHOOL.
+    * ``entityId`` : nullable uniquement quand scope = NATIONAL ; sinon
+      contient l'id de la région / préfecture / école.
+    * ``gpi`` : Decimal(6,4) — précision rapport gouvernemental. ``None``
+      si la cohorte est vide (girls=0 AND boys=0).
+    * ``severity`` : pré-calculé via ``parity.classify_gpi`` au moment du
+      snapshot pour permettre un filtrage indexé "WHERE severity = CRITICAL_GIRLS".
+    """
+
+    __tablename__ = "GpiSnapshot"
+    __table_args__ = (
+        Index(
+            "ix_GpiSnapshot_schoolYearId_scope_severity",
+            "schoolYearId", "scope", "severity",
+        ),
+        Index(
+            "ix_GpiSnapshot_entityId_computedAt",
+            "entityId", "computedAt",
+        ),
+    )
+
+    id: Mapped[str] = cuid_pk()
+    schoolYearId: Mapped[str] = mapped_column(
+        String(30), ForeignKey("SchoolYear.id"), nullable=False
+    )
+    scope: Mapped[GpiScope] = mapped_column(
+        Enum(GpiScope, name="GpiScope", native_enum=True), nullable=False
+    )
+    # nullable uniquement pour scope=NATIONAL ; le service garantit
+    # l'invariant (entityId NOT NULL si scope != NATIONAL).
+    entityId: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    girlsCount: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    boysCount: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    gpi: Mapped[Decimal | None] = mapped_column(
+        Numeric(precision=6, scale=4), nullable=True
+    )
+    severity: Mapped[GpiSeverity] = mapped_column(
+        Enum(GpiSeverity, name="GpiSeverity", native_enum=True),
+        nullable=False,
+        default=GpiSeverity.NORMAL,
+    )
+    computedAt: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+__all__ = ["Enrollment", "GpiScope", "GpiSnapshot"]

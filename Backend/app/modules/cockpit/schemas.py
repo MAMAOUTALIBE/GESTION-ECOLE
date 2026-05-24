@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -14,6 +15,8 @@ class NationalKpiResponse(BaseModel):
 
     On expose à la fois les valeurs brutes et un format ``items``
     canonique (clé → valeur) pour faciliter l'itération côté frontend.
+    Le champ ``nationalGpi`` (Module 1B) est servi en ``Decimal`` pour
+    préserver la précision (rapports gouvernementaux).
     """
 
     studentsTotal: int = 0
@@ -21,6 +24,10 @@ class NationalKpiResponse(BaseModel):
     budgetConsumption: float = 0.0  # 0..100, pourcentage
     criticalAnomaliesOpen: int = 0
     alertsOpen: int = 0
+    # Module 1B — Gender Parity Index national. None si aucun snapshot
+    # n'a encore été calculé (les ops doivent lancer
+    # ``compute_gpi_snapshots`` au moins une fois).
+    nationalGpi: Decimal | None = None
     items: dict[str, float] = Field(default_factory=dict)
     generatedAt: datetime
     cached: bool = False

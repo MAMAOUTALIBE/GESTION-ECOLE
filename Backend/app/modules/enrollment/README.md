@@ -85,18 +85,116 @@ demander explicitement `source=COMPUTED_FROM_STUDENTS` pour comparer.
 
 ## GPI (Gender Parity Index)
 
-Calculé côté agrégat par niveau : `gpi = girls / boys` (None si boys = 0).
-Une valeur > 1 signifie plus de filles que de garçons à ce niveau.
-L'OMS / UNESCO considère [0.97, 1.03] comme parité acceptable.
+Module 1B — Indice de parité fille/garçon, fondement des indicateurs
+d'équité scolaire UNESCO/IIPE. Formule : `gpi = girls / boys`.
+
+### Seuils UNESCO
+
+| Plage         | Sévérité           | Sens métier                                            |
+|---------------|--------------------|--------------------------------------------------------|
+| `0.97 .. 1.03`| `NORMAL`           | Parité acceptable.                                     |
+| `0.85 .. 0.97`| `WARNING_GIRLS`    | Disparité au détriment des filles — à investiguer.      |
+| `< 0.85`      | `CRITICAL_GIRLS`   | Point chaud — déclenche une alerte ministérielle.       |
+| `> 1.03`      | `WARNING_BOYS`     | Disparité au détriment des garçons.                     |
+| `MALE_ABSENT` | `CRITICAL_GIRLS`   | Cohorte 100 % filles (sentinelle `Decimal(999.9999)`).  |
+
+### Division par zéro
+
+| Cas                       | Retour de `compute_gpi`                  | Sévérité          |
+|---------------------------|------------------------------------------|-------------------|
+| `girls == 0 and boys == 0`| `None`                                    | `NORMAL` (vide)   |
+| `boys == 0 and girls > 0` | `Decimal("999.9999")` (`MALE_ABSENT_GPI`) | `CRITICAL_GIRLS`  |
+
+Les calculs utilisent **toujours `Decimal`** (jamais `float`) pour
+garantir une précision à 4 décimales — chiffres ré-utilisés dans des
+rapports gouvernementaux.
+
+### Stockage
+
+Table `GpiSnapshot` (migration `0024_gender_parity`) :
+
+| Colonne        | Type                | Notes                                       |
+|----------------|---------------------|---------------------------------------------|
+| `id`           | cuid (PK)           |                                             |
+| `schoolYearId` | FK SchoolYear       |                                             |
+| `scope`        | enum GpiScope       | NATIONAL / REGIONAL / PREFECTURE / SCHOOL   |
+| `entityId`     | nullable            | NULL si scope = NATIONAL                     |
+| `girlsCount`   | int                 |                                             |
+| `boysCount`    | int                 |                                             |
+| `gpi`          | NUMERIC(6,4)        | nullable (cohorte vide)                      |
+| `severity`     | enum GpiSeverity    | pré-calculé pour filtre indexé              |
+| `computedAt`   | timestamptz         |                                             |
+
+Index :
+- `(schoolYearId, scope, severity)` — points chauds nationaux (cockpit).
+- `(entityId, computedAt DESC)` — séries temporelles d'une école.
+
+### Endpoints
+
+| Méthode | Route                                          | RBAC                              |
+|---------|------------------------------------------------|-----------------------------------|
+| POST    | `/api/enrollment/gpi/compute-snapshots`        | NATIONAL_ADMIN / MINISTRY_ADMIN   |
+| GET     | `/api/enrollment/gpi`                          | Tous (scope RBAC vérifié)          |
+| GET     | `/api/enrollment/gpi/critical-schools`         | Tous (filtre territorial appliqué) |
+| GET     | `/api/enrollment/gpi/evolution`                | Tous (scope RBAC vérifié)          |
+
+Le service `EnrollmentService.compute_gpi_snapshots` :
+
+1. Recalcule à 4 échelons (école, préfecture, région, national).
+2. Persiste les snapshots (idempotent : `DELETE WHERE schoolYearId=...`
+   puis `INSERT`).
+3. Invalide le cache Redis (`enrollment:gpi:*`).
+4. Crée les `AnomalyDetection(type=CRITICAL_GPI)` Module 9 pour chaque
+   école sous le seuil 0.85.
+
+Le cache Redis (5 min) sur `get_gpi` évite de re-frapper la DB pour
+chaque hit du cockpit. Le snapshot étant déjà la valeur "pré-calculée",
+les hits sont des `SELECT ... LIMIT 1`.
+
+### Hook Module 19 — cockpit
+
+`KpiKey.NATIONAL_GPI` est ajouté à l'enum cockpit. `CockpitService
+.get_national_kpis()` lit le dernier snapshot `scope=NATIONAL` et
+expose `nationalGpi: Decimal | None` dans la réponse.
+
+### Hook Module 9 — anomalies
+
+`AnomalyType.CRITICAL_GPI` est ajouté à l'enum. Le détecteur
+`detect_critical_gpi(session, school_year_id)` lit `GpiSnapshot` et
+matérialise une `AnomalyDetection` (severity=HIGH) par école touchée.
+Le détecteur est invoqué automatiquement par
+`compute_gpi_snapshots` (hook intégré, pas besoin d'orchestration ext.).
+
+### Beat Celery
+
+Tâche : `enrollment.compute_gpi_snapshots` (dans
+`app.workers.enrollment_tasks`).
+
+Planification recommandée (à ajouter à `celery_app.conf.beat_schedule`
+côté ops, hors code applicatif) :
+
+```python
+from celery.schedules import crontab
+
+celery_app.conf.beat_schedule = {
+    "compute-gpi-snapshots-weekly": {
+        "task": "enrollment.compute_gpi_snapshots",
+        "schedule": crontab(hour=3, minute=0, day_of_week=0),  # dim 03:00 UTC
+    },
+}
+```
+
+Déclenchement manuel : `compute_gpi_snapshots_task.delay(year_id)`
+(ou `delay()` sans args → utilise la SchoolYear active).
 
 ## Migration
 
-`0023_enrollment` crée les 2 enums Postgres (`EnrollmentClassLevel`,
-`EnrollmentSource`), la table `Enrollment`, ses 2 indexes et sa contrainte
-d'unicité. Downgrade complet (drop table + drop enums).
+- `0023_enrollment` : table `Enrollment` (Module 1A).
+- `0024_gender_parity` : table `GpiSnapshot` (Module 1B) + ajoute
+  `CRITICAL_GPI` à `AnomalyType` + `NATIONAL_GPI` à `KpiKey`.
 
 ## Backlog
 
 | Issue   | Description                                                                |
 |---------|----------------------------------------------------------------------------|
-| —       | Aucun pour Module 1A (voir Module 1B pour GPI complet, 1D pour dashboard). |
+| —       | Aucun connu (voir Module 1D pour dashboard équité complet).                |

@@ -1,4 +1,4 @@
-"""Module 1A — Enums du module Enrollment.
+"""Module 1A + 1B — Enums du module Enrollment.
 
 EnrollmentClassLevel
 --------------------
@@ -14,6 +14,14 @@ Indique l'origine de la mesure pour gérer le conflit entre déclaration
 officielle (CENSUS_DECLARED, source de vérité pilotage) et calcul live
 sur la base Student (COMPUTED_FROM_STUDENTS, utilisé pour data quality).
 IMPORT trace les bulks d'historique (avant migration logiciel).
+
+GpiScope (Module 1B)
+--------------------
+Granularité d'un snapshot GPI : agrégat pays, région, préfecture ou école.
+On évite de réutiliser ``AggregateScope`` (1A) car la sémantique diffère —
+GpiSnapshot ne supporte pas SUBPREFECTURE (trop granulaire pour un
+indicateur statistique national fiable) et ne stocke jamais d'autre
+``scope`` qu'une de ces 4 valeurs.
 """
 from __future__ import annotations
 
@@ -42,4 +50,13 @@ class EnrollmentSource(StrEnum):
     IMPORT = "IMPORT"
 
 
-__all__ = ["EnrollmentClassLevel", "EnrollmentSource"]
+class GpiScope(StrEnum):
+    """Granularité d'un snapshot GPI (Module 1B)."""
+
+    NATIONAL = "NATIONAL"
+    REGIONAL = "REGIONAL"
+    PREFECTURE = "PREFECTURE"
+    SCHOOL = "SCHOOL"
+
+
+__all__ = ["EnrollmentClassLevel", "EnrollmentSource", "GpiScope"]
