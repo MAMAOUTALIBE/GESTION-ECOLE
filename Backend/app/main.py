@@ -145,6 +145,7 @@ def create_app() -> FastAPI:
         transport_router as schoollife_transport_router,
     )
     from app.modules.schools.router import classes_router, schools_router
+    from app.modules.simulator.router import router as simulator_router
     from app.modules.sms.router import router as sms_router
     from app.modules.territory.router import router as territory_router
     from app.modules.workflow.router import router as workflow_router
@@ -229,6 +230,10 @@ def create_app() -> FastAPI:
     # Module 2A — Projections IIPE-UNESCO (taux de transition par cohortes)
     app.include_router(
         projections_router, prefix=f"{settings.api_prefix}/projections"
+    )
+    # Module 3B — Simulateur what-if de réorganisation du réseau scolaire
+    app.include_router(
+        simulator_router, prefix=f"{settings.api_prefix}/simulator"
     )
 
     return app
