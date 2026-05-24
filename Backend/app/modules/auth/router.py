@@ -10,6 +10,7 @@ from app.core.proxy import client_ip
 from app.core.redis import get_redis
 from app.modules.auth.models import User
 from app.modules.auth.schemas import (
+    AuthAuditLogEntry,
     ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
@@ -66,7 +67,7 @@ def _request_meta(request: Request) -> tuple[str | None, str | None]:
 @router.post(
     "/login",
     response_model=LoginResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
     summary="Connexion par email + mot de passe",
 )
 async def login(
@@ -74,8 +75,15 @@ async def login(
     request: Request,
     service: AuthSvc,
 ) -> LoginResponse:
+    # Module 1.1 — H-7 — return 200 OK instead of 201 Created. /login does
+    # not create a "Login" resource the client can later GET / DELETE; the
+    # access+refresh pair is a session, and RFC 9110 says 200 OK is the
+    # right code for "request succeeded, here's the result". We also
+    # populate `requiresMfa` so the frontend has an explicit signal.
     ip, ua = _request_meta(request)
-    return await service.login(dto, ip_address=ip, user_agent=ua)
+    response = await service.login(dto, ip_address=ip, user_agent=ua)
+    response.requiresMfa = response.mfaChallenge is not None
+    return response
 
 
 @router.get(
@@ -355,6 +363,37 @@ async def revoke_session(
     await service.revoke_session(
         current_user, session_id, ip_address=ip, user_agent=ua
     )
+
+
+# ---------------------------------------------------------------------------
+# Module 1.1 — H-2 — Audit log read endpoint
+# ---------------------------------------------------------------------------
+@router.get(
+    "/audit-log",
+    response_model=list[AuthAuditLogEntry],
+    summary="Lister mes événements d'authentification (admin: ?userId= pour un autre)",
+)
+async def list_audit_log(
+    service: AuthSvc,
+    current_user: Annotated[User, Depends(get_current_user)],
+    userId: Annotated[str | None, Query(description="Admin only — voir un autre user")] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[AuthAuditLogEntry]:
+    """Return the caller's auth audit events (newest first).
+
+    Authorisation:
+        * Any authenticated user reads their own events.
+        * NATIONAL_ADMIN / MINISTRY_ADMIN can read any user's events by
+          passing ``?userId=``. For non-admins, the query parameter is
+          silently ignored (we still return their own rows — never
+          another user's).
+    """
+    rows = await service.list_audit_log(
+        current_user=current_user,
+        target_user_id=userId,
+        limit=limit,
+    )
+    return [AuthAuditLogEntry.model_validate(r) for r in rows]
 
 
 # ---------------------------------------------------------------------------

@@ -27,6 +27,7 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",   # to verify legacy NestJS bcrypt hashes
     "cryptography>=43.0.0",
     "pyotp>=2.9.0",              # TOTP RFC 6238 (Module 1 MFA)
+    "zxcvbn>=4.4.28",            # Password strength meter (Module 1.1 H-8)
     # Identifiers
     "cuid2>=2.0.1",              # match Prisma cuid() defaults
     # PDF (bulletins) & QR
@@ -80,6 +81,12 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
 
 [tool.ruff.lint.per-file-ignores]
 "app/modules/*/models.py" = ["F401"]
+# Module 1 + 1.1 — auth : schémas Pydantic exposent les mêmes noms camelCase
+# que la base (userAgent, refreshToken, mfaChallenge, requiresMfa,
+# failureReason, createdAt, currentTotp...) pour rester byte-compatibles
+# avec le frontend Angular legacy. ?userId= en query param respecte le même
+# contrat. RUF002/RUF003 tolérés pour les docstrings FR.
+"app/modules/auth/*" = ["N801", "N803", "N806", "N815", "UP037", "RUF002", "RUF003"]
 # Module 7 — schoollife exporte des champs en camelCase pour rester aligné
 # avec les conventions Prisma de la base. On accepte N815/N803 sur tout le
 # package (schemas, services, routers).

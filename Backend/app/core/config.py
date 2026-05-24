@@ -23,8 +23,15 @@ class Settings(BaseSettings):
 
     jwt_secret: str = Field(min_length=32)
     jwt_algorithm: str = "HS256"
-    # 480 min (8h) matches the NestJS contract used by the existing Angular frontend.
-    jwt_access_token_ttl_minutes: int = 480
+    # Module 1.1 — H-6 — was 480 min (8 h). OWASP Application Security
+    # Verification Standard 4.0.3 §3.3.1 recommends short-lived access
+    # tokens (~15-60 min). 30 min is the sweet spot between UX (avoids
+    # forcing the frontend to silent-refresh every screen change) and
+    # blast-radius reduction (a stolen access token expires within 30 min,
+    # AND password change / reset now revokes every refresh session — see
+    # H-5 — so the residual window after credential rotation is bounded).
+    # The refresh token TTL stays at 7 days; rotation happens on every use.
+    jwt_access_token_ttl_minutes: int = 30
     jwt_refresh_token_ttl_days: int = 7
 
     cors_origins: str = "http://localhost:4200"

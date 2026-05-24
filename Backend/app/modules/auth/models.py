@@ -251,3 +251,8 @@ class AuthEvent:
     PASSWORD_RESET_USED = "PASSWORD_RESET_USED"
     RATE_LIMITED = "RATE_LIMITED"
     SESSION_REVOKED = "SESSION_REVOKED"
+    # Module 1.1 — emitted when /mfa/setup creates a *pending* credential.
+    # Prevents AuthEvent.MFA_ENABLED success=False from polluting "MFA enabled"
+    # dashboards: the user did not finish enrolment yet, no need to fire a
+    # failure alert.
+    MFA_SETUP_INITIATED = "MFA_SETUP_INITIATED"

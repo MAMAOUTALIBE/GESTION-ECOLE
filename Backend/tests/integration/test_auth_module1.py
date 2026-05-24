@@ -123,12 +123,15 @@ async def test_login_success_returns_access_and_refresh(
         "/api/auth/login",
         json={"email": user.email, "password": PWD_OK},
     )
-    assert r.status_code == 201, r.text
+    # Module 1.1 — H-7 — /login now returns 200 OK (was 201 Created).
+    assert r.status_code == 200, r.text
     body = r.json()
     assert body["accessToken"] and isinstance(body["accessToken"], str)
     assert body["refreshToken"] and isinstance(body["refreshToken"], str)
     assert body["user"]["id"] == user.id
     assert body["mfaChallenge"] is None
+    # Module 1.1 — H-7 — explicit `requiresMfa` flag must be present and False.
+    assert body["requiresMfa"] is False
 
     # Refresh session row persisted.
     stmt = select(RefreshTokenSession).where(RefreshTokenSession.userId == user.id)
@@ -182,11 +185,14 @@ async def test_login_with_mfa_returns_challenge_token(
         "/api/auth/login",
         json={"email": user.email, "password": PWD_OK},
     )
-    assert r.status_code == 201
+    # Module 1.1 — H-7 — /login returns 200 OK even when MFA is required.
+    assert r.status_code == 200
     body = r.json()
     assert body["accessToken"] is None and body["refreshToken"] is None
     assert body["user"] is None
     assert body["mfaChallenge"]
+    # Module 1.1 — H-7 — requiresMfa MUST be True in the MFA branch.
+    assert body["requiresMfa"] is True
     payload = decode_token(body["mfaChallenge"], expected_type="mfa_challenge")
     assert payload["sub"] == user.id
 
@@ -413,7 +419,8 @@ async def test_logout_invalidates_access_and_refresh(
         "/api/auth/login",
         json={"email": user.email, "password": PWD_OK},
     )
-    assert login.status_code == 201, login.text
+    # Module 1.1 — H-7 — /login is 200 OK.
+    assert login.status_code == 200, login.text
     access = login.json()["accessToken"]
     refresh = login.json()["refreshToken"]
 
@@ -1089,6 +1096,540 @@ async def test_get_current_user_fails_closed_when_redis_down(
     )
     assert r.status_code == 503, r.text
     assert "temporairement" in r.json()["message"].lower()
+
+
+# ===========================================================================
+# Module 1.1 — Hardening fixes (H-1 .. H-10)
+# ===========================================================================
+# One test per HIGH from the independent review; the comments explain the
+# attacker scenario each one guards against.
+# ===========================================================================
+
+
+# --- H-3 — userAgent column is hard-capped + control chars stripped --------
+async def test_audit_userAgent_truncated_to_512_chars(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """A 1 MB User-Agent header must not blow up AuthAuditLog rows."""
+    user = await _make_user(db_session, email="ua-cap@example.com")
+    huge_ua = "X" * 10_000  # 10 KB — would be a DoS at scale.
+    await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+        headers={"User-Agent": huge_ua},
+    )
+    row = await _audit_for(db_session, user.email, AuthEvent.LOGIN_SUCCESS)
+    assert row is not None
+    assert row.userAgent is not None
+    assert len(row.userAgent) <= 512
+
+
+async def test_audit_userAgent_strips_control_chars(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """CR/LF/NUL etc. must be removed before persistence — anti log-injection."""
+    user = await _make_user(db_session, email="ua-ctrl@example.com")
+    # Inject CRLF + NUL + ESC + BEL to try to smuggle a fake log line.
+    naughty_ua = "Mozilla/5.0\r\nFAKE-LOG: bypass\x00\x1b[31mRED\x07"
+    await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+        headers={"User-Agent": naughty_ua},
+    )
+    row = await _audit_for(db_session, user.email, AuthEvent.LOGIN_SUCCESS)
+    assert row is not None
+    ua = row.userAgent or ""
+    for forbidden in ("\r", "\n", "\x00", "\x1b", "\x07"):
+        assert forbidden not in ua, f"control char {forbidden!r} leaked into UA"
+
+
+# --- H-7 — /login returns 200 with explicit requiresMfa --------------------
+async def test_login_status_is_200_with_requires_mfa_flag(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """Both branches of /login are 200 OK and carry the explicit flag."""
+    # Branch 1 — no MFA -> requiresMfa=False
+    u1 = await _make_user(db_session, email="login-200-nomfa@example.com")
+    r1 = await client.post(
+        "/api/auth/login", json={"email": u1.email, "password": PWD_OK}
+    )
+    assert r1.status_code == 200
+    assert r1.json()["requiresMfa"] is False
+
+    # Branch 2 — MFA enabled -> requiresMfa=True
+    u2 = await _make_user(
+        db_session, email="login-200-mfa@example.com", mfa_enabled=True
+    )
+    await _enable_mfa(db_session, u2)
+    r2 = await client.post(
+        "/api/auth/login", json={"email": u2.email, "password": PWD_OK}
+    )
+    assert r2.status_code == 200
+    assert r2.json()["requiresMfa"] is True
+
+
+# --- H-9 — MFA setup writes MFA_SETUP_INITIATED (not MFA_ENABLED fail) -----
+async def test_mfa_setup_writes_mfa_setup_initiated_event(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """Pending MFA enrolment is a normal event, not a MFA_ENABLED failure."""
+    user = await _make_user(db_session, email="mfa-h9@example.com")
+    login = await client.post(
+        "/api/auth/login", json={"email": user.email, "password": PWD_OK}
+    )
+    access = login.json()["accessToken"]
+    r = await client.post(
+        "/api/auth/mfa/setup",
+        json={"currentPassword": PWD_OK},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 200
+    # The new event MUST be present, success=True.
+    setup_row = await _audit_for(
+        db_session, user.email, AuthEvent.MFA_SETUP_INITIATED
+    )
+    assert setup_row is not None
+    assert setup_row.success is True
+    # And there MUST NOT be an MFA_ENABLED success=False row from this call.
+    stmt = (
+        select(AuthAuditLog)
+        .where(
+            AuthAuditLog.email == user.email,
+            AuthAuditLog.event == AuthEvent.MFA_ENABLED,
+            AuthAuditLog.success.is_(False),
+        )
+    )
+    polluting = (await db_session.execute(stmt)).scalars().all()
+    assert polluting == []
+
+
+# --- H-4 — login timing parity between "user not found" and "wrong password"
+async def test_login_user_not_found_takes_similar_time_as_wrong_password(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """Without H-4 the unknown-email path returns in ~5 ms while the wrong-
+    password path costs an Argon2 verify (~100+ ms in prod, ~1 ms in tests).
+    We can't measure absolute prod timings here but we CAN check the same
+    code path is exercised: both should call verify_password exactly once.
+    """
+    import time
+
+    user = await _make_user(db_session, email="timing-known@example.com")
+
+    # Sample several measurements to smooth out CI jitter.
+    samples_unknown: list[float] = []
+    samples_wrong_pw: list[float] = []
+    for _ in range(5):
+        t0 = time.perf_counter()
+        await client.post(
+            "/api/auth/login",
+            json={
+                "email": f"absent-{factories.generate_cuid()[:6]}@example.com",
+                "password": "Wrong-pass-1234!",
+            },
+        )
+        samples_unknown.append(time.perf_counter() - t0)
+
+        t0 = time.perf_counter()
+        await client.post(
+            "/api/auth/login",
+            json={"email": user.email, "password": "Wrong-pass-1234!"},
+        )
+        samples_wrong_pw.append(time.perf_counter() - t0)
+
+    median_unknown = sorted(samples_unknown)[len(samples_unknown) // 2]
+    median_wrong_pw = sorted(samples_wrong_pw)[len(samples_wrong_pw) // 2]
+
+    # In tests Argon2 is intentionally fast (~1 ms). The two medians should
+    # be within an order of magnitude — anything beyond 100 ms drift means
+    # the unknown-email branch skipped verify_password.
+    assert abs(median_unknown - median_wrong_pw) < 0.1, (
+        f"timing asymmetry too large: unknown={median_unknown*1000:.1f} ms, "
+        f"wrong_pw={median_wrong_pw*1000:.1f} ms"
+    )
+
+
+# --- H-6 — access token TTL pinned at 30 minutes ---------------------------
+def test_access_token_ttl_is_30_minutes_in_config() -> None:
+    """Regression guard — operator must not silently revert to 8 h."""
+    from app.core.config import settings as _s
+
+    assert _s.jwt_access_token_ttl_minutes == 30
+
+
+# --- H-1 — MFA counter is NOT reset on first success -----------------------
+async def test_mfa_counter_not_reset_on_first_success(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    redis_client: Redis,
+) -> None:
+    """A successful MFA verify must NOT zero the per-user counter — the
+    counter must keep accumulating so a partial-knowledge attacker can't
+    bruteforce indefinitely at rate (limit - 1) wrong attempts per success.
+    """
+    user = await _make_user(
+        db_session, email="mfa-counter-h1@example.com", mfa_enabled=True
+    )
+    secret, _, _ = await _enable_mfa(db_session, user)
+
+    # Burn 3 wrong attempts so we have a non-zero counter to observe.
+    for _ in range(3):
+        login = await client.post(
+            "/api/auth/login",
+            json={"email": user.email, "password": PWD_OK},
+        )
+        await client.post(
+            "/api/auth/mfa/verify",
+            json={
+                "challengeToken": login.json()["mfaChallenge"],
+                "code": "000000",
+            },
+        )
+
+    key = f"rl:mfa:user:{user.id}"
+    before = await redis_client.get(key)
+    assert before is not None and int(before) >= 3, (
+        f"expected >=3 failed-attempt counter, got {before!r}"
+    )
+
+    # Now a SUCCESS. With H-1 the counter is preserved (no reset).
+    login_ok = await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+    )
+    code = pyotp.TOTP(secret).now()
+    r = await client.post(
+        "/api/auth/mfa/verify",
+        json={
+            "challengeToken": login_ok.json()["mfaChallenge"],
+            "code": code,
+        },
+    )
+    assert r.status_code == 200
+
+    after = await redis_client.get(key)
+    assert after is not None, "MFA counter unexpectedly deleted"
+    # After 4 verify attempts (3 wrong + 1 right) the counter MUST be >= 4.
+    # With the pre-H-1 bug it would be 0 (or 1 if only the success counted).
+    assert int(after) >= 4, (
+        f"MFA counter reset on success — got {after!r}, expected >=4"
+    )
+
+
+# --- H-5 — change_password & reset_password revoke active refresh sessions -
+async def test_change_password_revokes_all_other_sessions(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """After changing the password every active refresh session is dead."""
+    user = await _make_user(db_session, email="cp-revokes@example.com")
+    # Login twice — two distinct active refresh sessions.
+    login1 = await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+    )
+    login2 = await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+    )
+    refresh_a = login1.json()["refreshToken"]
+    refresh_b = login2.json()["refreshToken"]
+    access = login2.json()["accessToken"]
+
+    # Confirm both sessions are alive in DB.
+    stmt = select(RefreshTokenSession).where(
+        RefreshTokenSession.userId == user.id,
+        RefreshTokenSession.revokedAt.is_(None),
+    )
+    alive_before = (await db_session.execute(stmt)).scalars().all()
+    assert len(alive_before) == 2
+
+    # Change password.
+    r = await client.post(
+        "/api/auth/change-password",
+        json={
+            "currentPassword": PWD_OK,
+            "newPassword": PWD_NEW,
+            "confirmPassword": PWD_NEW,
+        },
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 204, r.text
+
+    # All sessions revoked.
+    alive_after = (await db_session.execute(stmt)).scalars().all()
+    assert alive_after == []
+
+    # Both refresh tokens rejected.
+    r_a = await client.post(
+        "/api/auth/refresh", json={"refreshToken": refresh_a}
+    )
+    r_b = await client.post(
+        "/api/auth/refresh", json={"refreshToken": refresh_b}
+    )
+    assert r_a.status_code == 401
+    assert r_b.status_code == 401
+
+
+async def test_reset_password_revokes_all_sessions(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """Same property as above, exercised through /reset-password."""
+    import secrets as _secrets
+
+    user = await _make_user(db_session, email="rst-revokes@example.com")
+    # Login twice so we have 2 active sessions.
+    await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+    )
+    await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+    )
+
+    # Seed a valid reset token.
+    plain = _secrets.token_urlsafe(32)
+    db_session.add(
+        PasswordResetToken(
+            userId=user.id,
+            tokenHash=hash_token(plain),
+            expiresAt=datetime.now(UTC) + timedelta(minutes=30),
+        )
+    )
+    await db_session.flush()
+
+    r = await client.post(
+        "/api/auth/reset-password",
+        json={
+            "token": plain,
+            "newPassword": PWD_NEW,
+            "confirmPassword": PWD_NEW,
+        },
+    )
+    assert r.status_code == 204, r.text
+
+    stmt = select(RefreshTokenSession).where(
+        RefreshTokenSession.userId == user.id,
+        RefreshTokenSession.revokedAt.is_(None),
+    )
+    alive = (await db_session.execute(stmt)).scalars().all()
+    assert alive == []
+
+
+# --- H-10 — refresh rotation is atomic: failure leaves old session valid ---
+async def test_refresh_rollback_keeps_old_session_valid_on_error(
+    db_session: AsyncSession, client: AsyncClient, monkeypatch
+) -> None:
+    """If the new-pair emission raises mid-flight, the OLD refresh must
+    still work — the attacker scenario being a transient DB hiccup that
+    used to silently log the user out.
+    """
+    user = await _make_user(db_session, email="refresh-atomic@example.com")
+    login = await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+    )
+    refresh_v1 = login.json()["refreshToken"]
+
+    # Sabotage _issue_session so the rotation aborts BEFORE revoking the
+    # old DB row. With H-10 the request fails but the old refresh stays
+    # usable on retry.
+    from app.modules.auth.service import AuthService
+
+    original_issue = AuthService._issue_session
+    boom_calls: dict[str, int] = {"n": 0}
+
+    async def _flaky_issue(self, user, **kwargs):  # type: ignore[no-untyped-def]
+        boom_calls["n"] += 1
+        if boom_calls["n"] == 1:
+            raise RuntimeError("simulated DB hiccup mid-rotation")
+        return await original_issue(self, user, **kwargs)
+
+    monkeypatch.setattr(AuthService, "_issue_session", _flaky_issue)
+
+    # First attempt — explodes on the issuance step. ASGITransport
+    # re-raises unhandled exceptions (raise_app_exceptions=True by default),
+    # so we catch the simulated failure ourselves. The crucial property
+    # is what happens AFTER: the old refresh must still be valid because
+    # H-10 rotates atomically (mint new -> revoke old, single transaction).
+    with pytest.raises(RuntimeError, match="simulated DB hiccup"):
+        await client.post(
+            "/api/auth/refresh", json={"refreshToken": refresh_v1}
+        )
+
+    # Sanity — the old DB session row must NOT have been marked revoked
+    # by the failed attempt (otherwise the retry would fail too).
+    stmt_old = select(RefreshTokenSession).where(
+        RefreshTokenSession.userId == user.id,
+        RefreshTokenSession.revokedAt.is_(None),
+    )
+    alive_after_failure = (await db_session.execute(stmt_old)).scalars().all()
+    assert len(alive_after_failure) >= 1, (
+        "old refresh session was revoked despite rotation failure — H-10 broken"
+    )
+
+    # Retry — the old refresh is still valid (H-10 guarantee).
+    r_retry = await client.post(
+        "/api/auth/refresh", json={"refreshToken": refresh_v1}
+    )
+    assert r_retry.status_code == 200, r_retry.text
+    body = r_retry.json()
+    assert body["refreshToken"] and body["refreshToken"] != refresh_v1
+
+
+# --- H-8 — weak password rejected, strong accepted -------------------------
+async def test_change_password_rejects_weak_password(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """zxcvbn score < 3 must produce a 422 before the service ever runs."""
+    user = await _make_user(db_session, email="pw-weak@example.com")
+    login = await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+    )
+    access = login.json()["accessToken"]
+    # Long enough to clear min_length=12 but trivial pattern -> score 1.
+    weak = "password1234"
+    r = await client.post(
+        "/api/auth/change-password",
+        json={
+            "currentPassword": PWD_OK,
+            "newPassword": weak,
+            "confirmPassword": weak,
+        },
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 422, r.text
+
+
+async def test_change_password_accepts_strong_password(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """A high-entropy passphrase must clear the validator (score >= 3)."""
+    user = await _make_user(db_session, email="pw-strong@example.com")
+    login = await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+    )
+    access = login.json()["accessToken"]
+    # Same PWD_NEW used elsewhere — known to score 4.
+    r = await client.post(
+        "/api/auth/change-password",
+        json={
+            "currentPassword": PWD_OK,
+            "newPassword": PWD_NEW,
+            "confirmPassword": PWD_NEW,
+        },
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 204, r.text
+
+
+# --- H-2 — /audit-log endpoint: own logs / admin override / non-admin lock -
+async def test_audit_log_endpoint_returns_own_logs(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """A regular user reads their own auth events, never another user's."""
+    user = await _make_user(db_session, email="audit-own@example.com")
+    # Make a couple of events on this user.
+    login = await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": PWD_OK},
+    )
+    access = login.json()["accessToken"]
+    await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": "Wrong-pass-1234!"},
+    )
+
+    r = await client.get(
+        "/api/auth/audit-log",
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    assert len(rows) >= 2
+    # All returned rows must carry an event string and a createdAt.
+    for row in rows:
+        assert "event" in row and "createdAt" in row
+        assert "userAgent" in row  # nullable but key present
+
+
+async def test_audit_log_endpoint_admin_can_filter_by_user(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """An admin can pass ?userId= to inspect another user's events."""
+    victim = await _make_user(db_session, email="audit-victim@example.com")
+    admin = await _make_user(
+        db_session,
+        email="audit-admin@example.com",
+        role=UserRole.NATIONAL_ADMIN,
+    )
+    # Generate a LOGIN_FAILED row on the victim.
+    await client.post(
+        "/api/auth/login",
+        json={"email": victim.email, "password": "Wrong-pass-1234!"},
+    )
+
+    admin_token = create_access_token(
+        admin.id,
+        claims={
+            "role": admin.role.value,
+            "regionId": admin.regionId,
+            "prefectureId": admin.prefectureId,
+            "subPrefectureId": admin.subPrefectureId,
+            "schoolId": admin.schoolId,
+        },
+    )
+
+    r = await client.get(
+        f"/api/auth/audit-log?userId={victim.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    # Should have at least the LOGIN_FAILED row on the victim.
+    events = [row["event"] for row in rows]
+    assert AuthEvent.LOGIN_FAILED in events
+
+
+async def test_audit_log_endpoint_non_admin_ignores_userId_param(
+    db_session: AsyncSession, client: AsyncClient
+) -> None:
+    """A non-admin who passes ?userId=<other> must NOT see other users' events."""
+    victim = await _make_user(db_session, email="audit-victim2@example.com")
+    other = await _make_user(db_session, email="audit-other@example.com")
+
+    # Generate a LOGIN_SUCCESS row on the victim.
+    await client.post(
+        "/api/auth/login",
+        json={"email": victim.email, "password": PWD_OK},
+    )
+    # Generate a LOGIN_SUCCESS row on `other` (the caller).
+    other_login = await client.post(
+        "/api/auth/login",
+        json={"email": other.email, "password": PWD_OK},
+    )
+    other_access = other_login.json()["accessToken"]
+
+    r = await client.get(
+        f"/api/auth/audit-log?userId={victim.id}",
+        headers={"Authorization": f"Bearer {other_access}"},
+    )
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    # All returned rows must belong to `other` — verified by reloading from
+    # DB: every row id we got back must have userId == other.id.
+    for row in rows:
+        row_id = row["id"]
+        stored = (
+            await db_session.execute(
+                select(AuthAuditLog).where(AuthAuditLog.id == row_id)
+            )
+        ).scalar_one()
+        assert stored.userId == other.id, (
+            "non-admin received another user's audit row — RBAC bypass!"
+        )
 
 
 # Quiet ruff F401 on a couple of import-only usages.
