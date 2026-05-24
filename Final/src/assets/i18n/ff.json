@@ -1,0 +1,44 @@
+{
+  "app": {
+    "title": "GESTION-EE",
+    "tagline": "Lowre nguurndam jaŋde ngenndi"
+  },
+  "nav": {
+    "dashboard": "Hello hesowo",
+    "students": "Jannguɓe",
+    "schools": "Duɗe",
+    "teachers": "Jannginooɓe",
+    "classes": "Kalaasuuji",
+    "grades": "Notuuji",
+    "attendance": "Tawreede",
+    "map": "Karta duɗe",
+    "designSystem": "Sifaa peeje"
+  },
+  "common": {
+    "save": "Reennde",
+    "cancel": "Haaytude",
+    "delete": "Momtude",
+    "edit": "Wattude",
+    "search": "Yiilaade",
+    "loading": "Ina loowa…",
+    "error": "Juumre waɗii",
+    "success": "Goongɗii",
+    "confirm": "Tabitin",
+    "close": "Uddude",
+    "back": "Rutto",
+    "next": "Yeeso",
+    "language": "Ɗemngal",
+    "theme": "Sifaa"
+  },
+  "auth": {
+    "login": "Naatude",
+    "logout": "Yaltude",
+    "username": "Innde",
+    "password": "Finnde gunndoo",
+    "signin": "Naatu"
+  },
+  "status": {
+    "online": "E ley",
+    "offline": "Yaltii"
+  }
+}

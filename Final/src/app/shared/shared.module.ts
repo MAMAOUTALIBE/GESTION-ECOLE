@@ -19,6 +19,9 @@ import { Loader } from './components/loader/loader';
 import { Footer } from './components/footer/footer';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { SvgReplaceDirective } from './directives/svgReplace.directive';
+// Module 20 — composants standalone du design system GE.
+import { ThemeToggleComponent } from './components/theme-toggle/theme-toggle.component';
+import { LanguageSwitcherComponent } from './components/language-switcher/language-switcher.component';
 
 @NgModule({
 
@@ -48,6 +51,8 @@ import { SvgReplaceDirective } from './directives/svgReplace.directive';
         SvgReplaceDirective,
         FullscreenDirective,
         HoverEffectSidebarDirective,
+        ThemeToggleComponent,
+        LanguageSwitcherComponent,
     ],
     exports: [
         Header,
@@ -59,7 +64,8 @@ import { SvgReplaceDirective } from './directives/svgReplace.directive';
         TabToTop,
         Loader,
         Footer,
-
+        ThemeToggleComponent,
+        LanguageSwitcherComponent,
     ],
 })
 

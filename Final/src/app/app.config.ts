@@ -21,11 +21,14 @@ import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideSweetAlert2 } from '@sweetalert2/ngx-sweetalert2';
 import { QuillModule } from 'ngx-quill'
 import { authInterceptor } from './shared/interceptors/auth.interceptor';
+import { provideI18n } from './shared/i18n/i18n.providers';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideRouter(routes),
     provideHttpClient(withInterceptors([authInterceptor])),
+    // Module 20 — i18n (ngx-translate, fr par défaut, 4 langues).
+    provideI18n(),
     provideCharts(withDefaultRegisterables()),
     RouterOutlet,
     ColorPickerDirective,

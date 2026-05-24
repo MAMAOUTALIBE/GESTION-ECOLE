@@ -1,0 +1,44 @@
+{
+  "app": {
+    "title": "GESTION-EE",
+    "tagline": "Bɔxi xaranyi ramara wali"
+  },
+  "nav": {
+    "dashboard": "Yelyelɛ kankɛ",
+    "students": "Xaranyi",
+    "schools": "Xaranɲii",
+    "teachers": "Xarandeɛ",
+    "classes": "Kelaseɛ",
+    "grades": "Notɛɛ",
+    "attendance": "Tagi",
+    "map": "Xaranyi karatɛ",
+    "designSystem": "Masenyi"
+  },
+  "common": {
+    "save": "A ratanga",
+    "cancel": "A ba",
+    "delete": "A ba",
+    "edit": "A masenma",
+    "search": "Fenma",
+    "loading": "A na fa…",
+    "error": "Fee dɔxɔ",
+    "success": "A bara nɔ",
+    "confirm": "A radangi",
+    "close": "A balanma",
+    "back": "Xɛtɛ",
+    "next": "Yarɛ",
+    "language": "Xui",
+    "theme": "Masenyi"
+  },
+  "auth": {
+    "login": "So",
+    "logout": "Mini",
+    "username": "Xili",
+    "password": "Dundu fala",
+    "signin": "So"
+  },
+  "status": {
+    "online": "Lɔn",
+    "offline": "A mu lɔn"
+  }
+}

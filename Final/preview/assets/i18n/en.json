@@ -1,0 +1,44 @@
+{
+  "app": {
+    "title": "GESTION-EE",
+    "tagline": "National education management platform"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "students": "Students",
+    "schools": "Schools",
+    "teachers": "Teachers",
+    "classes": "Classes",
+    "grades": "Grades",
+    "attendance": "Attendance",
+    "map": "School map",
+    "designSystem": "Design system"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "loading": "Loading…",
+    "error": "An error occurred",
+    "success": "Operation successful",
+    "confirm": "Confirm",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "language": "Language",
+    "theme": "Theme"
+  },
+  "auth": {
+    "login": "Sign in",
+    "logout": "Sign out",
+    "username": "Username",
+    "password": "Password",
+    "signin": "Login"
+  },
+  "status": {
+    "online": "Online",
+    "offline": "Offline"
+  }
+}

@@ -1,3 +1,8 @@
+// // =================== GE-Design tokens (Module 20) — ADDITIF ===================
+// Tokens CSS variables consommés par les composants Ge*. Ne touche pas Spruko.
+@forward "styles/ge-tokens";
+@forward "styles/ge-helpers";
+
 // // =================== Bootstrap ===================
 @forward "../public/assets/css/bootstrap.css";
 

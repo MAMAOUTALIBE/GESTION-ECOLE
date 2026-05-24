@@ -1,0 +1,44 @@
+{
+  "app": {
+    "title": "GESTION-EE",
+    "tagline": "Plateforme nationale de gestion du système éducatif"
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "students": "Élèves",
+    "schools": "Établissements",
+    "teachers": "Enseignants",
+    "classes": "Classes",
+    "grades": "Notes",
+    "attendance": "Présences",
+    "map": "Carte scolaire",
+    "designSystem": "Design system"
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "search": "Rechercher",
+    "loading": "Chargement…",
+    "error": "Une erreur est survenue",
+    "success": "Opération réussie",
+    "confirm": "Confirmer",
+    "close": "Fermer",
+    "back": "Retour",
+    "next": "Suivant",
+    "language": "Langue",
+    "theme": "Thème"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Se déconnecter",
+    "username": "Identifiant",
+    "password": "Mot de passe",
+    "signin": "Connexion"
+  },
+  "status": {
+    "online": "En ligne",
+    "offline": "Hors ligne"
+  }
+}
