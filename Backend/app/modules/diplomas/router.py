@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 from sqlalchemy import select
 
 from app.core.exceptions import NotFoundError
@@ -32,6 +32,8 @@ from app.modules.diplomas.schemas import (
     DiplomaVerification,
 )
 from app.modules.diplomas.service import DiplomaService
+from app.modules.pii_audit.enums import PiiAccessType, PiiEntityType
+from app.modules.pii_audit.service import PiiAuditService
 from app.shared.deps import DbSession, get_current_user
 from app.shared.enums import UserRole
 from app.shared.permissions import (
@@ -137,6 +139,7 @@ async def list_diplomas(
 async def verify_diploma(
     serial: Annotated[str, Path(min_length=6, max_length=40)],
     service: Svc,
+    request: Request,
 ) -> DiplomaVerification:
     """Endpoint **PUBLIC** : aucune authentification requise.
 
@@ -150,10 +153,41 @@ async def verify_diploma(
 
     Anti-énumération : la 404 ne distingue pas "format invalide" vs
     "n'existe pas vraiment".
+
+    Module 5C — audit PII : la vérification PUBLIQUE révèle l'identité
+    du diplômé (nom + école). On consigne donc systématiquement, même
+    pour les 404 (utile pour détecter une tentative d'énumération).
     """
     try:
-        return await service.verify_diploma(serial)
+        result = await service.verify_diploma(serial)
+        try:
+            audit = PiiAuditService(service.session)
+            await audit.log_access(
+                actor=None,
+                entity_type=PiiEntityType.STUDENT,
+                entity_id=serial[:30],
+                access_type=PiiAccessType.VIEW,
+                endpoint=request.url.path,
+                request=request,
+                metadata={"diplomaStatus": str(getattr(result, "status", ""))},
+            )
+        except Exception:
+            pass
+        return result
     except NotFoundError:
+        try:
+            audit = PiiAuditService(service.session)
+            await audit.log_access(
+                actor=None,
+                entity_type=PiiEntityType.STUDENT,
+                entity_id=serial[:30],
+                access_type=PiiAccessType.VIEW,
+                endpoint=request.url.path,
+                request=request,
+                metadata={"diplomaStatus": "NOT_FOUND"},
+            )
+        except Exception:
+            pass
         # On renvoie 404 mais avec un body conforme au schema pour que
         # le frontend puisse parser uniformément.
         return Response(  # type: ignore[return-value]

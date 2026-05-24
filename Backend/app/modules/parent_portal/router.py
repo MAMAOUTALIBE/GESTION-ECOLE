@@ -37,6 +37,8 @@ from app.modules.parent_portal.schemas import (
     WhatsAppReplyOut,
 )
 from app.modules.parent_portal.service import ParentPortalService
+from app.modules.pii_audit.enums import PiiAccessType, PiiEntityType
+from app.modules.pii_audit.service import PiiAuditService
 from app.shared.deps import DbSession
 
 router = APIRouter(tags=["parent-portal"])
@@ -147,6 +149,7 @@ async def get_overview(
     summary="Page parent HTML légère (PUBLIC, anonymisée).",
 )
 async def get_parent_page(
+    request: Request,
     session: DbSession,
     phone_hash: Annotated[str, FPath(min_length=8, max_length=128)],
 ) -> HTMLResponse:
@@ -161,6 +164,20 @@ async def get_parent_page(
         )
     service = ParentPortalService(session)
     overview = await service.get_parent_overview(phone_hash)
+    # Module 5C — audit PII : la page révèle les enfants d'un parent
+    # via son hash téléphone. On consigne (actor=None, endpoint PUBLIC).
+    try:
+        audit = PiiAuditService(session)
+        await audit.log_access(
+            actor=None,
+            entity_type=PiiEntityType.PARENT,
+            entity_id=phone_hash[:30],
+            access_type=PiiAccessType.VIEW,
+            endpoint=request.url.path,
+            request=request,
+        )
+    except Exception:
+        pass
     template = _JINJA_ENV.get_template("parent_overview.html")
     rendered = template.render(
         phoneHash=overview.phoneHash,

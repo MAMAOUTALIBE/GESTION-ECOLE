@@ -15,9 +15,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.modules.auth.models import User
+from app.modules.pii_audit.enums import PiiEntityType
+from app.modules.pii_audit.service import PiiAuditService
 from app.modules.schoollife.enums import IncidentStatus
 from app.modules.schoollife.schemas import (
     CreateIncidentRequest,
@@ -72,14 +74,29 @@ async def create_incident(
 )
 async def list_incidents(
     user: CurrentUserDep, service: Svc,
+    request: Request,
     schoolId: Annotated[str | None, Query()] = None,
     severity: Annotated[IncidentSeverity | None, Query()] = None,
     incidentStatus: Annotated[IncidentStatus | None, Query(alias="status")] = None,
     limit: Annotated[int, Query(ge=1, le=2000)] = 500,
 ) -> list[IncidentRead]:
-    return await service.list_incidents(
+    incidents = await service.list_incidents(
         user, schoolId, severity, incidentStatus, limit,
     )
+    # Module 5C — audit PII : la liste d'incidents disciplinaires
+    # touche à des mineurs ET à des sanctions — donnée très sensible.
+    try:
+        audit = PiiAuditService(service.session)
+        await audit.log_bulk_list(
+            actor=user,
+            entity_type=PiiEntityType.INCIDENT,
+            entity_ids=[i.id for i in incidents],
+            endpoint=request.url.path,
+            request=request,
+        )
+    except Exception:
+        pass
+    return incidents
 
 
 @router.patch(
