@@ -99,7 +99,13 @@ class RealtimeService:
         school_id: str | None = None,
         anomaly_id: str | None = None,
     ) -> int:
-        """Publié pour chaque anomalie CRITICAL détectée."""
+        """Publié pour chaque anomalie CRITICAL détectée.
+
+        Module 19 — Si la sévérité est CRITICAL on publie en parallèle sur
+        le canal dédié ``cockpit:alert`` (consommé par le cockpit
+        ministériel cabinet). Best-effort : un échec sur le mirror
+        cockpit ne casse pas le publish principal.
+        """
         payload: dict[str, Any] = {
             "anomalyType": anomaly_type,
             "severity": severity,
@@ -108,12 +114,66 @@ class RealtimeService:
             payload["anomalyId"] = anomaly_id
         if school_id is not None:
             payload["schoolId"] = school_id
-        return await cls._publish(
+        published = await cls._publish(
             EventType.ANOMALY_DETECTED,
             payload,
             school_id=school_id,
             region_id=region_id,
         )
+        # Mirror sur le canal cockpit pour les CRITICAL uniquement (signal
+        # ministériel ; évite que le cabinet reçoive du bruit MEDIUM/LOW).
+        if str(severity).upper() == "CRITICAL":
+            import contextlib
+
+            with contextlib.suppress(Exception):  # pragma: no cover - best-effort
+                await cls.publish_cockpit_alert(
+                    severity=severity,
+                    summary=f"{anomaly_type} (anomalyId={anomaly_id})",
+                    school_id=school_id,
+                    region_id=region_id,
+                )
+        return published
+
+    @classmethod
+    async def publish_cockpit_alert(
+        cls,
+        *,
+        severity: str,
+        summary: str,
+        school_id: str | None = None,
+        region_id: str | None = None,
+    ) -> int:
+        """Publie un évènement dédié au cockpit ministériel.
+
+        Channel : ``gestionee:events:cockpit:alert`` — un abonné cabinet
+        s'y abonne pour recevoir le flux temps réel des CRITICAL.
+        """
+        try:
+            redis = get_redis()
+        except Exception:  # pragma: no cover - redis init
+            return 0
+        from app.modules.realtime.events import CHANNEL_PREFIX, Event
+
+        ev = Event(
+            type=EventType.ANOMALY_DETECTED,
+            payload={
+                "channel": "cockpit:alert",
+                "severity": severity,
+                "summary": summary,
+            },
+            schoolId=school_id,
+            regionId=region_id,
+        )
+        try:
+            return int(
+                await redis.publish(
+                    f"{CHANNEL_PREFIX}:cockpit:alert",
+                    ev.model_dump_json(),
+                )
+                or 0
+            )
+        except Exception:  # pragma: no cover - redis transient
+            return 0
 
     @classmethod
     async def publish_dropout_prediction_high(
