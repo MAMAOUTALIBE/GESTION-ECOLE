@@ -1,0 +1,58 @@
+"""Module 9 — Anomalies detection : enums dédiés.
+
+Trois enums :
+* ``AnomalyType`` — type métier de l'anomalie (correspond 1:1 à un détecteur).
+* ``AnomalySeverity`` — gravité (LOW..CRITICAL) pour prioriser le triage.
+* ``AnomalyStatus`` — workflow human-in-the-loop : PENDING → CONFIRMED |
+  DISMISSED | FALSE_POSITIVE (la révision est faite par un directeur).
+"""
+from enum import StrEnum
+
+
+class AnomalyType(StrEnum):
+    """Famille de détecteur ayant produit l'anomalie.
+
+    Ajouter un nouveau type ici DOIT s'accompagner :
+    * d'un détecteur dans ``app.modules.anomalies.detectors``,
+    * d'une entrée dans la migration alembic (l'enum est native_enum côté
+      Postgres mais on stocke le texte tel quel pour rester portable).
+    """
+
+    IMPOSSIBLE_GRADE = "IMPOSSIBLE_GRADE"
+    SUSPICIOUS_ATTENDANCE = "SUSPICIOUS_ATTENDANCE"
+    GRADE_JUMP = "GRADE_JUMP"
+    INVALID_BIRTHDATE = "INVALID_BIRTHDATE"
+    DUPLICATE_CODE = "DUPLICATE_CODE"
+    EXCESSIVE_TRANSFER = "EXCESSIVE_TRANSFER"
+
+
+class AnomalySeverity(StrEnum):
+    """Gravité de l'anomalie.
+
+    Convention :
+    * LOW : audit (souvent un FALSE_POSITIVE attendu, ex : transferts répétés
+      mais documentés).
+    * MEDIUM : à investiguer dans la semaine.
+    * HIGH : à investiguer dans la journée (fraude potentielle).
+    * CRITICAL : blocage métier (note > 20, birthDate impossible).
+    """
+
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class AnomalyStatus(StrEnum):
+    """Workflow de revue d'une anomalie.
+
+    PENDING → CONFIRMED         : l'anomalie est réelle, action métier requise.
+    PENDING → DISMISSED         : l'anomalie est réelle mais acceptable.
+    PENDING → FALSE_POSITIVE    : le détecteur s'est trompé (utile pour
+                                  retoucher le seuil ou désactiver le détecteur).
+    """
+
+    PENDING = "PENDING"
+    CONFIRMED = "CONFIRMED"
+    DISMISSED = "DISMISSED"
+    FALSE_POSITIVE = "FALSE_POSITIVE"

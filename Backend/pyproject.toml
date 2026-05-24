@@ -88,6 +88,10 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
 # des colonnes camelCase (Prisma) côté ORM. On tolère N803/N806/N815/N801.
 "app/modules/predictions/*" = ["N801", "N803", "N806", "N815"]
 "app/workers/prediction_tasks.py" = ["N801", "N803", "N815"]
+# Module 9 — anomalies : colonnes camelCase (Prisma) côté ORM, et schemas
+# Pydantic exposent les mêmes noms au frontend Angular.
+"app/modules/anomalies/*" = ["N801", "N803", "N806", "N815"]
+"app/workers/anomaly_tasks.py" = ["N801", "N803", "N815"]
 # Les factories et fixtures de tests refletent les noms de colonnes Prisma
 # (camelCase) — on tolere donc N803/N815/N801 dans tests/. Et `from app.modules
 # import *` est intentionnel pour declencher l'enregistrement des modeles
