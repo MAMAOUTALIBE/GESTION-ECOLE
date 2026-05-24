@@ -726,6 +726,103 @@ async def detect_transition_rate_outliers(
 
 
 # ---------------------------------------------------------------------------
+# 10. Module 2C — École en sur-capacité projetée (saturation > 100 % t+1)
+# ---------------------------------------------------------------------------
+async def detect_capacity_critical(
+    session: AsyncSession,
+    *,
+    critical_school_rows: list[Any] | None = None,
+    base_school_year_id: str | None = None,
+) -> list[AnomalyDetection]:
+    """Matérialise les écoles CRITICAL (Module 2C) en AnomalyDetection.
+
+    Critère anomalie : ``severity == CRITICAL`` sur scope=SCHOOL pour
+    l'horizon t+1 (année la plus proche). Severity ``HIGH`` (la
+    planification infrastructure est une priorité gouvernementale —
+    chaque école saturée doit être tracée et suivie).
+
+    Deux modes d'appel :
+    * ``critical_school_rows`` fourni — le service vient de calculer les
+      snapshots et fournit la liste directement (évite une 2e requête).
+    * Sinon, on requête ``CapacityDemandSnapshot`` filtré.
+    """
+    # Import local pour éviter la dépendance cyclique au module
+    # projections (qui dépend du module anomalies pour pousser).
+    from app.modules.projections.enums import (
+        CapacityScope,
+        CapacitySeverity,
+    )
+    from app.modules.projections.models import CapacityDemandSnapshot
+
+    if critical_school_rows is None:
+        stmt = select(CapacityDemandSnapshot).where(
+            CapacityDemandSnapshot.scope == CapacityScope.SCHOOL,
+            CapacityDemandSnapshot.severity == CapacitySeverity.CRITICAL,
+        )
+        if base_school_year_id is not None:
+            stmt = stmt.where(
+                CapacityDemandSnapshot.baseSchoolYearId
+                == base_school_year_id,
+            )
+        stmt = stmt.limit(PER_DETECTOR_LIMIT)
+        critical_school_rows = list(
+            (await session.execute(stmt)).scalars().all(),
+        )
+
+    out: list[AnomalyDetection] = []
+    if not critical_school_rows:
+        return out
+
+    # Récupère regionId de chaque école en un seul SELECT pour le scope.
+    school_ids = [r.entityId for r in critical_school_rows if r.entityId]
+    region_by_school: dict[str, str | None] = {}
+    if school_ids:
+        rows = (
+            await session.execute(
+                select(School.id, School.regionId)
+                .where(School.id.in_(school_ids))
+            )
+        ).all()
+        region_by_school = dict(rows)
+
+    for r in critical_school_rows:
+        if r.entityId is None:
+            continue
+        saturation = (
+            float(r.saturationPct) if r.saturationPct is not None else None
+        )
+        out.append(_make(
+            a_type=AnomalyType.CAPACITY_CRITICAL_PROJECTED,
+            severity=AnomalySeverity.HIGH,
+            entity_type="School",
+            entity_id=r.entityId,
+            description=(
+                "École en sur-capacité projetée : "
+                f"demande {r.demand} > capacité {r.capacity} "
+                f"(saturation {saturation if saturation is not None else 'N/A'}%) "
+                f"horizon {r.projectedYear} — investissement infrastructure "
+                "requis."
+            ),
+            evidence={
+                "snapshotId": r.id,
+                "schoolId": r.entityId,
+                "projectedYear": int(r.projectedYear),
+                "capacity": int(r.capacity),
+                "demand": int(r.demand),
+                "gap": int(r.gap),
+                "saturationPct": saturation,
+                "scenarioId": r.scenarioId,
+                "baseSchoolYearId": r.baseSchoolYearId,
+            },
+            school_id=r.entityId,
+            region_id=region_by_school.get(r.entityId),
+        ))
+        if len(out) >= PER_DETECTOR_LIMIT:
+            break
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Registry — exposé au service pour lancer un run complet
 # ---------------------------------------------------------------------------
 ALL_DETECTORS = (
@@ -743,6 +840,7 @@ _ = and_
 __all__ = [
     "ALL_DETECTORS",
     "PER_DETECTOR_LIMIT",
+    "detect_capacity_critical",
     "detect_critical_gpi",
     "detect_duplicate_codes",
     "detect_excessive_transfers",

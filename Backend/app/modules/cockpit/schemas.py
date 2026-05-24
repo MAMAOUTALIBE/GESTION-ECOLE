@@ -57,6 +57,9 @@ class NationalKpiResponse(BaseModel):
     nationalGpi: Decimal | None = None
     # Module 1C — écart urbain/rural. None si pas d'effectifs déclarés.
     urbanRuralGap: UrbanRuralGapResponse | None = None
+    # Module 2C — Écoles en sur-capacité projetée à horizon t+1.
+    # 0 si la projection capacité n'a jamais été calculée.
+    projectedCriticalSchools: int = 0
     items: dict[str, float] = Field(default_factory=dict)
     generatedAt: datetime
     cached: bool = False

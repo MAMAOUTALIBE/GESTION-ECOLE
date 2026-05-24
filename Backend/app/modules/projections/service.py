@@ -38,11 +38,21 @@ from app.modules.academics.models import SchoolYear
 from app.modules.auth.models import User
 from app.modules.enrollment.enums import EnrollmentClassLevel, EnrollmentSource
 from app.modules.enrollment.models import Enrollment
+from app.modules.projections.capacity import (
+    compute_gap,
+    compute_saturation_pct,
+    compute_school_capacity,
+    compute_severity,
+)
 from app.modules.projections.enums import (
     DEMOGRAPHIC_GROWTH_RATE_DEFAULT,
+    STUDENTS_PER_CLASSROOM_NORM,
+    CapacityScope,
+    CapacitySeverity,
     TransitionScope,
 )
 from app.modules.projections.models import (
+    CapacityDemandSnapshot,
     ProjectedEnrollment,
     ProjectionScenario,
     TransitionRate,
@@ -53,6 +63,10 @@ from app.modules.projections.projection import (
     project_one_year,
 )
 from app.modules.projections.schemas import (
+    CapacityDemandFilters,
+    CapacityDemandRequest,
+    CapacityDemandResponse,
+    CapacityDemandRow,
     ComputeTransitionsResponse,
     ProjectedEnrollmentRead,
     ProjectionFilters,
@@ -844,9 +858,504 @@ def _apply_custom_rates(
     return out
 
 
+# ===========================================================================
+# Module 2C — CapacityDemandService
+# ===========================================================================
+# Rôles autorisés à déclencher un recalcul capacité (écriture). Strict :
+# seuls les admins centraux. La lecture (list/critical-schools) reste
+# accessible aux REGIONAL_ADMIN dans leur scope.
+CAPACITY_WRITE_ROLES: frozenset[UserRole] = frozenset(
+    {UserRole.NATIONAL_ADMIN, UserRole.MINISTRY_ADMIN}
+)
+
+
+class CapacityDemandService:
+    """Calcule + lit les snapshots capacité vs demande projetée (Module 2C).
+
+    Algorithme (compute)
+    --------------------
+    1. Charge toutes les écoles actives (status = APPROVED) avec leur
+       ``classroomsUsable``, ``regionId``, ``prefectureId``.
+    2. Calcule la capacité de chaque école (``classroomsUsable × NORM``).
+    3. Charge les projections REGIONAL persistées (Module 2B) pour le
+       scénario : ``ProjectedEnrollment[scope=REGIONAL]``.
+    4. **Redistribue** la projection régionale aux écoles au prorata de
+       leur part dans les effectifs CENSUS_DECLARED de l'année de base
+       (méthode IIPE simple — l'hypothèse implicite est que la
+       répartition école/région reste stable sur l'horizon).
+    5. Pour chaque (école × année projetée) : calcule demand, gap,
+       saturationPct, severity et persiste un ``CapacityDemandSnapshot``
+       (scope=SCHOOL).
+    6. Agrège ensuite progressivement aux scopes PREFECTURE, REGIONAL,
+       NATIONAL.
+
+    Idempotence
+    -----------
+    Delete-then-insert filtré sur ``(baseSchoolYearId, scenarioId)``.
+    Tout recalcul écrase l'ancien snapshot, ce qui rend l'API rejouable
+    sans duplication.
+
+    Hooks
+    -----
+    Module 9 anomalies — à chaque école CRITICAL sur l'horizon t+1, on
+    matérialise une AnomalyDetection HIGH (``CAPACITY_CRITICAL_PROJECTED``).
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    # ==================================================================
+    # compute_capacity_demand
+    # ==================================================================
+    async def compute_capacity_demand(
+        self,
+        req: CapacityDemandRequest,
+        actor: User,
+    ) -> CapacityDemandResponse:
+        """Calcule + persiste les snapshots capacité vs demande projetée.
+
+        Restreint à NATIONAL_ADMIN / MINISTRY_ADMIN.
+        """
+        if actor.role not in CAPACITY_WRITE_ROLES:
+            raise ForbiddenError(
+                detail=(
+                    "Seul un administrateur central peut lancer un calcul "
+                    "capacité vs demande projetée."
+                ),
+                extra={
+                    "required_any_of": sorted(
+                        r.value for r in CAPACITY_WRITE_ROLES
+                    )
+                },
+            )
+
+        # Validation année source.
+        base_year = (
+            await self.session.execute(
+                select(SchoolYear).where(SchoolYear.id == req.baseSchoolYearId)
+            )
+        ).scalars().one_or_none()
+        if base_year is None:
+            raise NotFoundError(
+                detail=f"SchoolYear introuvable : {req.baseSchoolYearId}",
+            )
+
+        scenario = (
+            await self.session.execute(
+                select(ProjectionScenario)
+                .where(ProjectionScenario.id == req.scenarioId)
+            )
+        ).scalars().one_or_none()
+        if scenario is None:
+            raise NotFoundError(
+                detail=f"ProjectionScenario introuvable : {req.scenarioId}",
+            )
+
+        # Charge écoles actives avec capacité connue (status=APPROVED).
+        # On garde les écoles à classroomsUsable=0 ou NULL pour signaler
+        # le besoin (capacity=0 → severity=CRITICAL si demand > 0).
+        from app.shared.enums import ValidationStatus
+        schools_stmt = select(
+            School.id, School.regionId, School.prefectureId,
+            School.classroomsUsable,
+        ).where(School.status == ValidationStatus.APPROVED)
+        school_rows = (await self.session.execute(schools_stmt)).all()
+
+        # Charge les effectifs CENSUS_DECLARED de l'année base par
+        # (school, region) pour calculer la part de chaque école dans sa
+        # région — sert à la redistribution de la projection régionale.
+        base_enrollments_stmt = (
+            select(
+                Enrollment.schoolId,
+                School.regionId,
+                func.coalesce(func.sum(Enrollment.count), 0).label("total"),
+            )
+            .join(School, School.id == Enrollment.schoolId)
+            .where(
+                Enrollment.schoolYearId == req.baseSchoolYearId,
+                Enrollment.source == EnrollmentSource.CENSUS_DECLARED,
+            )
+            .group_by(Enrollment.schoolId, School.regionId)
+        )
+        base_rows = (await self.session.execute(base_enrollments_stmt)).all()
+
+        # base_by_school_region[(school_id, region_id)] = effectifs base
+        base_by_school: dict[str, int] = {}
+        base_by_region: dict[str, int] = defaultdict(int)
+        for school_id, region_id, total in base_rows:
+            if region_id is None:
+                continue
+            base_by_school[school_id] = int(total)
+            base_by_region[region_id] += int(total)
+
+        # Charge les projections REGIONAL (Module 2B) — agrégées
+        # tous-niveaux/genres par (regionId, projectedYear).
+        proj_stmt = (
+            select(
+                ProjectedEnrollment.entityId,
+                ProjectedEnrollment.projectedYear,
+                func.coalesce(
+                    func.sum(ProjectedEnrollment.projectedCount), 0
+                ).label("total"),
+            )
+            .where(
+                ProjectedEnrollment.baseSchoolYearId == req.baseSchoolYearId,
+                ProjectedEnrollment.scenarioId == scenario.id,
+                ProjectedEnrollment.scope == TransitionScope.REGIONAL,
+            )
+            .group_by(
+                ProjectedEnrollment.entityId,
+                ProjectedEnrollment.projectedYear,
+            )
+        )
+        proj_rows = (await self.session.execute(proj_stmt)).all()
+        # proj_by_region_year[(region_id, year)] = total demand projetée
+        proj_by_region_year: dict[tuple[str, int], int] = {}
+        for region_id, year, total in proj_rows:
+            if region_id is None:
+                continue
+            proj_by_region_year[(region_id, int(year))] = int(total)
+
+        years_seen: set[int] = {y for (_, y) in proj_by_region_year}
+
+        # Wipe l'ancien snapshot (idempotence) pour cette base year +
+        # scénario.
+        await self.session.execute(
+            delete(CapacityDemandSnapshot).where(
+                CapacityDemandSnapshot.baseSchoolYearId
+                == req.baseSchoolYearId,
+                CapacityDemandSnapshot.scenarioId == scenario.id,
+            )
+        )
+
+        now = datetime.now(UTC)
+
+        # ----------------------------------------------------------------
+        # 1) Scope SCHOOL : redistribution proportionnelle + persistance
+        # ----------------------------------------------------------------
+        # Accumulateurs pour agrégation up-stream.
+        # cap_by_pref[prefId][year] = (capacity, demand)
+        cap_by_pref: dict[str, dict[int, tuple[int, int]]] = defaultdict(
+            lambda: defaultdict(lambda: (0, 0)),
+        )
+        cap_by_region: dict[str, dict[int, tuple[int, int]]] = defaultdict(
+            lambda: defaultdict(lambda: (0, 0)),
+        )
+        cap_national: dict[int, tuple[int, int]] = defaultdict(
+            lambda: (0, 0),
+        )
+
+        total_schools_analyzed = 0
+        total_critical = 0
+        total_warning = 0
+        rows_persisted = 0
+        critical_school_rows: list[CapacityDemandSnapshot] = []
+
+        for school_id, region_id, prefecture_id, classrooms_usable in school_rows:
+            total_schools_analyzed += 1
+            usable = int(classrooms_usable or 0)
+            capacity = compute_school_capacity(
+                usable, STUDENTS_PER_CLASSROOM_NORM,
+            )
+            school_base = base_by_school.get(school_id, 0)
+            region_base = base_by_region.get(region_id, 0)
+            # Part de l'école dans sa région ; si la région a 0 effectif
+            # base déclaré, on retombe sur 1/N (N=écoles de la région) —
+            # cas démarrage à froid (pas de recensement encore).
+            schools_in_region = sum(
+                1 for sid, rid, _pid, _u in school_rows if rid == region_id
+            )
+            for year in sorted(years_seen):
+                region_demand = proj_by_region_year.get(
+                    (region_id, year), 0,
+                )
+                if region_demand <= 0:
+                    school_demand = 0
+                elif region_base > 0:
+                    # Part proportionnelle (méthode IIPE simple).
+                    school_demand = round(
+                        region_demand * school_base / region_base
+                    )
+                elif schools_in_region > 0:
+                    # Pas de base déclarée → on étale uniformément.
+                    school_demand = region_demand // schools_in_region
+                else:
+                    school_demand = 0
+
+                gap = compute_gap(school_demand, capacity)
+                saturation = compute_saturation_pct(school_demand, capacity)
+                severity = compute_severity(saturation)
+
+                # On ne persiste pas les rows demand=0 ET capacity=0
+                # (école sans capacité ni demande projetée — pas
+                # actionable, juste du bruit).
+                if school_demand == 0 and capacity == 0:
+                    continue
+
+                row = CapacityDemandSnapshot(
+                    baseSchoolYearId=req.baseSchoolYearId,
+                    projectedYear=year,
+                    scope=CapacityScope.SCHOOL,
+                    entityId=school_id,
+                    capacity=capacity,
+                    demand=school_demand,
+                    gap=gap,
+                    saturationPct=saturation,
+                    severity=severity,
+                    scenarioId=scenario.id,
+                    computedAt=now,
+                )
+                self.session.add(row)
+                rows_persisted += 1
+                if severity == CapacitySeverity.CRITICAL:
+                    total_critical += 1
+                    critical_school_rows.append(row)
+                elif severity == CapacitySeverity.WARNING:
+                    total_warning += 1
+
+                # Accumule pour les scopes supérieurs.
+                if prefecture_id is not None:
+                    prev_cap, prev_dem = cap_by_pref[prefecture_id][year]
+                    cap_by_pref[prefecture_id][year] = (
+                        prev_cap + capacity, prev_dem + school_demand,
+                    )
+                if region_id is not None:
+                    prev_cap, prev_dem = cap_by_region[region_id][year]
+                    cap_by_region[region_id][year] = (
+                        prev_cap + capacity, prev_dem + school_demand,
+                    )
+                prev_cap, prev_dem = cap_national[year]
+                cap_national[year] = (
+                    prev_cap + capacity, prev_dem + school_demand,
+                )
+
+        # ----------------------------------------------------------------
+        # 2) Scopes PREFECTURE / REGIONAL / NATIONAL
+        # ----------------------------------------------------------------
+        def _persist_aggregate(
+            scope: CapacityScope, entity_id: str | None, year: int,
+            capacity: int, demand: int,
+        ) -> None:
+            nonlocal rows_persisted
+            gap = compute_gap(demand, capacity)
+            saturation = compute_saturation_pct(demand, capacity)
+            severity = compute_severity(saturation)
+            self.session.add(CapacityDemandSnapshot(
+                baseSchoolYearId=req.baseSchoolYearId,
+                projectedYear=year,
+                scope=scope,
+                entityId=entity_id,
+                capacity=capacity,
+                demand=demand,
+                gap=gap,
+                saturationPct=saturation,
+                severity=severity,
+                scenarioId=scenario.id,
+                computedAt=now,
+            ))
+            rows_persisted += 1
+
+        for pref_id, by_year in cap_by_pref.items():
+            for year, (capacity, demand) in by_year.items():
+                _persist_aggregate(
+                    CapacityScope.PREFECTURE, pref_id, year, capacity, demand,
+                )
+
+        for region_id, by_year in cap_by_region.items():
+            for year, (capacity, demand) in by_year.items():
+                _persist_aggregate(
+                    CapacityScope.REGIONAL, region_id, year, capacity, demand,
+                )
+
+        for year, (capacity, demand) in cap_national.items():
+            _persist_aggregate(
+                CapacityScope.NATIONAL, None, year, capacity, demand,
+            )
+
+        await self.session.flush()
+
+        # Hook Module 9 — anomalies pour les écoles CRITICAL.
+        await self._create_capacity_anomalies(critical_school_rows)
+
+        return CapacityDemandResponse(
+            scenarioId=scenario.id,
+            totalSchoolsAnalyzed=total_schools_analyzed,
+            totalCritical=total_critical,
+            totalWarning=total_warning,
+            rowsPersisted=rows_persisted,
+            computedAt=now,
+        )
+
+    # ==================================================================
+    # Lecture
+    # ==================================================================
+    async def list_capacity_demand(
+        self,
+        filters: CapacityDemandFilters,
+        scope_user: User,
+    ) -> list[CapacityDemandRow]:
+        """Liste les snapshots avec filtrage + scope RBAC territorial."""
+        stmt = select(CapacityDemandSnapshot)
+
+        if filters.baseSchoolYearId is not None:
+            stmt = stmt.where(
+                CapacityDemandSnapshot.baseSchoolYearId
+                == filters.baseSchoolYearId,
+            )
+        if filters.projectedYear is not None:
+            stmt = stmt.where(
+                CapacityDemandSnapshot.projectedYear == filters.projectedYear,
+            )
+        if filters.scope is not None:
+            stmt = stmt.where(CapacityDemandSnapshot.scope == filters.scope)
+        if filters.entityId is not None:
+            stmt = stmt.where(
+                CapacityDemandSnapshot.entityId == filters.entityId,
+            )
+        if filters.severity is not None:
+            stmt = stmt.where(
+                CapacityDemandSnapshot.severity == filters.severity,
+            )
+        if filters.scenarioId is not None:
+            stmt = stmt.where(
+                CapacityDemandSnapshot.scenarioId == filters.scenarioId,
+            )
+
+        stmt = self._apply_capacity_scope(stmt, scope_user)
+        stmt = stmt.order_by(
+            CapacityDemandSnapshot.projectedYear.asc(),
+            CapacityDemandSnapshot.scope.asc(),
+            CapacityDemandSnapshot.severity.desc(),
+            CapacityDemandSnapshot.entityId.asc(),
+        )
+        stmt = stmt.offset(filters.offset).limit(filters.limit)
+
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return [CapacityDemandRow.model_validate(r) for r in rows]
+
+    async def list_critical_schools_for_investment(
+        self,
+        scope_user: User,
+        *,
+        limit: int = 50,
+        base_school_year_id: str | None = None,
+    ) -> list[CapacityDemandRow]:
+        """Top N écoles CRITICAL — input direct pour Module 3C investissement.
+
+        On filtre sur ``scope=SCHOOL`` + ``severity=CRITICAL`` et on trie par
+        ``gap`` décroissant (les écoles avec le plus grand déficit en
+        premier). Le scope RBAC reste appliqué.
+        """
+        stmt = select(CapacityDemandSnapshot).where(
+            CapacityDemandSnapshot.scope == CapacityScope.SCHOOL,
+            CapacityDemandSnapshot.severity == CapacitySeverity.CRITICAL,
+        )
+        if base_school_year_id is not None:
+            stmt = stmt.where(
+                CapacityDemandSnapshot.baseSchoolYearId
+                == base_school_year_id,
+            )
+        stmt = self._apply_capacity_scope(stmt, scope_user)
+        stmt = stmt.order_by(
+            CapacityDemandSnapshot.gap.desc(),
+        ).limit(max(1, min(limit, 500)))
+
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return [CapacityDemandRow.model_validate(r) for r in rows]
+
+    # ==================================================================
+    # Private helpers
+    # ==================================================================
+    def _apply_capacity_scope(self, stmt, user: User):
+        """Restreint la lecture au scope territorial du user.
+
+        * NATIONAL_SCOPE_ROLES → tout visible.
+        * REGIONAL_SCOPE_ROLES → NATIONAL OU (REGIONAL/PREFECTURE/SCHOOL de
+          la région du user). Pour PREFECTURE/SCHOOL on filtre via la
+          School/Prefecture appartenant à la région (sous-requête).
+        * Sinon → seulement les agrégats NATIONAL.
+        """
+        if user.role in NATIONAL_SCOPE_ROLES:
+            return stmt
+        if user.role in REGIONAL_SCOPE_ROLES and user.regionId:
+            # Sous-requête : écoles + préfectures de la région du user.
+            schools_in_region = select(School.id).where(
+                School.regionId == user.regionId,
+            )
+            from app.modules.territory.models import Prefecture
+            prefs_in_region = select(Prefecture.id).where(
+                Prefecture.regionId == user.regionId,
+            )
+            return stmt.where(
+                (CapacityDemandSnapshot.scope == CapacityScope.NATIONAL)
+                | (
+                    (CapacityDemandSnapshot.scope == CapacityScope.REGIONAL)
+                    & (CapacityDemandSnapshot.entityId == user.regionId)
+                )
+                | (
+                    (CapacityDemandSnapshot.scope == CapacityScope.PREFECTURE)
+                    & (CapacityDemandSnapshot.entityId.in_(prefs_in_region))
+                )
+                | (
+                    (CapacityDemandSnapshot.scope == CapacityScope.SCHOOL)
+                    & (CapacityDemandSnapshot.entityId.in_(schools_in_region))
+                )
+            )
+        # Sinon : visibilité limitée aux agrégats nationaux (information
+        # publique).
+        return stmt.where(
+            CapacityDemandSnapshot.scope == CapacityScope.NATIONAL,
+        )
+
+    async def _create_capacity_anomalies(
+        self,
+        critical_rows: list[CapacityDemandSnapshot],
+    ) -> int:
+        """Hook Module 9 — matérialise les écoles CRITICAL en AnomalyDetection.
+
+        Idempotent : on supprime d'abord les anomalies PENDING
+        ``CAPACITY_CRITICAL_PROJECTED`` puis on rejoue le détecteur.
+        Severity = HIGH (planification infrastructure prioritaire).
+
+        On se limite aux écoles CRITICAL sur l'horizon **t+1** : les
+        années plus lointaines ont une incertitude croissante et le
+        cabinet ne veut pas être noyé par des alertes 5 ans à l'avance.
+        """
+        from app.modules.anomalies.detectors import detect_capacity_critical
+        from app.modules.anomalies.enums import AnomalyStatus, AnomalyType
+        from app.modules.anomalies.models import AnomalyDetection
+
+        if not critical_rows:
+            return 0
+
+        # Ne garde que les rows de l'horizon t+1 (année la plus proche).
+        min_year = min(r.projectedYear for r in critical_rows)
+        nearest = [r for r in critical_rows if r.projectedYear == min_year]
+        if not nearest:
+            return 0
+
+        # Purge des anomalies PENDING existantes (idempotence).
+        await self.session.execute(
+            delete(AnomalyDetection).where(
+                AnomalyDetection.type == AnomalyType.CAPACITY_CRITICAL_PROJECTED,
+                AnomalyDetection.status == AnomalyStatus.PENDING,
+            )
+        )
+
+        new_anomalies = await detect_capacity_critical(
+            self.session, critical_school_rows=nearest,
+        )
+        for a in new_anomalies:
+            self.session.add(a)
+        await self.session.flush()
+        return len(new_anomalies)
+
+
 __all__ = [
+    "CAPACITY_WRITE_ROLES",
     "COMPUTE_TRANSITIONS_ROLES",
     "PROJECTION_WRITE_ROLES",
+    "CapacityDemandService",
     "ProjectionService",
     "TransitionRateService",
 ]

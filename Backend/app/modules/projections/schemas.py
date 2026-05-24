@@ -14,6 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.modules.enrollment.enums import EnrollmentClassLevel
 from app.modules.projections.enums import (
     BASELINE_SCENARIO_ID,
+    CapacityScope,
+    CapacitySeverity,
     TransitionScope,
 )
 from app.modules.projections.transitions import (
@@ -201,9 +203,77 @@ class ProjectionScenarioRead(BaseModel):
     createdAt: datetime
 
 
+# ===========================================================================
+# Module 2C — Capacité vs demande projetée
+# ===========================================================================
+class CapacityDemandRequest(BaseModel):
+    """Demande de calcul des snapshots capacité vs demande projetée.
+
+    * ``baseSchoolYearId`` : year sur laquelle la projection 2B doit
+      déjà exister (sinon ``demand=0`` partout → service échoue).
+    * ``scenarioId`` : scénario à utiliser (défaut BASELINE).
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    baseSchoolYearId: str = Field(min_length=1, max_length=30)
+    scenarioId: str = Field(
+        default=BASELINE_SCENARIO_ID, min_length=1, max_length=30,
+    )
+
+
+class CapacityDemandRow(BaseModel):
+    """Représentation d'un ``CapacityDemandSnapshot`` pour l'API."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    baseSchoolYearId: str
+    projectedYear: int
+    scope: CapacityScope
+    entityId: str | None = None
+    capacity: int
+    demand: int
+    gap: int
+    saturationPct: Decimal | None = None
+    severity: CapacitySeverity
+    scenarioId: str
+    computedAt: datetime
+
+
+class CapacityDemandResponse(BaseModel):
+    """Métadonnées renvoyées par ``POST /capacity-demand/compute``."""
+
+    scenarioId: str
+    totalSchoolsAnalyzed: int = 0
+    totalCritical: int = 0
+    totalWarning: int = 0
+    rowsPersisted: int = 0
+    computedAt: datetime
+
+
+class CapacityDemandFilters(BaseModel):
+    """Filtres pour ``GET /capacity-demand``."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    baseSchoolYearId: str | None = Field(default=None, max_length=30)
+    projectedYear: int | None = None
+    scope: CapacityScope | None = None
+    entityId: str | None = Field(default=None, max_length=30)
+    severity: CapacitySeverity | None = None
+    scenarioId: str | None = Field(default=None, max_length=30)
+    limit: int = Field(default=200, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)
+
+
 __all__ = [
     "LEVEL_PAIRS",
     "LEVEL_SEQUENCE",
+    "CapacityDemandFilters",
+    "CapacityDemandRequest",
+    "CapacityDemandResponse",
+    "CapacityDemandRow",
     "ComputeTransitionsRequest",
     "ComputeTransitionsResponse",
     "ProjectedEnrollmentRead",

@@ -38,6 +38,11 @@ class AnomalyType(StrEnum):
     # massif entre deux niveaux scolaires sur une région. Détecteur
     # déclenché en hook post-``compute_transitions``.
     TRANSITION_RATE_OUTLIER = "TRANSITION_RATE_OUTLIER"
+    # Module 2C — école en sur-capacité projetée (saturation > 100 %
+    # sur l'horizon t+1). Signal direct pour la planification
+    # infrastructure / fusion / extension. Détecteur déclenché en hook
+    # post-``compute_capacity_demand``.
+    CAPACITY_CRITICAL_PROJECTED = "CAPACITY_CRITICAL_PROJECTED"
 
 
 class AnomalySeverity(StrEnum):
