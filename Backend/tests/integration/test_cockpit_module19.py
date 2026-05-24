@@ -37,6 +37,7 @@ from app.modules.cockpit.models import CockpitKpiSnapshot
 from app.modules.cockpit.service import (
     CACHE_TTL_SECONDS,
     CockpitService,
+    _today_utc,
 )
 from app.shared.base import generate_cuid
 from app.shared.enums import (
@@ -313,7 +314,7 @@ async def test_attendance_timeseries_90_days(
     assert response.granularity == "DAY"
     assert len(response.points) == 90
     # Le dernier point doit dater d'aujourd'hui
-    assert response.points[-1].date == date.today()
+    assert response.points[-1].date == _today_utc()
     # Au moins un point avec value > 0 (présence enregistrée)
     assert any(p.value > 0 for p in response.points)
 
@@ -348,7 +349,7 @@ async def test_briefing_today_returns_structured_response(
     briefing = await service.generate_briefing()
     assert briefing.headline
     assert len(briefing.bullets) >= 4
-    assert briefing.date == date.today()
+    assert briefing.date == _today_utc()
     assert briefing.source in ("llm", "template")
     # Le payload kpis contient bien les clés normalisées
     assert KpiKey.STUDENTS_TOTAL.value in briefing.kpis
@@ -380,7 +381,7 @@ async def test_snapshot_daily_kpis_persists_rows(
 ) -> None:
     await _seed_anomalies(db_session, cockpit_ctx)
     service = CockpitService(db_session)
-    today = date.today()
+    today = _today_utc()
     result = await service.snapshot_daily_kpis(snapshot_date=today)
     # Module 1B — l'enum KpiKey contient désormais NATIONAL_GPI : on
     # vérifie l'invariant "tous les KPIs sont snapshotés" via la taille
@@ -409,7 +410,7 @@ async def test_snapshot_daily_kpis_persists_rows(
 async def test_comparison_with_yesterday_returns_percentage_change(
     db_session: AsyncSession, cockpit_ctx: dict[str, Any],
 ) -> None:
-    today = date.today()
+    today = _today_utc()
     yesterday = today - timedelta(days=1)
     # Seed manuel : 80 hier, 100 aujourd'hui pour STUDENTS_TOTAL
     db_session.add(CockpitKpiSnapshot(
@@ -502,7 +503,7 @@ async def test_snapshot_idempotent_same_day(
     db_session: AsyncSession, cockpit_ctx: dict[str, Any],
 ) -> None:
     service = CockpitService(db_session)
-    today = date.today()
+    today = _today_utc()
     await service.snapshot_daily_kpis(snapshot_date=today)
     await service.snapshot_daily_kpis(snapshot_date=today)
     rows = (
