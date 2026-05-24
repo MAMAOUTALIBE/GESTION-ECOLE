@@ -161,12 +161,17 @@ def _neutralise_postgis_columns() -> tuple[list[tuple], list[tuple]]:
                 spatial_col_names.add((table.name, column.name))
 
     # Drop des indexes GIST/SPGIST visant les colonnes spatiales.
+    # Note: ``ix.dialect_options['postgresql']['using']`` peut renvoyer ``False``
+    # (le defaut SQLAlchemy quand on n'a pas explicitement passe ``using=``
+    # mais qu'on a passe au moins une autre option `postgresql_*` comme
+    # ``postgresql_where``). On normalise en str avant ``.lower()`` pour
+    # eviter ``AttributeError: 'bool' object has no attribute 'lower'``.
     removed_indexes: list[tuple] = []
     for table in Base.metadata.tables.values():
         for ix in list(table.indexes):
+            using_value = ix.dialect_options.get("postgresql", {}).get("using", "")
             uses_postgresql_gist = (
-                ix.dialect_options.get("postgresql", {}).get("using", "").lower()
-                in {"gist", "spgist"}
+                str(using_value or "").lower() in {"gist", "spgist"}
             )
             touches_spatial = any(
                 (table.name, c.name) in spatial_col_names for c in ix.columns

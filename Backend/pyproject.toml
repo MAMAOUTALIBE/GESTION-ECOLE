@@ -61,6 +61,8 @@ dev = [
     "mypy>=1.13.0",
     "types-redis>=4.6.0",
     "locust>=2.32.0",
+    # Module 4 — mock S3 / boto3 in tests
+    "moto>=5.0.0",
 ]
 
 [tool.ruff]

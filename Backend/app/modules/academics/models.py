@@ -10,7 +10,9 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
+    text as sa_text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,6 +24,7 @@ from app.shared.enums import (
     CommunicationChannel,
     CommunicationStatus,
     ParentRelationType,
+    ReportCardPdfStatus,
 )
 
 if TYPE_CHECKING:
@@ -265,6 +268,15 @@ class ReportCard(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("studentId", "periodId", name="uq_ReportCard_studentId_periodId"),
         Index("ix_ReportCard_classRoomId_periodId", "classRoomId", "periodId"),
+        # Module 4 — scan rapide des PDF non-terminés (DONE est la classe
+        # dominante après un trimestre → on l'exclut via WHERE partial).
+        Index(
+            "ix_ReportCard_pdfStatus",
+            "pdfStatus",
+            postgresql_where=sa_text(
+                "\"pdfStatus\" IN ('PENDING','PROCESSING','FAILED')"
+            ),
+        ),
     )
 
     id: Mapped[str] = cuid_pk()
@@ -292,6 +304,21 @@ class ReportCard(Base, TimestampMixin):
         nullable=False,
     )
     issuedAt: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Module 4 — génération PDF asynchrone via Celery + cache S3
+    pdfStatus: Mapped[ReportCardPdfStatus] = mapped_column(
+        Enum(ReportCardPdfStatus, name="ReportCardPdfStatus", native_enum=True),
+        default=ReportCardPdfStatus.PENDING,
+        server_default=sa_text("'PENDING'"),
+        nullable=False,
+    )
+    pdfS3Key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    pdfSha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pdfGeneratedAt: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    pdfErrorMessage: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pdfTaskId: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     student: Mapped["Student"] = relationship(back_populates="reportCards", lazy="raise")
     classRoom: Mapped["ClassRoom | None"] = relationship(

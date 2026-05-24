@@ -1,13 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse, Response
 
 from app.modules.auth.models import User
 from app.modules.reports.schemas import (
     BatchAcceptedResponse,
     BulletinVerifyResponse,
     GenerateBulletinsRequest,
+    ReportCardGenerationStatus,
 )
 from app.modules.reports.service import ReportsService
 from app.shared.deps import DbSession, get_current_user
@@ -21,6 +22,10 @@ REPORTS_GENERATE_ROLES = (
     UserRole.PREFECTURE_ADMIN,
     UserRole.SCHOOL_DIRECTOR,
 )
+
+# Module 4 — async single-card generation peut être demandée aussi par les
+# enseignants (génération à la demande pendant un cours).
+REPORTS_REQUEST_ROLES = (*REPORTS_GENERATE_ROLES, UserRole.TEACHER)
 
 
 def _service(session: DbSession) -> ReportsService:
@@ -80,10 +85,10 @@ async def download_bulletin_pdf(
 async def generate_batch(
     dto: GenerateBulletinsRequest, user: CurrentUserDep, service: ReportsSvc
 ) -> BatchAcceptedResponse:
-    from app.workers.pdf_tasks import render_bulletins_batch  # noqa: PLC0415
-    from sqlalchemy import select  # noqa: PLC0415
+    from sqlalchemy import select
 
-    from app.modules.academics.models import ReportCard  # noqa: PLC0415
+    from app.modules.academics.models import ReportCard
+    from app.workers.pdf_tasks import render_bulletins_batch
 
     if dto.reportCardIds:
         ids = dto.reportCardIds
@@ -98,3 +103,64 @@ async def generate_batch(
 
     task = render_bulletins_batch.delay(ids, requested_by=user.id)
     return BatchAcceptedResponse(taskId=task.id, estimatedItems=len(ids))
+
+
+# ---------------------------------------------------------------------------
+# Module 4 — async single-card generation
+# ---------------------------------------------------------------------------
+@router.post(
+    "/student/{student_id}/period/{period_id}/generate",
+    response_model=ReportCardGenerationStatus,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_roles(*REPORTS_REQUEST_ROLES))],
+    summary="Demander la génération asynchrone d'un bulletin PDF",
+)
+async def request_generation(
+    student_id: str,
+    period_id: str,
+    user: CurrentUserDep,
+    service: ReportsSvc,
+) -> ReportCardGenerationStatus:
+    """Enqueue (ou retourne directement si DONE) un bulletin PDF.
+
+    Idempotent : deux requêtes simultanées pour la même paire ne créent qu'un
+    seul ReportCard / un seul task (cf. ``_find_or_create_report_card`` qui
+    utilise ``SELECT ... FOR UPDATE``).
+    """
+    return await service.request_generation(student_id, period_id, user)
+
+
+@router.get(
+    "/{report_card_id}/status",
+    response_model=ReportCardGenerationStatus,
+    summary="Poll de l'état du PDF (PENDING|PROCESSING|DONE|FAILED)",
+)
+async def get_status(
+    report_card_id: str,
+    user: CurrentUserDep,
+    service: ReportsSvc,
+) -> ReportCardGenerationStatus:
+    return await service.get_generation_status(report_card_id, user)
+
+
+@router.get(
+    "/{report_card_id}/download",
+    status_code=status.HTTP_302_FOUND,
+    summary="Redirige (302) vers l'URL S3 presignée du PDF",
+    responses={
+        302: {"description": "Redirection vers l'URL S3 presignée (validité 1h)"},
+        404: {"description": "PDF pas encore prêt ou bulletin introuvable"},
+    },
+)
+async def download(
+    report_card_id: str,
+    user: CurrentUserDep,
+    service: ReportsSvc,
+) -> RedirectResponse:
+    url = await service.download_url(report_card_id, user)
+    if url is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Le PDF n'est pas encore disponible (status != DONE).",
+        )
+    return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
