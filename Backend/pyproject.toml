@@ -76,6 +76,10 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
 
 [tool.ruff.lint.per-file-ignores]
 "app/modules/*/models.py" = ["F401"]
+# Module 7 — schoollife exporte des champs en camelCase pour rester aligné
+# avec les conventions Prisma de la base. On accepte N815/N803 sur tout le
+# package (schemas, services, routers).
+"app/modules/schoollife/*" = ["N801", "N803", "N815"]
 # Les factories et fixtures de tests refletent les noms de colonnes Prisma
 # (camelCase) — on tolere donc N803/N815/N801 dans tests/. Et `from app.modules
 # import *` est intentionnel pour declencher l'enregistrement des modeles
