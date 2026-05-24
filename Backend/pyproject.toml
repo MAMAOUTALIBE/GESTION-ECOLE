@@ -107,6 +107,10 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
 # occurredAt) pour rester aligné avec le frontend Angular. ?userId= en query
 # param respecte le contrat WS legacy.
 "app/modules/realtime/*" = ["N801", "N803", "N815"]
+# Module 14 — SMS / USSD : colonnes camelCase (Prisma) côté ORM, payloads
+# camelCase pour le frontend Angular + opérateurs USSD (sessionId,
+# phoneNumber, serviceCode). RUF002/RUF003 tolérés pour docstrings FR.
+"app/modules/sms/*" = ["N801", "N803", "N806", "N815", "UP037", "RUF002", "RUF003", "E402"]
 # Les factories et fixtures de tests refletent les noms de colonnes Prisma
 # (camelCase) — on tolere donc N803/N815/N801 dans tests/. Et `from app.modules
 # import *` est intentionnel pour declencher l'enregistrement des modeles
