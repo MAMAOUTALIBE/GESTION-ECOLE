@@ -1,8 +1,32 @@
 import { Routes } from '@angular/router';
-import { CENSUS_READ_ROLES } from '../../shared/services/auth.service';
+import {
+  CENSUS_READ_ROLES,
+  NATIONAL_SCOPE_ROLES,
+  REGIONAL_SCOPE_ROLES,
+  UserRole,
+} from '../../shared/services/auth.service';
 import { roleGuard } from '../../shared/guards/role.guard';
 
+// Module 1D — Dashboard Équité : seul un agent disposant d'une vue
+// nationale ou régionale est habilité à consulter les indicateurs GPI
+// agrégés (le détail "école" reste lisible par les rôles plus locaux
+// via la table critique, qui pointe vers le profil école).
+const EQUITE_DASHBOARD_ROLES: UserRole[] = [
+  ...NATIONAL_SCOPE_ROLES,
+  ...REGIONAL_SCOPE_ROLES,
+];
+
 export const schoolCensusRoutingModule: Routes = [
+  {
+    path: 'school-census/equite',
+    canActivate: [roleGuard],
+    data: {
+      roles: EQUITE_DASHBOARD_ROLES,
+      parentTitle: 'Pilotage national',
+      childTitle: 'Équité (GPI)',
+    },
+    loadComponent: () => import('./equite/equite-page').then((m) => m.EquitePage),
+  },
   {
     path: 'school-census/territory',
     canActivate: [roleGuard],

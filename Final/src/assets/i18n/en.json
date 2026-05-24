@@ -40,5 +40,34 @@
   "status": {
     "online": "Online",
     "offline": "Offline"
+  },
+  "equite": {
+    "title": "Equity dashboard (GPI & zone)",
+    "subtitle": "Girls/boys parity · urban-rural gap · at-risk schools (UNESCO/IIEP thresholds).",
+    "refresh": "Refresh",
+    "kpi": {
+      "national": "National GPI",
+      "girls": "Girls enrolled",
+      "boys": "Boys enrolled",
+      "gap": "Urban-rural gap"
+    },
+    "severity": {
+      "NORMAL": "Parity",
+      "WARNING_GIRLS": "Girls warning",
+      "CRITICAL_GIRLS": "Girls critical",
+      "WARNING_BOYS": "Boys warning"
+    },
+    "errors": {
+      "load": "Equity data unavailable — check backend or cache."
+    },
+    "tables": {
+      "criticalSchools": "Schools with critical GPI",
+      "noCritical": "No school with critical GPI."
+    },
+    "charts": {
+      "byRegion": "GPI by region",
+      "byZone": "Enrolment by zone",
+      "map": "Regional GPI map"
+    }
   }
 }

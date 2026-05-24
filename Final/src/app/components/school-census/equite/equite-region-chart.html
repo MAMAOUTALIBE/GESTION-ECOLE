@@ -1,0 +1,15 @@
+<div class="card custom-card h-100">
+  <div class="card-header">
+    <div class="card-title">{{ title() }}</div>
+  </div>
+  <div class="card-body">
+    @if (hasData()) {
+      <spk-apexcharts
+        id="equite-region-chart"
+        [chartOptions]="options()"
+      />
+    } @else {
+      <p class="text-muted mb-0">Aucun GPI régional disponible pour cette période.</p>
+    }
+  </div>
+</div>
