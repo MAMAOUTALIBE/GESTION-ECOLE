@@ -103,6 +103,10 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
 # mixedCase (regionName, schoolCount…) dans les datasets publics. RUF002/
 # RUF003 tolérés pour les docstrings FR.
 "app/modules/opendata/*" = ["N801", "N803", "N806", "N815", "UP037", "RUF002", "RUF003"]
+# Module 13 — realtime WebSocket : payloads camelCase (schoolId/regionId/
+# occurredAt) pour rester aligné avec le frontend Angular. ?userId= en query
+# param respecte le contrat WS legacy.
+"app/modules/realtime/*" = ["N801", "N803", "N815"]
 # Les factories et fixtures de tests refletent les noms de colonnes Prisma
 # (camelCase) — on tolere donc N803/N815/N801 dans tests/. Et `from app.modules
 # import *` est intentionnel pour declencher l'enregistrement des modeles

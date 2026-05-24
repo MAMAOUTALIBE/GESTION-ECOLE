@@ -97,6 +97,28 @@ class PredictionService:
         )
         self.session.add(prediction)
         await self.session.flush()
+
+        # Module 13 — push realtime UNIQUEMENT pour les prédictions HIGH risk.
+        # Les MEDIUM/LOW restent disponibles en GET ; on évite le bruit
+        # cockpit (un batch_predict_school d'une école de 1000 élèves
+        # n'émettra que les ~5% HIGH, soit ~50 events).
+        if level == DropoutRiskLevel.HIGH:
+            try:
+                from app.modules.realtime.service import RealtimeService
+                from app.modules.schools.models import School as _School
+
+                region_id = (await self.session.execute(
+                    select(_School.regionId).where(_School.id == student.schoolId)
+                )).scalar_one_or_none()
+                await RealtimeService.publish_dropout_prediction_high(
+                    student_id=student_id,
+                    school_id=student.schoolId,
+                    region_id=region_id,
+                    probability=proba,
+                )
+            except Exception:  # pragma: no cover — best-effort
+                pass
+
         return prediction
 
     # -------------------------------------------------------------------

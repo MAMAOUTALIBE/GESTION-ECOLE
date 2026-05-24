@@ -347,6 +347,41 @@ class AttendanceService:
         for _ in range(skipped):
             attendance_scan_total.labels(result="duplicate").inc()
 
+        # Module 13 — publication d'événement temps réel (best-effort).
+        # On émet UN event par école touchée — un bulk de 200 scans sur 3
+        # écoles → 3 events agrégés, jamais 200. Le cockpit veut un signal
+        # "il se passe quelque chose ici" pas un firehose de scans.
+        if to_insert:
+            try:
+                from app.modules.realtime.service import RealtimeService
+                from app.modules.schools.models import School as _School
+
+                # Resolve regionId par school (1 SELECT pour la liste).
+                schools_seen = sorted(school_ids_seen)
+                region_by_school: dict[str, str] = {}
+                if schools_seen:
+                    rows = await self.session.execute(
+                        select(_School.id, _School.regionId).where(
+                            _School.id.in_(schools_seen)
+                        )
+                    )
+                    for sid, rid in rows.all():
+                        region_by_school[sid] = rid
+                # Count par école
+                count_by_school: dict[str, int] = {}
+                for rec in to_insert:
+                    count_by_school[rec.schoolId] = (
+                        count_by_school.get(rec.schoolId, 0) + 1
+                    )
+                for sid, count in count_by_school.items():
+                    await RealtimeService.publish_attendance_scan(
+                        school_id=sid,
+                        region_id=region_by_school.get(sid),
+                        count=count,
+                    )
+            except Exception:  # pragma: no cover — best-effort
+                pass
+
         return BulkScanResult(
             inserted=len(to_insert),
             skipped=skipped,

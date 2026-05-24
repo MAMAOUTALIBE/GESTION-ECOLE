@@ -18,6 +18,7 @@ data) are *not* retried — they're written to ``pdfErrorMessage`` directly.
 """
 import asyncio
 import base64
+import contextlib
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -49,6 +50,57 @@ def _sync_session_factory() -> sessionmaker[Session]:
     """
     engine = create_engine(str(settings.database_url_sync), pool_pre_ping=True)
     return sessionmaker(engine, expire_on_commit=False, class_=Session)
+
+
+def _publish_bulletin_generated_sync(
+    *,
+    student_id: str,
+    school_id: str,
+    region_id: str | None,
+    report_card_id: str,
+) -> None:
+    """Publie un event BULLETIN_GENERATED via redis SYNC.
+
+    Le worker Celery est synchrone — on n'instancie pas d'event loop juste
+    pour publier un message. On utilise ``redis`` (sync) au lieu de
+    ``redis.asyncio`` et on appelle directement ``publish()``.
+
+    Best-effort : toute erreur Redis est swallow par le caller.
+    """
+    import json
+
+    import redis as redis_sync
+
+    from app.modules.realtime.events import CHANNEL_PREFIX, GLOBAL_CHANNEL
+
+    client = redis_sync.from_url(
+        str(settings.redis_url),
+        encoding="utf-8",
+        decode_responses=True,
+    )
+    try:
+        payload = {
+            "type": "BULLETIN_GENERATED",
+            "payload": {
+                "studentId": student_id,
+                "schoolId": school_id,
+                "reportCardId": report_card_id,
+            },
+            "schoolId": school_id,
+            "regionId": region_id,
+            "occurredAt": datetime.now(UTC).isoformat(),
+        }
+        blob = json.dumps(payload, default=str)
+        # On reproduit Event.channels() pour rester aligné.
+        channels = [f"{CHANNEL_PREFIX}:school:{school_id}"]
+        if region_id is not None:
+            channels.append(f"{CHANNEL_PREFIX}:region:{region_id}")
+        channels.append(GLOBAL_CHANNEL)
+        for ch in channels:
+            client.publish(ch, blob)
+    finally:
+        with contextlib.suppress(Exception):  # pragma: no cover
+            client.close()
 
 
 def _maybe_upload_pdf(pdf_bytes: bytes, key: str) -> str | None:
@@ -271,6 +323,17 @@ def generate_report_pdf_task(self, report_card_id: str) -> dict[str, Any]:
             duration = time.monotonic() - start
             reports_pdf_duration_seconds.observe(duration)
             reports_pdf_completed_total.labels(status="done").inc()
+
+            # Module 13 — publish BULLETIN_GENERATED en best-effort.
+            # On utilise un client redis SYNC (Celery worker = thread sync) pour
+            # éviter d'instancier un event loop juste pour publier un message.
+            with contextlib.suppress(Exception):  # pragma: no cover — best-effort
+                _publish_bulletin_generated_sync(
+                    student_id=rc.studentId,
+                    school_id=rc.student.schoolId,
+                    region_id=getattr(rc.student.school, "regionId", None) if rc.student.school else None,
+                    report_card_id=rc.id,
+                )
 
             return {
                 "id": rc.id,

@@ -41,12 +41,35 @@ class AnomalyService:
         d'école de les confirmer / dismisser).
         """
         total = 0
+        critical_anomalies: list[AnomalyDetection] = []
         for detector in ALL_DETECTORS:
             results = await detector(self.session, school_id=school_id)
             for anomaly in results:
                 self.session.add(anomaly)
                 total += 1
+                if anomaly.severity == AnomalySeverity.CRITICAL:
+                    critical_anomalies.append(anomaly)
             await self.session.flush()
+
+        # Module 13 — push realtime pour les CRITICAL uniquement (signal
+        # cockpit). Les autres severities ne sont PAS broadcastées en
+        # temps réel pour éviter le bruit ; elles restent visibles via
+        # GET /api/anomalies.
+        if critical_anomalies:
+            try:
+                from app.modules.realtime.service import RealtimeService
+
+                for a in critical_anomalies:
+                    await RealtimeService.publish_anomaly(
+                        region_id=a.regionId,
+                        school_id=a.schoolId,
+                        anomaly_type=a.type.value if hasattr(a.type, "value") else str(a.type),
+                        severity=a.severity.value if hasattr(a.severity, "value") else str(a.severity),
+                        anomaly_id=a.id,
+                    )
+            except Exception:  # pragma: no cover — best-effort
+                pass
+
         return total
 
     # -------------------------------------------------------------------
