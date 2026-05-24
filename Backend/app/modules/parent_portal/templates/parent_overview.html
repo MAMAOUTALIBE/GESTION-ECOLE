@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Portail parent — GESTION-EE</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 1rem; max-width: 38rem; color: #1a1a1a; }
+      h1 { font-size: 1.2rem; margin-bottom: .25rem; }
+      .meta { color: #555; font-size: .85rem; margin-bottom: 1rem; }
+      ul { list-style: none; padding: 0; }
+      li { border: 1px solid #ddd; border-radius: .25rem; padding: .5rem .75rem; margin-bottom: .5rem; }
+      .child-initials { font-weight: 600; font-size: 1.05rem; }
+      .child-class { color: #555; font-size: .9rem; }
+      .child-avg { float: right; font-variant-numeric: tabular-nums; }
+      .empty { color: #777; font-style: italic; }
+      footer { margin-top: 2rem; padding-top: .75rem; border-top: 1px solid #eee; font-size: .8rem; color: #555; }
+    </style>
+  </head>
+  <body>
+    <h1>Portail parent</h1>
+    <p class="meta">Identifiant pseudonyme : {{ phoneHash[:12] }}…</p>
+
+    {% if childrenCount == 0 %}
+      <p class="empty">Aucun enfant rattache a ce numero.</p>
+    {% else %}
+      <p>Vos enfants ({{ childrenCount }}) :</p>
+      <ul>
+        {% for child in children %}
+          <li>
+            <span class="child-initials">{{ child.initials }}</span>
+            {% if child.className %}
+              <span class="child-class">— {{ child.className }}</span>
+            {% endif %}
+            <span class="child-avg">
+              {% if child.lastAverage is not none %}
+                {{ "%.2f"|format(child.lastAverage) }}/20
+              {% else %}
+                n/a
+              {% endif %}
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if upcomingEventNote %}
+      <footer>{{ upcomingEventNote }}</footer>
+    {% endif %}
+  </body>
+</html>
