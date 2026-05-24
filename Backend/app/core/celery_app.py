@@ -12,6 +12,7 @@ celery_app = Celery(
         "app.workers.import_tasks",
         "app.workers.geocoding_tasks",
         "app.workers.notification_tasks",
+        "app.workers.attendance_tasks",
     ],
 )
 
