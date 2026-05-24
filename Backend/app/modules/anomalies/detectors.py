@@ -434,6 +434,83 @@ async def detect_excessive_transfers(
 
 
 # ---------------------------------------------------------------------------
+# 7. Module 1B — point chaud GPI (filles/garçons < 0.85 sur une école)
+# ---------------------------------------------------------------------------
+async def detect_critical_gpi(
+    session: AsyncSession,
+    school_year_id: str | None = None,
+) -> list[AnomalyDetection]:
+    """Détecte les écoles avec un GPI critique (< 0.85) sur une année donnée.
+
+    Lit la table ``GpiSnapshot`` (alimentée par ``EnrollmentService``
+    .compute_gpi_snapshots) et matérialise une anomalie par école touchée.
+    Severity HIGH (objectif gouvernemental "améliorer la scolarisation
+    des filles" — chaque école sous le seuil doit être suivie).
+
+    Différences vs les autres détecteurs
+    -----------------------------------
+    * Pas de balayage SQL "à la volée" : on s'appuie sur la table de
+      snapshots persistée — sinon il faudrait reconstruire l'agrégation
+      filles/garçons à chaque détection (déjà fait par le service GPI).
+    * ``school_year_id`` est obligatoire (sinon : dernière année disponible
+      par snapshot, ce qui devient ambigu en pratique). Le détecteur est
+      typiquement appelé en hook post-``compute_gpi_snapshots`` et reçoit
+      l'année qui vient d'être recalculée.
+    """
+    # Import local pour éviter la dépendance cyclique au module enrollment
+    # (le module enrollment dépend du module anomalies pour pousser).
+    from app.modules.enrollment.enums import GpiScope
+    from app.modules.enrollment.models import GpiSnapshot
+    from app.modules.enrollment.parity import GpiSeverity
+    from app.modules.schools.models import School as _School
+
+    stmt = (
+        select(
+            GpiSnapshot.entityId,
+            GpiSnapshot.gpi,
+            GpiSnapshot.girlsCount,
+            GpiSnapshot.boysCount,
+            _School.regionId,
+        )
+        .join(_School, _School.id == GpiSnapshot.entityId)
+        .where(
+            GpiSnapshot.scope == GpiScope.SCHOOL,
+            GpiSnapshot.severity == GpiSeverity.CRITICAL_GIRLS,
+        )
+        .limit(PER_DETECTOR_LIMIT)
+    )
+    if school_year_id is not None:
+        stmt = stmt.where(GpiSnapshot.schoolYearId == school_year_id)
+
+    rows = (await session.execute(stmt)).all()
+    out: list[AnomalyDetection] = []
+    for r in rows:
+        gpi_value = float(r.gpi) if r.gpi is not None else None
+        out.append(_make(
+            a_type=AnomalyType.CRITICAL_GPI,
+            severity=AnomalySeverity.HIGH,
+            entity_type="School",
+            entity_id=r.entityId,
+            description=(
+                "Indice de parité fille/garçon critique (< 0.85) — "
+                "objectif gouvernemental « améliorer la scolarisation des "
+                "filles » non atteint."
+            ),
+            evidence={
+                "schoolId": r.entityId,
+                "schoolYearId": school_year_id,
+                "gpi": gpi_value,
+                "girlsCount": int(r.girlsCount),
+                "boysCount": int(r.boysCount),
+                "thresholdMax": 0.85,
+            },
+            school_id=r.entityId,
+            region_id=r.regionId,
+        ))
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Registry — exposé au service pour lancer un run complet
 # ---------------------------------------------------------------------------
 ALL_DETECTORS = (
@@ -451,6 +528,7 @@ _ = and_
 __all__ = [
     "ALL_DETECTORS",
     "PER_DETECTOR_LIMIT",
+    "detect_critical_gpi",
     "detect_duplicate_codes",
     "detect_excessive_transfers",
     "detect_grade_jump",

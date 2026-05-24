@@ -1,4 +1,4 @@
-"""Module 1A — Schemas Pydantic du module Enrollment.
+"""Module 1A + 1B — Schemas Pydantic du module Enrollment.
 
 On expose des noms camelCase pour rester aligné avec le frontend Angular
 existant et les autres modules du projet.
@@ -6,11 +6,17 @@ existant et les autres modules du projet.
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.modules.enrollment.enums import EnrollmentClassLevel, EnrollmentSource
+from app.modules.enrollment.enums import (
+    EnrollmentClassLevel,
+    EnrollmentSource,
+    GpiScope,
+)
+from app.modules.enrollment.parity import GpiSeverity
 from app.shared.enums import Gender
 
 
@@ -121,6 +127,51 @@ class AggregateResponse(BaseModel):
     breakdown: list[EnrollmentAggregate]
 
 
+# ---------------------------------------------------------------------------
+# Module 1B — GPI (Gender Parity Index)
+# ---------------------------------------------------------------------------
+class GpiResult(BaseModel):
+    """Une valeur GPI pour un scope + entité donné.
+
+    Modèle volontairement plat (pas de wrapping ``data: ...``) pour
+    rester simple côté Angular.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    scope: GpiScope
+    entityId: str | None = None
+    schoolYearId: str
+    girlsCount: int
+    boysCount: int
+    gpi: Decimal | None = None
+    severity: GpiSeverity
+    computedAt: datetime
+
+
+class GpiEvolutionPoint(BaseModel):
+    """Un point de série temporelle (une année scolaire)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    schoolYearId: str
+    schoolYearName: str | None = None
+    gpi: Decimal | None = None
+    severity: GpiSeverity
+    girlsCount: int = 0
+    boysCount: int = 0
+    computedAt: datetime
+
+
+class GpiSnapshotsRunResponse(BaseModel):
+    """Retour du POST /gpi/compute-snapshots."""
+
+    schoolYearId: str
+    persisted: dict[str, int] = Field(default_factory=dict)
+    criticalAnomaliesCreated: int = 0
+    computedAt: datetime
+
+
 __all__ = [
     "AggregateRequest",
     "AggregateResponse",
@@ -131,4 +182,9 @@ __all__ = [
     "EnrollmentBulkCreate",
     "EnrollmentCreate",
     "EnrollmentRead",
+    "GpiEvolutionPoint",
+    "GpiResult",
+    "GpiScope",
+    "GpiSeverity",
+    "GpiSnapshotsRunResponse",
 ]

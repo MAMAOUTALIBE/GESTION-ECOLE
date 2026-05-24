@@ -24,6 +24,11 @@ class AnomalyType(StrEnum):
     INVALID_BIRTHDATE = "INVALID_BIRTHDATE"
     DUPLICATE_CODE = "DUPLICATE_CODE"
     EXCESSIVE_TRANSFER = "EXCESSIVE_TRANSFER"
+    # Module 1B — point chaud GPI : GPI < 0.85 → cible "améliorer la
+    # scolarisation des filles". Détecteur déclenché par
+    # ``EnrollmentService.compute_gpi_snapshots`` (pas un détecteur SQL
+    # générique : il est dépendant d'un schoolYearId explicite).
+    CRITICAL_GPI = "CRITICAL_GPI"
 
 
 class AnomalySeverity(StrEnum):

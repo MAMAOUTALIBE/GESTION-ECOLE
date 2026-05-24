@@ -382,10 +382,14 @@ async def test_snapshot_daily_kpis_persists_rows(
     service = CockpitService(db_session)
     today = date.today()
     result = await service.snapshot_daily_kpis(snapshot_date=today)
-    assert result.persisted == 5
+    # Module 1B — l'enum KpiKey contient désormais NATIONAL_GPI : on
+    # vérifie l'invariant "tous les KPIs sont snapshotés" via la taille
+    # de KpiKey plutôt qu'un nombre figé.
+    assert result.persisted == len(KpiKey)
     assert set(result.keys) == {k.value for k in KpiKey}
 
-    # Vérifie qu'on a bien 5 rows en base pour aujourd'hui
+    # Vérifie qu'on a bien 1 row par KpiKey en base pour aujourd'hui
+    # (Module 1B ajoute NATIONAL_GPI : on raisonne en fonction de len(KpiKey)).
     rows = (
         await db_session.execute(
             select(CockpitKpiSnapshot).where(
@@ -393,7 +397,7 @@ async def test_snapshot_daily_kpis_persists_rows(
             ),
         )
     ).scalars().all()
-    assert len(rows) == 5
+    assert len(rows) == len(KpiKey)
     # Tous les rows sont en scope NATIONAL
     assert {r.scope for r in rows} == {CockpitScope.NATIONAL}
 
@@ -508,7 +512,8 @@ async def test_snapshot_idempotent_same_day(
             ),
         )
     ).scalars().all()
-    assert len(rows) == 5  # pas 10 : delete-then-insert garanti
+    # pas 2*len(KpiKey) : delete-then-insert garanti.
+    assert len(rows) == len(KpiKey)
 
 
 # ===========================================================================

@@ -26,6 +26,9 @@ class KpiKey(StrEnum):
     BUDGET_CONSUMPTION = "BUDGET_CONSUMPTION"
     CRITICAL_ANOMALIES_OPEN = "CRITICAL_ANOMALIES_OPEN"
     ALERTS_OPEN = "ALERTS_OPEN"
+    # Module 1B — GPI national courant (filles / garçons agrégé sur
+    # toutes les écoles ayant déclaré pour la dernière année active).
+    NATIONAL_GPI = "NATIONAL_GPI"
 
 
 class CockpitScope(StrEnum):
