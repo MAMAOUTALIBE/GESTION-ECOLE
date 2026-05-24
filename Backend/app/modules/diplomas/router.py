@@ -1,118 +1,237 @@
-"""Phase 14 — Diplômes numériques signés cryptographiquement.
+"""Module 11 — Diplômes signés numériquement (Ed25519).
 
-Une signature Ed25519 détachée est apposée sur les bulletins finaux ;
-l'endpoint public `/api/diplomas/verify/{verification_code}` retourne
-l'authenticité + le payload signé pour vérification par les recruteurs
-et universités.
+Endpoints :
 
-⚠ La clé privée vit en `JWT_SECRET` dérivé pour la démo. En production :
-    - Stocker la clé dans un HSM ou Vault
-    - Rotation annuelle avec versionning de signatures
+* ``POST   /api/diplomas``                    — émission (MINISTRY_ADMIN+).
+* ``GET    /api/diplomas``                    — listing avec scope territorial
+  (SCHOOL_DIRECTOR+).
+* ``GET    /api/diplomas/verify/{serial}``    — **PUBLIC (sans auth)**.
+* ``GET    /api/diplomas/{serial}/pdf``       — download PDF (SCHOOL_DIRECTOR+
+  si owner / NATIONAL/MINISTRY sinon).
+* ``POST   /api/diplomas/{serial}/revoke``    — révocation (NATIONAL_ADMIN).
+
+Le router est volontairement compact : toute la logique métier vit dans
+``DiplomaService``.
 """
-import hashlib
-import hmac
-import json
-from datetime import datetime
+from __future__ import annotations
+
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
-from app.core.config import settings
-from app.modules.academics.models import ReportCard
-from app.modules.census.models import Student
-from app.modules.schools.models import School, ClassRoom
-from app.shared.deps import DbSession
+from app.core.exceptions import NotFoundError
+from app.modules.auth.models import User
+from app.modules.diplomas.enums import DiplomaStatus, DiplomaType
+from app.modules.diplomas.models import Diploma
+from app.modules.diplomas.schemas import (
+    DiplomaIssueRequest,
+    DiplomaListResponse,
+    DiplomaRead,
+    DiplomaRevokeRequest,
+    DiplomaVerification,
+)
+from app.modules.diplomas.service import DiplomaService
+from app.shared.deps import DbSession, get_current_user
+from app.shared.enums import UserRole
+from app.shared.permissions import (
+    require_roles,
+)
 
 router = APIRouter(tags=["diplomas"])
 
 
-class DiplomaVerifyResponse(BaseModel):
-    valid: bool
-    verificationCode: str
-    studentName: str | None = None
-    schoolName: str | None = None
-    classLevel: str | None = None
-    average: float | None = None
-    rank: int | None = None
-    totalStudents: int | None = None
-    issuedAt: datetime | None = None
-    signature: str | None = None
-    signatureAlgorithm: str = "HMAC-SHA256"
-    message: str | None = None
+ISSUE_ROLES = (
+    UserRole.NATIONAL_ADMIN,
+    UserRole.MINISTRY_ADMIN,
+)
+READ_ROLES = (
+    UserRole.NATIONAL_ADMIN,
+    UserRole.MINISTRY_ADMIN,
+    UserRole.REGIONAL_ADMIN,
+    UserRole.INSPECTOR,
+    UserRole.PREFECTURE_ADMIN,
+    UserRole.SUB_PREFECTURE_ADMIN,
+    UserRole.SCHOOL_DIRECTOR,
+)
+REVOKE_ROLES = (UserRole.NATIONAL_ADMIN,)
 
 
-def _sign(payload: dict) -> str:
-    """Signature détachée HMAC-SHA256 (équivalent Ed25519 pour la démo).
-
-    En prod : remplacer par
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-        signature = key.sign(canonical_json.encode())
-    """
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    secret = settings.jwt_secret.encode()
-    return hmac.new(secret, canonical.encode(), hashlib.sha256).hexdigest()
+def _svc(session: DbSession) -> DiplomaService:
+    return DiplomaService(session)
 
 
+Svc = Annotated[DiplomaService, Depends(_svc)]
+
+
+# ===========================================================================
+# 1. POST /api/diplomas — issue (MINISTRY_ADMIN+)
+# ===========================================================================
+@router.post(
+    "",
+    response_model=DiplomaRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(*ISSUE_ROLES))],
+    summary="Émet un nouveau diplôme signé numériquement",
+)
+async def issue_diploma(
+    payload: DiplomaIssueRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    service: Svc,
+) -> DiplomaRead:
+    diploma = await service.issue_diploma(
+        student_id=payload.studentId,
+        diploma_type=payload.diplomaType,
+        school_id=payload.schoolId,
+        actor=user,
+        academic_year_id=payload.academicYearId,
+        exam_center=payload.examCenter,
+        score=payload.score,
+        mention=payload.mention,
+    )
+    return DiplomaRead.model_validate(diploma)
+
+
+# ===========================================================================
+# 2. GET /api/diplomas — list (scope territorial)
+# ===========================================================================
 @router.get(
-    "/verify/{verification_code}",
-    response_model=DiplomaVerifyResponse,
-    summary="Vérification publique d'un bulletin (sans authentification)",
+    "",
+    response_model=DiplomaListResponse,
+    dependencies=[Depends(require_roles(*READ_ROLES))],
+    summary="Liste les diplômes accessibles à l'utilisateur courant",
+)
+async def list_diplomas(
+    user: Annotated[User, Depends(get_current_user)],
+    service: Svc,
+    status_filter: Annotated[
+        DiplomaStatus | None, Query(alias="status"),
+    ] = None,
+    schoolId: Annotated[str | None, Query()] = None,
+    diplomaType: Annotated[DiplomaType | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> DiplomaListResponse:
+    items, total = await service.list_diplomas(
+        actor=user,
+        status_filter=status_filter,
+        school_id=schoolId,
+        diploma_type=diplomaType,
+        limit=limit,
+        offset=offset,
+    )
+    return DiplomaListResponse(
+        items=[DiplomaRead.model_validate(d) for d in items],
+        total=total,
+    )
+
+
+# ===========================================================================
+# 3. GET /api/diplomas/verify/{serial} — PUBLIC sans auth
+# ===========================================================================
+@router.get(
+    "/verify/{serial}",
+    response_model=DiplomaVerification,
+    summary="Vérification PUBLIQUE d'un diplôme (sans authentification)",
 )
 async def verify_diploma(
-    verification_code: Annotated[str, Path(min_length=6, max_length=64)],
-    session: DbSession,
-) -> DiplomaVerifyResponse:
+    serial: Annotated[str, Path(min_length=6, max_length=40)],
+    service: Svc,
+) -> DiplomaVerification:
     """Endpoint **PUBLIC** : aucune authentification requise.
 
-    Retourne `valid=true` si le code correspond à un bulletin existant +
-    les informations minimales d'identification (sans données privées).
-    Anti-énumération : aucune info détaillée si le code n'existe pas.
+    Retourne :
+
+    * ``VALID``    — diplôme ISSUED, signature recompute correctement.
+      Le payload signé + la signature sont inclus pour permettre une
+      vérification offline avec la clé publique distribuée.
+    * ``REVOKED``  — diplôme révoqué, avec la raison publique.
+    * HTTP 404 si serial inconnu — body structuré ``{status: NOT_FOUND}``.
+
+    Anti-énumération : la 404 ne distingue pas "format invalide" vs
+    "n'existe pas vraiment".
     """
-    rc = (await session.execute(
-        select(ReportCard)
-        .where(ReportCard.verificationCode == verification_code)
-        .options(
-            selectinload(ReportCard.student).selectinload(Student.school),
-            selectinload(ReportCard.classRoom),
-            selectinload(ReportCard.period),
+    try:
+        return await service.verify_diploma(serial)
+    except NotFoundError:
+        # On renvoie 404 mais avec un body conforme au schema pour que
+        # le frontend puisse parser uniformément.
+        return Response(  # type: ignore[return-value]
+            content=DiplomaVerification(
+                status="NOT_FOUND", serial=serial,
+            ).model_dump_json(),
+            media_type="application/json",
+            status_code=status.HTTP_404_NOT_FOUND,
         )
+
+
+# ===========================================================================
+# 4. GET /api/diplomas/{serial}/pdf — download
+# ===========================================================================
+@router.get(
+    "/{serial}/pdf",
+    dependencies=[Depends(require_roles(*READ_ROLES))],
+    summary="Télécharge le PDF officiel d'un diplôme (si disponible)",
+)
+async def download_diploma_pdf(
+    serial: Annotated[str, Path(min_length=6, max_length=40)],
+    user: Annotated[User, Depends(get_current_user)],
+    service: Svc,
+    session: DbSession,
+) -> Response:
+    # Vérification d'ownership : un SCHOOL_DIRECTOR ne télécharge que les
+    # diplômes de SON école. Les rôles régionaux+ voient toute leur zone
+    # (cf. RBAC dans le service).
+    diploma = (await session.execute(
+        select(Diploma).where(Diploma.serial == serial),
     )).scalar_one_or_none()
-
-    if rc is None:
-        return DiplomaVerifyResponse(
-            valid=False,
-            verificationCode=verification_code,
-            message="Code de vérification non reconnu.",
+    if diploma is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Diplôme introuvable.",
         )
 
-    student_name = (
-        f"{rc.student.firstName} {rc.student.lastName}" if rc.student else None
+    if (
+        user.role == UserRole.SCHOOL_DIRECTOR
+        and diploma.schoolId != user.schoolId
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Diplôme appartenant à une autre école.",
+        )
+
+    pdf_bytes = await service.get_diploma_pdf(serial)
+    if pdf_bytes is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "PDF non encore généré pour ce diplôme. La signature "
+                "reste vérifiable via /verify/{serial}."
+            ),
+        )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="diplome-{serial}.pdf"',
+        },
     )
 
-    payload = {
-        "code": rc.verificationCode,
-        "student": student_name,
-        "school": rc.student.school.name if rc.student and rc.student.school else None,
-        "level": rc.classRoom.level if rc.classRoom else None,
-        "average": rc.average,
-        "rank": rc.rank,
-        "issuedAt": rc.issuedAt.isoformat() if rc.issuedAt else None,
-    }
-    signature = _sign(payload)
 
-    return DiplomaVerifyResponse(
-        valid=True,
-        verificationCode=rc.verificationCode,
-        studentName=student_name,
-        schoolName=rc.student.school.name if rc.student and rc.student.school else None,
-        classLevel=rc.classRoom.level if rc.classRoom else None,
-        average=rc.average,
-        rank=rc.rank,
-        totalStudents=rc.totalStudents,
-        issuedAt=rc.issuedAt,
-        signature=signature[:32] + "...",  # tronqué pour l'affichage
-        message="Bulletin authentifié et vérifié.",
-    )
+# ===========================================================================
+# 5. POST /api/diplomas/{serial}/revoke — revoke (NATIONAL_ADMIN)
+# ===========================================================================
+@router.post(
+    "/{serial}/revoke",
+    response_model=DiplomaRead,
+    dependencies=[Depends(require_roles(*REVOKE_ROLES))],
+    summary="Révoque un diplôme (administrateur national uniquement)",
+)
+async def revoke_diploma(
+    serial: Annotated[str, Path(min_length=6, max_length=40)],
+    payload: DiplomaRevokeRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    service: Svc,
+) -> DiplomaRead:
+    diploma = await service.revoke_diploma(serial, payload.reason, user)
+    return DiplomaRead.model_validate(diploma)

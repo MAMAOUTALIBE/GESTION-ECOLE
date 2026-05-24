@@ -1,0 +1,236 @@
+<!--
+  Module 11 — Page publique de vérification d'un diplôme.
+
+  Cette page est servie statiquement par le frontend Angular (ou tout
+  serveur HTTP) à l'URL `{QR_PUBLIC_BASE_URL}/diplomas/{serial}`. Elle
+  appelle l'endpoint backend GET /api/diplomas/verify/{serial} (PUBLIC,
+  sans auth) puis affiche un état clair : VALID / REVOKED / NOT_FOUND.
+
+  Pour le MVP, on garde un design HTML minimaliste, sans framework, ni
+  build step — un opérateur peut copier-coller ce fichier sur un nginx
+  statique et il fonctionnera.
+
+  Le template lit `?serial=...` ou le dernier segment de l'URL pour
+  trouver le serial.
+-->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vérification de diplôme — République de Guinée</title>
+  <style>
+    :root {
+      --green: #009460;
+      --red: #c0392b;
+      --orange: #e67e22;
+      --grey: #7f8c8d;
+      --bg: #f5f7fa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: #2c3e50;
+      line-height: 1.5;
+    }
+    header {
+      background: #fff;
+      border-bottom: 4px solid var(--green);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header .crest { font-size: 28px; }
+    header h1 {
+      font-size: 18px;
+      margin: 0;
+      font-weight: 600;
+    }
+    header h1 .small {
+      display: block;
+      font-size: 12px;
+      color: var(--grey);
+      font-weight: 400;
+    }
+    main {
+      max-width: 720px;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 32px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .badge {
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-valid { background: #e8f5e9; color: var(--green); }
+    .badge-revoked { background: #fdecea; color: var(--red); }
+    .badge-notfound { background: #fdf2e9; color: var(--orange); }
+    h2 { margin-top: 16px; }
+    .meta {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 8px 16px;
+    }
+    .meta dt { color: var(--grey); }
+    .meta dd { margin: 0; font-weight: 500; }
+    .sig {
+      margin-top: 24px;
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      word-break: break-all;
+    }
+    .sig-label {
+      display: block;
+      font-family: -apple-system, sans-serif;
+      color: var(--grey);
+      font-size: 11px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    footer {
+      max-width: 720px;
+      margin: 16px auto 32px;
+      padding: 0 16px;
+      color: var(--grey);
+      font-size: 12px;
+      text-align: center;
+    }
+    .loader { text-align: center; padding: 40px; color: var(--grey); }
+    .error { color: var(--red); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="crest" aria-hidden="true">🇬🇳</div>
+    <h1>
+      Ministère de l'Éducation nationale
+      <span class="small">Vérification publique d'un diplôme</span>
+    </h1>
+  </header>
+
+  <main>
+    <div id="content" class="card">
+      <div class="loader">Chargement&nbsp;…</div>
+    </div>
+  </main>
+
+  <footer>
+    Vérification cryptographique Ed25519 (RFC 8410) —
+    © République de Guinée, Ministère de l'Éducation nationale.
+  </footer>
+
+  <script>
+    (function () {
+      // Récupère le serial depuis l'URL : soit ?serial=XXX, soit dernier segment.
+      var params = new URLSearchParams(window.location.search);
+      var serial = params.get('serial');
+      if (!serial) {
+        var segments = window.location.pathname.split('/').filter(Boolean);
+        serial = segments[segments.length - 1];
+      }
+
+      var content = document.getElementById('content');
+
+      if (!serial || !/^[A-Z]+-\d{4}-[A-F0-9]+$/.test(serial)) {
+        content.innerHTML =
+          '<h2 class="error">Lien invalide</h2>' +
+          '<p>Le format du numéro de série du diplôme n\'est pas reconnu.</p>';
+        return;
+      }
+
+      var apiBase = window.DIPLOMA_API_BASE || '/api';
+      fetch(apiBase + '/diplomas/verify/' + encodeURIComponent(serial))
+        .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
+        .then(function (res) {
+          var b = res.body;
+          if (b.status === 'NOT_FOUND' || res.status === 404) {
+            content.innerHTML =
+              '<span class="badge badge-notfound">Diplôme inconnu</span>' +
+              '<h2>Aucun diplôme trouvé</h2>' +
+              '<p>Le numéro de série <code>' + escapeHtml(serial) + '</code> ne correspond à aucun diplôme dans nos registres.</p>';
+            return;
+          }
+          if (b.status === 'REVOKED') {
+            content.innerHTML =
+              '<span class="badge badge-revoked">Révoqué</span>' +
+              '<h2>Ce diplôme a été révoqué</h2>' +
+              renderStudent(b) +
+              '<dl class="meta">' +
+              row('Numéro de série', b.serial) +
+              row('Type', b.diplomaType) +
+              row('Date de révocation', formatDate(b.revokedAt)) +
+              row('Motif', b.revokedReason) +
+              '</dl>';
+            return;
+          }
+          // VALID
+          content.innerHTML =
+            '<span class="badge badge-valid">Authentique</span>' +
+            '<h2>Diplôme authentifié</h2>' +
+            renderStudent(b) +
+            '<dl class="meta">' +
+            row('Numéro de série', b.serial) +
+            row('Type', b.diplomaType) +
+            row('Date d\'émission', formatDate(b.issuedAt)) +
+            row('Centre d\'examen', b.examCenter || '—') +
+            row('Score', b.score != null ? b.score + ' / 20' : '—') +
+            row('Mention', b.mention || '—') +
+            '</dl>' +
+            '<div class="sig">' +
+            '<span class="sig-label">Empreinte SHA-256 du payload signé</span>' +
+            escapeHtml(b.payloadSha256 || '') +
+            '<span class="sig-label" style="margin-top:12px;">Signature Ed25519 (base64)</span>' +
+            escapeHtml(b.signature || '') +
+            '<span class="sig-label" style="margin-top:12px;">Empreinte clé publique</span>' +
+            escapeHtml(b.publicKeyFingerprint || '') +
+            '</div>';
+        })
+        .catch(function () {
+          content.innerHTML =
+            '<h2 class="error">Erreur réseau</h2>' +
+            '<p>Impossible de joindre le service de vérification. Réessayez plus tard.</p>';
+        });
+
+      function renderStudent(b) {
+        if (!b.student) return '';
+        var fullName = escapeHtml(b.student.firstName) + ' ' + escapeHtml(b.student.lastNameInitial || '');
+        return '<p style="font-size:18px;margin-top:16px;"><strong>' + fullName + '</strong>' +
+          (b.student.schoolName ? ' &middot; <em>' + escapeHtml(b.student.schoolName) + '</em>' : '') +
+          '</p>';
+      }
+      function row(label, value) {
+        return '<dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value == null ? '' : String(value)) + '</dd>';
+      }
+      function formatDate(s) {
+        if (!s) return '—';
+        try { return new Date(s).toLocaleDateString('fr-FR', { dateStyle: 'long' }); }
+        catch (e) { return s; }
+      }
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
