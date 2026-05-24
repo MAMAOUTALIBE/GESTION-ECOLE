@@ -109,33 +109,40 @@ def create_app() -> FastAPI:
 
     # Routers — alphabetical, registered in phase order below.
     from app.modules.academics.router import router as academics_router
+    from app.modules.admin.router import router as admin_router
     from app.modules.analytics.router import router as analytics_router
+    from app.modules.anomalies.router import router as anomalies_router
+    from app.modules.assistant.router import router as assistant_router
     from app.modules.attendance.router import router as attendance_router
     from app.modules.auth.router import router as auth_router
     from app.modules.cartography.router import router as cartography_router
     from app.modules.census.router import router as census_router
+    from app.modules.diplomas.router import router as diplomas_router
     from app.modules.finance.router import router as finance_router
     from app.modules.imports.router import router as imports_router
     from app.modules.inspections.router import router as inspections_router
-    from app.modules.admin.router import router as admin_router
-    from app.modules.anomalies.router import router as anomalies_router
-    from app.modules.assistant.router import router as assistant_router
-    from app.modules.diplomas.router import router as diplomas_router
+    from app.modules.library.router import router as library_router
+    from app.modules.notifications.router import router as notifications_router
     from app.modules.opendata.router import router as opendata_router
+    from app.modules.parent_portal.router import router as parent_portal_router
     from app.modules.predictions.router import router as predictions_router
     from app.modules.realtime.router import router as realtime_router
+    from app.modules.reports.router import router as reports_router
     from app.modules.schoollife.router import router as schoollife_router
     from app.modules.schoollife.routers import (
         discipline_router as schoollife_discipline_router,
+    )
+    from app.modules.schoollife.routers import (
         health_router as schoollife_health_router,
+    )
+    from app.modules.schoollife.routers import (
         meals_router as schoollife_meals_router,
+    )
+    from app.modules.schoollife.routers import (
         transport_router as schoollife_transport_router,
     )
-    from app.modules.sms.router import router as sms_router
-    from app.modules.library.router import router as library_router
-    from app.modules.notifications.router import router as notifications_router
-    from app.modules.reports.router import router as reports_router
     from app.modules.schools.router import classes_router, schools_router
+    from app.modules.sms.router import router as sms_router
     from app.modules.territory.router import router as territory_router
     from app.modules.workflow.router import router as workflow_router
 
@@ -204,6 +211,10 @@ def create_app() -> FastAPI:
     app.include_router(opendata_router, prefix=f"{settings.api_prefix}/opendata")
     # Phase 14 — Assistant LLM (Claude API + scripted fallback)
     app.include_router(assistant_router, prefix=f"{settings.api_prefix}/assistant")
+    # Module 18 — Portail parent (WhatsApp + USSD enrichi + page publique légère)
+    app.include_router(
+        parent_portal_router, prefix=f"{settings.api_prefix}/parent-portal"
+    )
 
     return app
 
