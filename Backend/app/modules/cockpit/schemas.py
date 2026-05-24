@@ -60,6 +60,9 @@ class NationalKpiResponse(BaseModel):
     # Module 2C — Écoles en sur-capacité projetée à horizon t+1.
     # 0 si la projection capacité n'a jamais été calculée.
     projectedCriticalSchools: int = 0
+    # Module 2D — Écoles en sous-dotation enseignants critique (ratio
+    # élèves/enseignant > 70). 0 si aucun snapshot calculé.
+    criticalStaffingSchools: int = 0
     items: dict[str, float] = Field(default_factory=dict)
     generatedAt: datetime
     cached: bool = False

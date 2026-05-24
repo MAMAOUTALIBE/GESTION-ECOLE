@@ -43,6 +43,11 @@ class AnomalyType(StrEnum):
     # infrastructure / fusion / extension. Détecteur déclenché en hook
     # post-``compute_capacity_demand``.
     CAPACITY_CRITICAL_PROJECTED = "CAPACITY_CRITICAL_PROJECTED"
+    # Module 2D — école avec ratio élèves/enseignant > 70 (CRITICAL).
+    # Signal direct pour la répartition des enseignants — objectif
+    # gouvernemental "optimiser la répartition des enseignants".
+    # Détecteur déclenché en hook post-``compute_staffing_snapshots``.
+    CRITICAL_TEACHER_SHORTAGE = "CRITICAL_TEACHER_SHORTAGE"
 
 
 class AnomalySeverity(StrEnum):
