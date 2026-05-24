@@ -123,6 +123,7 @@ def create_app() -> FastAPI:
     from app.modules.finance.router import router as finance_router
     from app.modules.imports.router import router as imports_router
     from app.modules.inspections.router import router as inspections_router
+    from app.modules.investment.router import router as investment_router
     from app.modules.library.router import router as library_router
     from app.modules.notifications.router import router as notifications_router
     from app.modules.opendata.router import router as opendata_router
@@ -234,6 +235,10 @@ def create_app() -> FastAPI:
     # Module 3B — Simulateur what-if de réorganisation du réseau scolaire
     app.include_router(
         simulator_router, prefix=f"{settings.api_prefix}/simulator"
+    )
+    # Module 3C — Score composite de priorité d'investissement par école
+    app.include_router(
+        investment_router, prefix=f"{settings.api_prefix}/investment"
     )
 
     return app

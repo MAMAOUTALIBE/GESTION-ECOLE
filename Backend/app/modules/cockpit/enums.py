@@ -38,6 +38,10 @@ class KpiKey(StrEnum):
     # enseignants (objectif gouv. "optimiser la répartition des
     # enseignants").
     SCHOOLS_CRITICAL_STAFFING_COUNT = "SCHOOLS_CRITICAL_STAFFING_COUNT"
+    # Module 3C — Nombre d'écoles classées TRES_HAUTE + HAUTE priorité
+    # d'investissement. Pilote le volume "à investir cette année" pour
+    # le cabinet (objectif gouv. "orienter les investissements").
+    HIGH_INVESTMENT_PRIORITY_COUNT = "HIGH_INVESTMENT_PRIORITY_COUNT"
 
 
 class CockpitScope(StrEnum):

@@ -14,6 +14,7 @@ from app.modules.diplomas import models as _diplomas_models  # noqa: F401
 from app.modules.enrollment import models as _enrollment_models  # noqa: F401
 from app.modules.finance import models as _finance_models  # noqa: F401
 from app.modules.inspections import models as _inspections_models  # noqa: F401
+from app.modules.investment import models as _investment_models  # noqa: F401
 from app.modules.library import models as _library_models  # noqa: F401
 from app.modules.notifications import models as _notifications_models  # noqa: F401
 from app.modules.opendata import models as _opendata_models  # noqa: F401
