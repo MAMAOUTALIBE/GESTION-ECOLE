@@ -1,0 +1,8 @@
+<ng-container *ngIf="(online$ | async) === false">
+  <div class="offline-banner" role="status" aria-live="polite">
+    <span class="offline-banner__dot" aria-hidden="true"></span>
+    <span class="offline-banner__text">
+      Mode hors ligne &mdash; vos modifications seront synchronis&eacute;es au retour de la connexion
+    </span>
+  </div>
+</ng-container>
