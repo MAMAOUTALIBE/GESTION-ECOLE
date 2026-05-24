@@ -55,7 +55,11 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.modules.enrollment.enums import EnrollmentClassLevel
-from app.modules.projections.enums import TransitionScope
+from app.modules.projections.enums import (
+    CapacityScope,
+    CapacitySeverity,
+    TransitionScope,
+)
 from app.shared.base import Base, CreatedAtMixin, cuid_pk
 from app.shared.enums import Gender
 
@@ -269,7 +273,83 @@ class ProjectedEnrollment(Base, CreatedAtMixin):
     scenario: Mapped[ProjectionScenario] = relationship(lazy="raise")
 
 
+# ---------------------------------------------------------------------------
+# Module 2C — CapacityDemandSnapshot
+# ---------------------------------------------------------------------------
+class CapacityDemandSnapshot(Base, CreatedAtMixin):
+    """Snapshot capacité vs demande projetée pour (école|préfecture|région|national).
+
+    * ``capacity`` : nombre de places disponibles (= classroomsUsable × norme MEN).
+      Pour les agrégats (PREFECTURE, REGIONAL, NATIONAL), c'est la somme des
+      capacités des écoles enfants.
+    * ``demand`` : effectifs projetés tous niveaux/genres confondus pour
+      l'année ``projectedYear``. Au scope SCHOOL, on redistribue la projection
+      régionale (Module 2B est calculé au scope REGIONAL/NATIONAL) au prorata
+      des effectifs CENSUS_DECLARED de l'année de base (méthode IIPE simple).
+    * ``gap = demand - capacity`` (entier ; négatif = marge).
+    * ``saturationPct`` : ``demand / capacity × 100`` ; NULL si capacity = 0.
+    * ``severity`` : OK / WARNING / CRITICAL (cf. ``compute_severity``).
+
+    Idempotence
+    -----------
+    Unique ``(baseSchoolYearId, projectedYear, scope, entityId, scenarioId)``
+    — un recalcul écrase l'ancien snapshot via delete-then-insert dans le
+    service.
+    """
+
+    __tablename__ = "CapacityDemandSnapshot"
+    __table_args__ = (
+        UniqueConstraint(
+            "baseSchoolYearId", "projectedYear", "scope",
+            "entityId", "scenarioId",
+            name="uq_CapacityDemandSnapshot_full",
+        ),
+        Index(
+            "ix_CapacityDemandSnapshot_base_year_scope_severity",
+            "baseSchoolYearId", "projectedYear", "scope", "severity",
+        ),
+        Index(
+            "ix_CapacityDemandSnapshot_entityId_computedAt",
+            "entityId", "computedAt",
+        ),
+    )
+
+    id: Mapped[str] = cuid_pk()
+    baseSchoolYearId: Mapped[str] = mapped_column(
+        String(30), ForeignKey("SchoolYear.id"), nullable=False,
+    )
+    projectedYear: Mapped[int] = mapped_column(Integer, nullable=False)
+    scope: Mapped[CapacityScope] = mapped_column(
+        Enum(CapacityScope, name="CapacityScope", native_enum=True),
+        nullable=False,
+    )
+    # entityId NULL uniquement pour scope=NATIONAL — invariant enforcé par
+    # le service (CapacityDemandService.compute_capacity_demand).
+    entityId: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    capacity: Mapped[int] = mapped_column(Integer, nullable=False)
+    demand: Mapped[int] = mapped_column(Integer, nullable=False)
+    gap: Mapped[int] = mapped_column(Integer, nullable=False)
+    saturationPct: Mapped[Decimal | None] = mapped_column(
+        Numeric(precision=6, scale=2), nullable=True,
+    )
+    severity: Mapped[CapacitySeverity] = mapped_column(
+        Enum(CapacitySeverity, name="CapacitySeverity", native_enum=True),
+        nullable=False,
+    )
+    scenarioId: Mapped[str] = mapped_column(
+        String(30), ForeignKey("ProjectionScenario.id"),
+        nullable=False, default="BASELINE", server_default="BASELINE",
+    )
+    computedAt: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+
+    baseSchoolYear: Mapped["SchoolYear"] = relationship(lazy="raise")
+    scenario: Mapped[ProjectionScenario] = relationship(lazy="raise")
+
+
 __all__ = [
+    "CapacityDemandSnapshot",
     "ProjectedEnrollment",
     "ProjectionScenario",
     "TransitionRate",

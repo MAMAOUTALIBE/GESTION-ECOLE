@@ -114,6 +114,7 @@ class CockpitService:
             alerts_open,
             national_gpi,
             urban_rural_gap,
+            projected_critical_schools,
         ) = await asyncio.gather(
             self._count_students(),
             self._compute_attendance_rate_recent(),
@@ -122,6 +123,7 @@ class CockpitService:
             self._count_alerts_open(),
             self._compute_national_gpi(),
             self._compute_urban_rural_gap_latest_year(),
+            self._count_projected_critical_schools(),
             return_exceptions=False,
         )
 
@@ -133,6 +135,7 @@ class CockpitService:
             alertsOpen=int(alerts_open),
             nationalGpi=national_gpi,
             urbanRuralGap=urban_rural_gap,
+            projectedCriticalSchools=int(projected_critical_schools),
             items={
                 KpiKey.STUDENTS_TOTAL.value: float(students_total),
                 KpiKey.ATTENDANCE_RATE.value: round(float(attendance_rate), 2),
@@ -144,6 +147,10 @@ class CockpitService:
                 # ``nationalGpi`` typé Decimal|None reste la source de vérité).
                 KpiKey.NATIONAL_GPI.value: (
                     float(national_gpi) if national_gpi is not None else 0.0
+                ),
+                # Module 2C — Écoles CRITICAL sur projection +1 an.
+                KpiKey.PROJECTED_CRITICAL_SCHOOLS_COUNT.value: float(
+                    projected_critical_schools,
                 ),
             },
             generatedAt=_now_utc(),
@@ -575,6 +582,10 @@ class CockpitService:
                 float(kpis.nationalGpi) if kpis.nationalGpi is not None
                 else 0.0
             ),
+            # Module 2C — snapshot count écoles CRITICAL t+1.
+            KpiKey.PROJECTED_CRITICAL_SCHOOLS_COUNT: float(
+                kpis.projectedCriticalSchools,
+            ),
         }
         for key, value in items_map.items():
             row = CockpitKpiSnapshot(
@@ -769,6 +780,54 @@ class CockpitService:
             return int((await self.session.execute(stmt)).scalar_one() or 0)
         except Exception as exc:
             logger.warning("cockpit._count_alerts_open failed: {}", exc)
+            return 0
+
+    async def _count_projected_critical_schools(self) -> int:
+        """Module 2C — Compte écoles CRITICAL sur projection +1 an.
+
+        Pour rester déterministe, on cible l'horizon +1 an de la
+        projection la plus récente (max(projectedYear) où il existe au
+        moins un snapshot scope=SCHOOL × severity=CRITICAL). Retourne 0
+        si aucun snapshot n'a encore été calculé.
+        """
+        try:
+            from app.modules.projections.enums import (
+                CapacityScope,
+                CapacitySeverity,
+            )
+            from app.modules.projections.models import (
+                CapacityDemandSnapshot,
+            )
+
+            # On prend l'année projetée min (la plus proche du présent)
+            # qui possède au moins un snapshot SCHOOL — cible +1 an
+            # par construction du recalcul Module 2C.
+            min_year_stmt = (
+                select(func.min(CapacityDemandSnapshot.projectedYear))
+                .where(
+                    CapacityDemandSnapshot.scope == CapacityScope.SCHOOL,
+                )
+            )
+            min_year = (
+                await self.session.execute(min_year_stmt)
+            ).scalar_one_or_none()
+            if min_year is None:
+                return 0
+
+            stmt = (
+                select(func.count(CapacityDemandSnapshot.id))
+                .where(
+                    CapacityDemandSnapshot.scope == CapacityScope.SCHOOL,
+                    CapacityDemandSnapshot.severity
+                    == CapacitySeverity.CRITICAL,
+                    CapacityDemandSnapshot.projectedYear == min_year,
+                )
+            )
+            return int((await self.session.execute(stmt)).scalar_one() or 0)
+        except Exception as exc:
+            logger.warning(
+                "cockpit._count_projected_critical_schools failed: {}", exc,
+            )
             return 0
 
     async def _compute_national_gpi(self) -> Any:

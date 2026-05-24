@@ -311,3 +311,73 @@ scénario est national par construction.
 `run_projection_task(base_school_year_id, horizon_years=5,
 scenario_id="BASELINE")` — lancé manuellement, jamais en beat
 (comme `compute_transitions_task`).
+
+
+---
+
+# Module 2C — Capacité vs demande projetée (planification infrastructure)
+
+## Objectif métier
+
+Comparer pour chaque école (et agrégat préfecture/région/national) :
+
+* **Capacité** = `classroomsUsable × STUDENTS_PER_CLASSROOM_NORM`
+  (norme MEN Guinée = 50 élèves par salle, paramétrable).
+* **Demande projetée** (horizon 1..5 ans) = somme des effectifs projetés
+  Module 2B, redistribuée à l'école au prorata de sa part dans la
+  région (méthode IIPE simple).
+* **Gap** = demand − capacity (entier ; négatif = marge).
+* **Saturation** = demand / capacity × 100 (Decimal ; NULL si capacity = 0).
+
+### Niveaux d'alerte
+
+* `OK`       — saturation ≤ 80 %.
+* `WARNING`  — 80 % < saturation ≤ 100 %.
+* `CRITICAL` — saturation > 100 % (sur-capacité, salles requises) OU
+  capacity = 0 avec demande > 0 (école sans capacité utilisable).
+
+### Trois usages métier
+
+1. **Investissement infrastructure** — `GET /critical-schools`
+   alimente directement le Module 3C (où construire / réhabiliter).
+2. **Pilotage cabinet** — KPI `PROJECTED_CRITICAL_SCHOOLS_COUNT`
+   exposé dans `GET /api/cockpit/kpis/national`.
+3. **Anomalies HIGH** — chaque école CRITICAL sur l'horizon t+1 est
+   matérialisée en `AnomalyDetection(type=CAPACITY_CRITICAL_PROJECTED,
+   severity=HIGH)` pour suivi via Module 9.
+
+## Modèle de données
+
+Table `CapacityDemandSnapshot` (migration 0028) :
+
+| Colonne          | Type                | Notes                                  |
+|------------------|---------------------|----------------------------------------|
+| baseSchoolYearId | String(30) FK       | Année source de la projection 2B       |
+| projectedYear    | Integer             | Année cible (ex. 2027)                 |
+| scope            | CapacityScope ENUM  | SCHOOL / PREFECTURE / REGIONAL / NATIONAL |
+| entityId         | String(30) NULL     | NULL pour NATIONAL                     |
+| capacity         | Integer             | Somme des places                       |
+| demand           | Integer             | Effectifs projetés (tous niveaux)      |
+| gap              | Integer             | demand − capacity                      |
+| saturationPct    | Numeric(6,2) NULL   | NULL si capacity = 0                   |
+| severity         | CapacitySeverity    | OK / WARNING / CRITICAL                |
+| scenarioId       | String(30) FK       | Défaut BASELINE                        |
+| computedAt       | TIMESTAMP TZ        |                                        |
+
+Unique `(baseSchoolYearId, projectedYear, scope, entityId, scenarioId)` —
+upsert idempotent au recalcul.
+
+## Endpoints
+
+* `POST /api/projections/capacity-demand/compute` — NATIONAL/MINISTRY.
+* `GET  /api/projections/capacity-demand` — filtres + scope RBAC.
+* `GET  /api/projections/capacity-demand/critical-schools` — top N écoles
+  CRITICAL pour Module 3C (tri par gap décroissant).
+
+## Logique pure (`capacity.py`)
+
+* `compute_school_capacity(classrooms_usable, norm=50) -> int`.
+* `compute_saturation_pct(demand, capacity) -> Decimal | None`.
+* `compute_severity(saturation_pct) -> CapacitySeverity`.
+* `compute_gap(demand, capacity) -> int`.
+

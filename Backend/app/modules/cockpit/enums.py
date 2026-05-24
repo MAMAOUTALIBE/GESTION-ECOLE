@@ -29,6 +29,10 @@ class KpiKey(StrEnum):
     # Module 1B — GPI national courant (filles / garçons agrégé sur
     # toutes les écoles ayant déclaré pour la dernière année active).
     NATIONAL_GPI = "NATIONAL_GPI"
+    # Module 2C — Nombre d'écoles en CRITICAL sur la projection à horizon
+    # t+1 (saturation > 100 %). Indicateur clef pour le pilotage des
+    # investissements infrastructure.
+    PROJECTED_CRITICAL_SCHOOLS_COUNT = "PROJECTED_CRITICAL_SCHOOLS_COUNT"
 
 
 class CockpitScope(StrEnum):

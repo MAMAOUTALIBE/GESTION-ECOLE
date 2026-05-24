@@ -27,8 +27,16 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.modules.auth.models import User
 from app.modules.enrollment.enums import EnrollmentClassLevel
-from app.modules.projections.enums import TransitionScope
+from app.modules.projections.enums import (
+    CapacityScope,
+    CapacitySeverity,
+    TransitionScope,
+)
 from app.modules.projections.schemas import (
+    CapacityDemandFilters,
+    CapacityDemandRequest,
+    CapacityDemandResponse,
+    CapacityDemandRow,
     ComputeTransitionsRequest,
     ComputeTransitionsResponse,
     ProjectedEnrollmentRead,
@@ -41,6 +49,7 @@ from app.modules.projections.schemas import (
     TransitionRateRead,
 )
 from app.modules.projections.service import (
+    CapacityDemandService,
     ProjectionService,
     TransitionRateService,
 )
@@ -67,8 +76,13 @@ def _projection_service(session: DbSession) -> ProjectionService:
     return ProjectionService(session)
 
 
+def _capacity_service(session: DbSession) -> CapacityDemandService:
+    return CapacityDemandService(session)
+
+
 TransitionSvc = Annotated[TransitionRateService, Depends(_service)]
 ProjectionSvc = Annotated[ProjectionService, Depends(_projection_service)]
+CapacitySvc = Annotated[CapacityDemandService, Depends(_capacity_service)]
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(tags=["projections"])
@@ -210,7 +224,78 @@ async def list_scenarios(
     return await service.list_scenarios()
 
 
+# ===========================================================================
+# Module 2C — Capacité vs demande projetée
+# ===========================================================================
+CAPACITY_WRITE_HTTP_ROLES = (
+    UserRole.NATIONAL_ADMIN,
+    UserRole.MINISTRY_ADMIN,
+)
+
+
+@router.post(
+    "/capacity-demand/compute",
+    response_model=CapacityDemandResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_roles(*CAPACITY_WRITE_HTTP_ROLES))],
+    summary="Calcule + persiste les snapshots capacité vs demande projetée",
+)
+async def compute_capacity_demand(
+    payload: CapacityDemandRequest,
+    user: CurrentUserDep,
+    service: CapacitySvc,
+) -> CapacityDemandResponse:
+    return await service.compute_capacity_demand(payload, user)
+
+
+@router.get(
+    "/capacity-demand",
+    response_model=list[CapacityDemandRow],
+    summary="Liste les snapshots capacité (filtres + scope territorial)",
+)
+async def list_capacity_demand(
+    user: CurrentUserDep,
+    service: CapacitySvc,
+    baseSchoolYearId: Annotated[str | None, Query(max_length=30)] = None,
+    projectedYear: int | None = None,
+    scope: CapacityScope | None = None,
+    entityId: Annotated[str | None, Query(max_length=30)] = None,
+    severity: CapacitySeverity | None = None,
+    scenarioId: Annotated[str | None, Query(max_length=30)] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[CapacityDemandRow]:
+    filters = CapacityDemandFilters(
+        baseSchoolYearId=baseSchoolYearId,
+        projectedYear=projectedYear,
+        scope=scope,
+        entityId=entityId,
+        severity=severity,
+        scenarioId=scenarioId,
+        limit=limit,
+        offset=offset,
+    )
+    return await service.list_capacity_demand(filters, user)
+
+
+@router.get(
+    "/capacity-demand/critical-schools",
+    response_model=list[CapacityDemandRow],
+    summary="Top écoles CRITICAL (input Module 3C investissement)",
+)
+async def list_critical_schools(
+    user: CurrentUserDep,
+    service: CapacitySvc,
+    baseSchoolYearId: Annotated[str | None, Query(max_length=30)] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+) -> list[CapacityDemandRow]:
+    return await service.list_critical_schools_for_investment(
+        user, limit=limit, base_school_year_id=baseSchoolYearId,
+    )
+
+
 __all__ = [
+    "CAPACITY_WRITE_HTTP_ROLES",
     "COMPUTE_TRANSITIONS_HTTP_ROLES",
     "PROJECTION_WRITE_HTTP_ROLES",
     "router",
