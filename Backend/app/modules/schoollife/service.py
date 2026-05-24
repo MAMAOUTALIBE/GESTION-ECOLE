@@ -421,7 +421,24 @@ class DiscplineService(_ScopedService):
         )
         self.session.add(i)
         await self.session.flush()
-        return await self._load_incident(i.id)
+        loaded = await self._load_incident(i.id)
+        # Module 13 — publish realtime event (best-effort, ne casse pas le flux).
+        try:
+            from app.modules.realtime.service import RealtimeService
+            from app.modules.schools.models import School as _School
+
+            region_id = (await self.session.execute(
+                select(_School.regionId).where(_School.id == dto.schoolId)
+            )).scalar_one_or_none()
+            await RealtimeService.publish_incident(
+                school_id=dto.schoolId,
+                region_id=region_id,
+                severity=dto.severity.value if hasattr(dto.severity, "value") else str(dto.severity),
+                incident_id=i.id,
+            )
+        except Exception:  # pragma: no cover — best-effort
+            pass
+        return loaded
 
     async def list_incidents(
         self, user: User,
