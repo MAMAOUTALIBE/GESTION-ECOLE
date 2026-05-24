@@ -93,13 +93,69 @@ WARNING_THRESHOLD: Decimal = Decimal("80")
 CRITICAL_THRESHOLD: Decimal = Decimal("100")
 
 
+# ===========================================================================
+# Module 2D — Recommandation transferts enseignants
+# ===========================================================================
+class StaffingSeverity(StrEnum):
+    """Niveau de dotation enseignants d'une école.
+
+    Seuils du ratio élèves / enseignant :
+
+    * ``OVER_STAFFED``  — ratio < 25 (trop d'enseignants)
+    * ``ADEQUATE``      — 25 ≤ ratio ≤ 50 (zone verte)
+    * ``UNDER_STAFFED`` — 50 < ratio ≤ 70 (warning)
+    * ``CRITICAL``      — ratio > 70 (sous-doté grave)
+
+    Le cas ``teachersCount = 0`` produit ratio NULL et est classé
+    ``CRITICAL`` (école sans enseignant — situation à signaler).
+    """
+
+    OVER_STAFFED = "OVER_STAFFED"
+    ADEQUATE = "ADEQUATE"
+    UNDER_STAFFED = "UNDER_STAFFED"
+    CRITICAL = "CRITICAL"
+
+
+class RecommendationStatus(StrEnum):
+    """Workflow de revue d'une recommandation de transfert d'enseignants.
+
+    * ``PENDING``  — créée par l'algorithme, attend revue.
+    * ``REVIEWED`` — examinée mais pas encore décidée.
+    * ``ACCEPTED`` — validée, prête à être exécutée par les RH.
+    * ``REJECTED`` — refusée (contexte local, opposition syndicale, etc.).
+    * ``EXECUTED`` — transfert effectif réalisé dans le SIRH.
+    """
+
+    PENDING = "PENDING"
+    REVIEWED = "REVIEWED"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    EXECUTED = "EXECUTED"
+
+
+# Norme MEN Guinée : 40 élèves par enseignant (cible IIPE).
+STUDENTS_PER_TEACHER_NORM: int = 40
+
+# Seuils de classification de la sévérité staffing (ratio = students /
+# teachers).
+OVER_STAFFED_RATIO: Decimal = Decimal("25")
+UNDER_STAFFED_RATIO: Decimal = Decimal("50")
+CRITICAL_RATIO: Decimal = Decimal("70")
+
+
 __all__ = [
     "BASELINE_SCENARIO_ID",
+    "CRITICAL_RATIO",
     "CRITICAL_THRESHOLD",
     "DEMOGRAPHIC_GROWTH_RATE_DEFAULT",
+    "OVER_STAFFED_RATIO",
     "STUDENTS_PER_CLASSROOM_NORM",
+    "STUDENTS_PER_TEACHER_NORM",
+    "UNDER_STAFFED_RATIO",
     "WARNING_THRESHOLD",
     "CapacityScope",
     "CapacitySeverity",
+    "RecommendationStatus",
+    "StaffingSeverity",
     "TransitionScope",
 ]

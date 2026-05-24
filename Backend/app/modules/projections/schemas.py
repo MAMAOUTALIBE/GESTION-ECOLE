@@ -16,6 +16,8 @@ from app.modules.projections.enums import (
     BASELINE_SCENARIO_ID,
     CapacityScope,
     CapacitySeverity,
+    RecommendationStatus,
+    StaffingSeverity,
     TransitionScope,
 )
 from app.modules.projections.transitions import (
@@ -267,6 +269,90 @@ class CapacityDemandFilters(BaseModel):
     offset: int = Field(default=0, ge=0)
 
 
+# ===========================================================================
+# Module 2D — Recommandation transferts enseignants
+# ===========================================================================
+class TeacherStaffingSnapshotRead(BaseModel):
+    """Lecture d'un ``TeacherStaffingSnapshot`` pour l'API."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    schoolYearId: str
+    schoolId: str
+    studentsCount: int
+    teachersCount: int
+    ratio: Decimal | None = None
+    severity: StaffingSeverity
+    expectedTeachers: int
+    gap: int
+    computedAt: datetime
+
+
+class TeacherTransferRecommendationRead(BaseModel):
+    """Lecture d'une ``TeacherTransferRecommendation`` pour l'API."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    schoolYearId: str
+    fromSchoolId: str
+    toSchoolId: str
+    prefectureId: str | None = None
+    regionId: str
+    transfersSuggested: int
+    priorityScore: Decimal
+    rationale: str | None = None
+    status: RecommendationStatus
+    createdAt: datetime
+    reviewedById: str | None = None
+    reviewedAt: datetime | None = None
+    reviewNote: str | None = None
+
+
+class ComputeStaffingRequest(BaseModel):
+    """Demande de calcul des snapshots staffing pour une année scolaire."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    schoolYearId: str = Field(min_length=1, max_length=30)
+
+
+class ComputeStaffingResponse(BaseModel):
+    """Retour du POST /staffing/compute (et /recommendations/generate)."""
+
+    snapshots: int = 0
+    recommendations: int = 0
+
+
+class ReviewRecommendationRequest(BaseModel):
+    """Body d'un PATCH /recommendations/{id}/review.
+
+    ``status`` doit être différent de ``PENDING`` (on ne revient pas en
+    arrière). ``reviewNote`` optionnel : justification courte.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    status: RecommendationStatus
+    reviewNote: str | None = Field(default=None, max_length=500)
+
+
+class StaffingFilters(BaseModel):
+    """Filtres communs pour les listes staffing & recommendations."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    schoolYearId: str | None = Field(default=None, max_length=30)
+    schoolId: str | None = Field(default=None, max_length=30)
+    regionId: str | None = Field(default=None, max_length=30)
+    prefectureId: str | None = Field(default=None, max_length=30)
+    severity: StaffingSeverity | None = None
+    status: RecommendationStatus | None = None
+    limit: int = Field(default=200, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)
+
+
 __all__ = [
     "LEVEL_PAIRS",
     "LEVEL_SEQUENCE",
@@ -274,6 +360,8 @@ __all__ = [
     "CapacityDemandRequest",
     "CapacityDemandResponse",
     "CapacityDemandRow",
+    "ComputeStaffingRequest",
+    "ComputeStaffingResponse",
     "ComputeTransitionsRequest",
     "ComputeTransitionsResponse",
     "ProjectedEnrollmentRead",
@@ -281,8 +369,12 @@ __all__ = [
     "ProjectionFilters",
     "ProjectionScenarioCreate",
     "ProjectionScenarioRead",
+    "ReviewRecommendationRequest",
     "RunProjectionRequest",
     "RunProjectionResponse",
+    "StaffingFilters",
+    "TeacherStaffingSnapshotRead",
+    "TeacherTransferRecommendationRead",
     "TransitionRateFilters",
     "TransitionRateRead",
 ]

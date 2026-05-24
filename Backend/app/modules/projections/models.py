@@ -58,6 +58,8 @@ from app.modules.enrollment.enums import EnrollmentClassLevel
 from app.modules.projections.enums import (
     CapacityScope,
     CapacitySeverity,
+    RecommendationStatus,
+    StaffingSeverity,
     TransitionScope,
 )
 from app.shared.base import Base, CreatedAtMixin, cuid_pk
@@ -348,9 +350,142 @@ class CapacityDemandSnapshot(Base, CreatedAtMixin):
     scenario: Mapped[ProjectionScenario] = relationship(lazy="raise")
 
 
+# ---------------------------------------------------------------------------
+# Module 2D — Teacher staffing & transfer recommendations
+# ---------------------------------------------------------------------------
+class TeacherStaffingSnapshot(Base, CreatedAtMixin):
+    """Snapshot dotation enseignants d'une école pour une année scolaire.
+
+    * ``studentsCount`` / ``teachersCount`` — comptages au moment du calcul
+      (count Student et Teacher.status=APPROVED par schoolId).
+    * ``ratio = studentsCount / teachersCount`` (Decimal(8,2)). NULL si
+      ``teachersCount = 0`` — école sans enseignant, classée CRITICAL.
+    * ``severity`` — OVER_STAFFED / ADEQUATE / UNDER_STAFFED / CRITICAL.
+    * ``expectedTeachers`` — ``math.ceil(students / NORM)``.
+    * ``gap = expectedTeachers - teachersCount`` (int signé). Négatif =
+      sur-doté, positif = besoin d'enseignants.
+
+    Idempotence : unique ``(schoolYearId, schoolId)`` — un recalcul écrase
+    via delete-then-insert.
+    """
+
+    __tablename__ = "TeacherStaffingSnapshot"
+    __table_args__ = (
+        UniqueConstraint(
+            "schoolYearId", "schoolId",
+            name="uq_TeacherStaffingSnapshot_year_school",
+        ),
+        Index(
+            "ix_TeacherStaffingSnapshot_year_severity",
+            "schoolYearId", "severity",
+        ),
+    )
+
+    id: Mapped[str] = cuid_pk()
+    schoolYearId: Mapped[str] = mapped_column(
+        String(30), ForeignKey("SchoolYear.id"), nullable=False,
+    )
+    schoolId: Mapped[str] = mapped_column(
+        String(30), ForeignKey("School.id"), nullable=False,
+    )
+    studentsCount: Mapped[int] = mapped_column(Integer, nullable=False)
+    teachersCount: Mapped[int] = mapped_column(Integer, nullable=False)
+    ratio: Mapped[Decimal | None] = mapped_column(
+        Numeric(precision=8, scale=2), nullable=True,
+    )
+    severity: Mapped[StaffingSeverity] = mapped_column(
+        Enum(StaffingSeverity, name="StaffingSeverity", native_enum=True),
+        nullable=False,
+    )
+    expectedTeachers: Mapped[int] = mapped_column(Integer, nullable=False)
+    gap: Mapped[int] = mapped_column(Integer, nullable=False)
+    computedAt: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+
+
+class TeacherTransferRecommendation(Base):
+    """Recommandation consultative de transfert d'enseignants.
+
+    Paire ``(fromSchoolId, toSchoolId)`` + ``transfersSuggested``. Pas
+    d'auto-exécution : ces lignes alimentent une vue cabinet/RH qui les
+    valide ou rejette explicitement (audit trail dans ``reviewedById``,
+    ``reviewedAt``, ``reviewNote``).
+
+    ``priorityScore`` — Decimal(6,2). Calcul : voir
+    ``staffing.compute_priority_score`` (bonus si même préfecture).
+
+    ``rationale`` — texte libre explicatif (généré par le service au
+    moment du calcul). Aide les RH à comprendre la suggestion sans
+    re-lire les ratios source.
+
+    ``status`` — workflow PENDING → REVIEWED/ACCEPTED/REJECTED/EXECUTED.
+    """
+
+    __tablename__ = "TeacherTransferRecommendation"
+    __table_args__ = (
+        Index(
+            "ix_TeacherTransferRecommendation_region_priority",
+            "regionId", "priorityScore",
+        ),
+        Index(
+            "ix_TeacherTransferRecommendation_status",
+            "status",
+        ),
+        Index(
+            "ix_TeacherTransferRecommendation_year",
+            "schoolYearId",
+        ),
+    )
+
+    id: Mapped[str] = cuid_pk()
+    schoolYearId: Mapped[str] = mapped_column(
+        String(30), ForeignKey("SchoolYear.id"), nullable=False,
+    )
+    fromSchoolId: Mapped[str] = mapped_column(
+        String(30), ForeignKey("School.id"), nullable=False,
+    )
+    toSchoolId: Mapped[str] = mapped_column(
+        String(30), ForeignKey("School.id"), nullable=False,
+    )
+    prefectureId: Mapped[str | None] = mapped_column(
+        String(30), ForeignKey("Prefecture.id"), nullable=True,
+    )
+    regionId: Mapped[str] = mapped_column(
+        String(30), ForeignKey("Region.id"), nullable=False,
+    )
+    transfersSuggested: Mapped[int] = mapped_column(Integer, nullable=False)
+    priorityScore: Mapped[Decimal] = mapped_column(
+        Numeric(precision=6, scale=2), nullable=False,
+    )
+    rationale: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[RecommendationStatus] = mapped_column(
+        Enum(
+            RecommendationStatus,
+            name="RecommendationStatus",
+            native_enum=True,
+        ),
+        nullable=False,
+        default=RecommendationStatus.PENDING,
+        server_default="PENDING",
+    )
+    createdAt: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+    reviewedById: Mapped[str | None] = mapped_column(
+        String(30), ForeignKey("User.id"), nullable=True,
+    )
+    reviewedAt: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    reviewNote: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 __all__ = [
     "CapacityDemandSnapshot",
     "ProjectedEnrollment",
     "ProjectionScenario",
+    "TeacherStaffingSnapshot",
+    "TeacherTransferRecommendation",
     "TransitionRate",
 ]

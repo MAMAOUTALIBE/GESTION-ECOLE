@@ -115,6 +115,7 @@ class CockpitService:
             national_gpi,
             urban_rural_gap,
             projected_critical_schools,
+            critical_staffing_schools,
         ) = await asyncio.gather(
             self._count_students(),
             self._compute_attendance_rate_recent(),
@@ -124,6 +125,7 @@ class CockpitService:
             self._compute_national_gpi(),
             self._compute_urban_rural_gap_latest_year(),
             self._count_projected_critical_schools(),
+            self._count_critical_staffing_schools(),
             return_exceptions=False,
         )
 
@@ -136,6 +138,7 @@ class CockpitService:
             nationalGpi=national_gpi,
             urbanRuralGap=urban_rural_gap,
             projectedCriticalSchools=int(projected_critical_schools),
+            criticalStaffingSchools=int(critical_staffing_schools),
             items={
                 KpiKey.STUDENTS_TOTAL.value: float(students_total),
                 KpiKey.ATTENDANCE_RATE.value: round(float(attendance_rate), 2),
@@ -151,6 +154,10 @@ class CockpitService:
                 # Module 2C — Écoles CRITICAL sur projection +1 an.
                 KpiKey.PROJECTED_CRITICAL_SCHOOLS_COUNT.value: float(
                     projected_critical_schools,
+                ),
+                # Module 2D — Écoles CRITICAL staffing (ratio > 70).
+                KpiKey.SCHOOLS_CRITICAL_STAFFING_COUNT.value: float(
+                    critical_staffing_schools,
                 ),
             },
             generatedAt=_now_utc(),
@@ -586,6 +593,10 @@ class CockpitService:
             KpiKey.PROJECTED_CRITICAL_SCHOOLS_COUNT: float(
                 kpis.projectedCriticalSchools,
             ),
+            # Module 2D — snapshot count écoles CRITICAL staffing.
+            KpiKey.SCHOOLS_CRITICAL_STAFFING_COUNT: float(
+                kpis.criticalStaffingSchools,
+            ),
         }
         for key, value in items_map.items():
             row = CockpitKpiSnapshot(
@@ -827,6 +838,49 @@ class CockpitService:
         except Exception as exc:
             logger.warning(
                 "cockpit._count_projected_critical_schools failed: {}", exc,
+            )
+            return 0
+
+    async def _count_critical_staffing_schools(self) -> int:
+        """Module 2D — Compte écoles CRITICAL staffing (dernier snapshot).
+
+        Pour rester déterministe, on cible la SchoolYear la plus
+        récemment calculée (max(computedAt)). Retourne 0 si aucun
+        snapshot n'a encore été calculé.
+        """
+        try:
+            from app.modules.projections.enums import StaffingSeverity
+            from app.modules.projections.models import (
+                TeacherStaffingSnapshot,
+            )
+
+            # On prend la dernière année calculée (par computedAt max) :
+            # le service de calcul écrase via delete-then-insert pour une
+            # même year, donc tous les snapshots d'une year partagent un
+            # computedAt cohérent.
+            last_year_stmt = (
+                select(TeacherStaffingSnapshot.schoolYearId)
+                .order_by(TeacherStaffingSnapshot.computedAt.desc())
+                .limit(1)
+            )
+            last_year = (
+                await self.session.execute(last_year_stmt)
+            ).scalar_one_or_none()
+            if last_year is None:
+                return 0
+
+            stmt = (
+                select(func.count(TeacherStaffingSnapshot.id))
+                .where(
+                    TeacherStaffingSnapshot.schoolYearId == last_year,
+                    TeacherStaffingSnapshot.severity
+                    == StaffingSeverity.CRITICAL,
+                )
+            )
+            return int((await self.session.execute(stmt)).scalar_one() or 0)
+        except Exception as exc:
+            logger.warning(
+                "cockpit._count_critical_staffing_schools failed: {}", exc,
             )
             return 0
 

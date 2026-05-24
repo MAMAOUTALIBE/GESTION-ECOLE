@@ -823,6 +823,95 @@ async def detect_capacity_critical(
 
 
 # ---------------------------------------------------------------------------
+# 11. Module 2D — École avec ratio élèves/enseignant > 70 (CRITICAL)
+# ---------------------------------------------------------------------------
+async def detect_critical_teacher_shortage(
+    session: AsyncSession,
+    *,
+    critical_rows: list[Any] | None = None,
+    school_year_id: str | None = None,
+) -> list[AnomalyDetection]:
+    """Matérialise les écoles CRITICAL staffing (Module 2D) en AnomalyDetection.
+
+    Critère anomalie : ``severity == CRITICAL`` sur
+    ``TeacherStaffingSnapshot``. Severity ``HIGH`` (la répartition des
+    enseignants est une priorité gouvernementale — chaque école sous-dotée
+    grave doit être tracée et suivie).
+
+    Deux modes d'appel :
+    * ``critical_rows`` fourni — le service vient de calculer les
+      snapshots et fournit la liste directement (évite une 2e requête).
+    * Sinon, on requête ``TeacherStaffingSnapshot`` filtré.
+    """
+    # Import local pour éviter la dépendance cyclique au module
+    # projections (qui dépend du module anomalies pour pousser).
+    from app.modules.projections.enums import StaffingSeverity
+    from app.modules.projections.models import TeacherStaffingSnapshot
+
+    if critical_rows is None:
+        stmt = select(TeacherStaffingSnapshot).where(
+            TeacherStaffingSnapshot.severity == StaffingSeverity.CRITICAL,
+        )
+        if school_year_id is not None:
+            stmt = stmt.where(
+                TeacherStaffingSnapshot.schoolYearId == school_year_id,
+            )
+        stmt = stmt.limit(PER_DETECTOR_LIMIT)
+        critical_rows = list(
+            (await session.execute(stmt)).scalars().all(),
+        )
+
+    out: list[AnomalyDetection] = []
+    if not critical_rows:
+        return out
+
+    # Récupère regionId de chaque école en un seul SELECT pour le scope.
+    school_ids = [r.schoolId for r in critical_rows if r.schoolId]
+    region_by_school: dict[str, str | None] = {}
+    if school_ids:
+        rows = (
+            await session.execute(
+                select(School.id, School.regionId)
+                .where(School.id.in_(school_ids))
+            )
+        ).all()
+        region_by_school = dict(rows)
+
+    for r in critical_rows:
+        if r.schoolId is None:
+            continue
+        ratio = float(r.ratio) if r.ratio is not None else None
+        out.append(_make(
+            a_type=AnomalyType.CRITICAL_TEACHER_SHORTAGE,
+            severity=AnomalySeverity.HIGH,
+            entity_type="School",
+            entity_id=r.schoolId,
+            description=(
+                f"École en sous-dotation enseignants critique : "
+                f"{r.studentsCount} élèves pour {r.teachersCount} enseignant(s) "
+                f"(ratio {ratio if ratio is not None else 'N/A'}). "
+                f"Manque {max(r.gap, 0)} enseignant(s) — transfert ou recrutement requis."
+            ),
+            evidence={
+                "snapshotId": r.id,
+                "schoolId": r.schoolId,
+                "schoolYearId": r.schoolYearId,
+                "studentsCount": int(r.studentsCount),
+                "teachersCount": int(r.teachersCount),
+                "ratio": ratio,
+                "expectedTeachers": int(r.expectedTeachers),
+                "gap": int(r.gap),
+                "thresholdMax": 70.0,
+            },
+            school_id=r.schoolId,
+            region_id=region_by_school.get(r.schoolId),
+        ))
+        if len(out) >= PER_DETECTOR_LIMIT:
+            break
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Registry — exposé au service pour lancer un run complet
 # ---------------------------------------------------------------------------
 ALL_DETECTORS = (
@@ -842,6 +931,7 @@ __all__ = [
     "PER_DETECTOR_LIMIT",
     "detect_capacity_critical",
     "detect_critical_gpi",
+    "detect_critical_teacher_shortage",
     "detect_duplicate_codes",
     "detect_excessive_transfers",
     "detect_grade_jump",

@@ -47,14 +47,19 @@ from app.modules.projections.capacity import (
 from app.modules.projections.enums import (
     DEMOGRAPHIC_GROWTH_RATE_DEFAULT,
     STUDENTS_PER_CLASSROOM_NORM,
+    STUDENTS_PER_TEACHER_NORM,
     CapacityScope,
     CapacitySeverity,
+    RecommendationStatus,
+    StaffingSeverity,
     TransitionScope,
 )
 from app.modules.projections.models import (
     CapacityDemandSnapshot,
     ProjectedEnrollment,
     ProjectionScenario,
+    TeacherStaffingSnapshot,
+    TeacherTransferRecommendation,
     TransitionRate,
 )
 from app.modules.projections.projection import (
@@ -67,15 +72,29 @@ from app.modules.projections.schemas import (
     CapacityDemandRequest,
     CapacityDemandResponse,
     CapacityDemandRow,
+    ComputeStaffingResponse,
     ComputeTransitionsResponse,
     ProjectedEnrollmentRead,
     ProjectionFilters,
     ProjectionScenarioCreate,
     ProjectionScenarioRead,
+    ReviewRecommendationRequest,
     RunProjectionRequest,
     RunProjectionResponse,
+    StaffingFilters,
+    TeacherStaffingSnapshotRead,
+    TeacherTransferRecommendationRead,
     TransitionRateFilters,
     TransitionRateRead,
+)
+from app.modules.projections.staffing import (
+    classify_staffing,
+    compute_priority_score,
+    compute_ratio,
+    expected_teachers,
+)
+from app.modules.projections.staffing import (
+    compute_gap as compute_staffing_gap,
 )
 from app.modules.projections.transitions import (
     LEVEL_PAIRS,
@@ -1351,11 +1370,683 @@ class CapacityDemandService:
         return len(new_anomalies)
 
 
+# ===========================================================================
+# Module 2D — TeacherStaffingService
+# ===========================================================================
+# Rôles autorisés à déclencher un recalcul staffing (écriture). Strict :
+# seuls les admins centraux. La lecture est ouverte selon le scope RBAC.
+STAFFING_WRITE_ROLES: frozenset[UserRole] = frozenset(
+    {UserRole.NATIONAL_ADMIN, UserRole.MINISTRY_ADMIN}
+)
+
+# Rôles autorisés à reviewer une recommandation (REGIONAL_ADMIN+).
+RECOMMENDATION_REVIEW_ROLES: frozenset[UserRole] = frozenset(
+    {
+        UserRole.NATIONAL_ADMIN,
+        UserRole.MINISTRY_ADMIN,
+        UserRole.REGIONAL_ADMIN,
+    }
+)
+
+
+class TeacherStaffingService:
+    """Calcule snapshots staffing + génère des recommandations transferts.
+
+    Algorithme général
+    ------------------
+    1. ``compute_staffing_snapshots`` (admin central) :
+       - Pour chaque école APPROVED : count students + count teachers.
+       - Calcule ratio, severity, expectedTeachers, gap.
+       - Persiste un ``TeacherStaffingSnapshot`` (delete-then-insert).
+       - Hook Module 9 : matérialise les écoles CRITICAL en anomalies.
+
+    2. ``generate_recommendations`` (admin central) :
+       - Charge les snapshots de l'année.
+       - Pour chaque région : sépare donneurs (OVER_STAFFED) et
+         receveurs (UNDER_STAFFED, CRITICAL, prioritaires).
+       - Algorithme glouton : pour chaque receveur, pioche dans les
+         donneurs de la même préfecture en priorité, puis de la même
+         région. ``transfersSuggested = min(donor_gap_abs, receiver_gap)``.
+       - Persiste les recommandations en statut PENDING.
+
+    3. ``review_recommendation`` (REGIONAL_ADMIN+) : workflow de revue
+       avec audit log.
+
+    Pas d'auto-transfert : les recommandations restent consultatives.
+    L'exécution (statut EXECUTED) est marquée manuellement après action
+    RH dans le SIRH externe.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    # ==================================================================
+    # compute_staffing_snapshots
+    # ==================================================================
+    async def compute_staffing_snapshots(
+        self,
+        school_year_id: str,
+        actor: User,
+    ) -> ComputeStaffingResponse:
+        """Recalcule + persiste les snapshots staffing pour une année.
+
+        Restreint à NATIONAL_ADMIN / MINISTRY_ADMIN.
+        """
+        if actor.role not in STAFFING_WRITE_ROLES:
+            raise ForbiddenError(
+                detail=(
+                    "Seul un administrateur central peut lancer un calcul "
+                    "staffing enseignants."
+                ),
+                extra={
+                    "required_any_of": sorted(
+                        r.value for r in STAFFING_WRITE_ROLES
+                    )
+                },
+            )
+
+        # Import local pour éviter une dépendance cyclique au module
+        # census (qui n'a pas vocation à importer projections).
+        from app.modules.census.models import Student, Teacher
+        from app.shared.enums import ValidationStatus
+
+        # Validation année source.
+        school_year = (
+            await self.session.execute(
+                select(SchoolYear).where(SchoolYear.id == school_year_id)
+            )
+        ).scalars().one_or_none()
+        if school_year is None:
+            raise NotFoundError(
+                detail=f"SchoolYear introuvable : {school_year_id}",
+            )
+
+        # Charge toutes les écoles APPROVED.
+        schools_stmt = select(
+            School.id, School.regionId, School.prefectureId,
+        ).where(School.status == ValidationStatus.APPROVED)
+        school_rows = (await self.session.execute(schools_stmt)).all()
+
+        # Comptage students par école (tous statuts — la table Student
+        # n'a pas de status workflow comme Teacher).
+        students_stmt = (
+            select(
+                Student.schoolId,
+                func.count(Student.id).label("total"),
+            )
+            .group_by(Student.schoolId)
+        )
+        students_rows = (await self.session.execute(students_stmt)).all()
+        students_by_school: dict[str, int] = {
+            sid: int(total) for sid, total in students_rows if sid
+        }
+
+        # Comptage teachers APPROVED par école.
+        teachers_stmt = (
+            select(
+                Teacher.schoolId,
+                func.count(Teacher.id).label("total"),
+            )
+            .where(Teacher.status == ValidationStatus.APPROVED)
+            .group_by(Teacher.schoolId)
+        )
+        teachers_rows = (await self.session.execute(teachers_stmt)).all()
+        teachers_by_school: dict[str, int] = {
+            sid: int(total) for sid, total in teachers_rows if sid
+        }
+
+        # Wipe l'ancien snapshot (idempotence) pour cette année.
+        await self.session.execute(
+            delete(TeacherStaffingSnapshot).where(
+                TeacherStaffingSnapshot.schoolYearId == school_year_id,
+            )
+        )
+
+        now = datetime.now(UTC)
+        snapshots_persisted = 0
+        critical_rows: list[TeacherStaffingSnapshot] = []
+
+        for school_id, _region_id, _prefecture_id in school_rows:
+            students = students_by_school.get(school_id, 0)
+            teachers = teachers_by_school.get(school_id, 0)
+            ratio = compute_ratio(students, teachers)
+            severity = classify_staffing(ratio)
+            expected = expected_teachers(
+                students, norm=STUDENTS_PER_TEACHER_NORM,
+            )
+            gap = compute_staffing_gap(teachers, expected)
+
+            snapshot = TeacherStaffingSnapshot(
+                schoolYearId=school_year_id,
+                schoolId=school_id,
+                studentsCount=students,
+                teachersCount=teachers,
+                ratio=ratio,
+                severity=severity,
+                expectedTeachers=expected,
+                gap=gap,
+                computedAt=now,
+            )
+            self.session.add(snapshot)
+            snapshots_persisted += 1
+            if severity == StaffingSeverity.CRITICAL:
+                critical_rows.append(snapshot)
+
+        await self.session.flush()
+
+        # Hook Module 9 — matérialise les écoles CRITICAL en anomalies.
+        await self._create_staffing_anomalies(critical_rows)
+
+        return ComputeStaffingResponse(
+            snapshots=snapshots_persisted,
+            recommendations=0,
+        )
+
+    # ==================================================================
+    # generate_recommendations
+    # ==================================================================
+    async def generate_recommendations(
+        self,
+        school_year_id: str,
+        actor: User,
+    ) -> ComputeStaffingResponse:
+        """Génère des recommandations de transferts à partir des snapshots.
+
+        Algorithme glouton par région :
+
+        1. Charge les snapshots de l'année.
+        2. Pour chaque région :
+           - donneurs   = écoles OVER_STAFFED (gap < 0, capacité de céder).
+           - receveurs  = écoles UNDER_STAFFED / CRITICAL (gap > 0).
+           - Trie receveurs par sévérité décroissante (CRITICAL d'abord).
+           - Trie donneurs par |gap| décroissant (plus gros surplus d'abord).
+           - Pour chaque receveur : pioche les donneurs same-prefecture
+             d'abord, puis same-region. ``transfersSuggested = min(
+             donor_surplus, receiver_need)``.
+        3. Crée ``TeacherTransferRecommendation`` PENDING.
+
+        Restreint à NATIONAL_ADMIN / MINISTRY_ADMIN. Idempotent (wipe
+        les recommandations PENDING de l'année avant insertion).
+        """
+        if actor.role not in STAFFING_WRITE_ROLES:
+            raise ForbiddenError(
+                detail=(
+                    "Seul un administrateur central peut générer des "
+                    "recommandations de transfert enseignants."
+                ),
+                extra={
+                    "required_any_of": sorted(
+                        r.value for r in STAFFING_WRITE_ROLES
+                    )
+                },
+            )
+
+        # Charge snapshots de l'année avec localisation école.
+        stmt = (
+            select(
+                TeacherStaffingSnapshot,
+                School.regionId,
+                School.prefectureId,
+            )
+            .join(School, School.id == TeacherStaffingSnapshot.schoolId)
+            .where(TeacherStaffingSnapshot.schoolYearId == school_year_id)
+        )
+        rows = (await self.session.execute(stmt)).all()
+
+        if not rows:
+            return ComputeStaffingResponse(
+                snapshots=0, recommendations=0,
+            )
+
+        # Indexe par région.
+        by_region: dict[
+            str,
+            dict[str, list[tuple[TeacherStaffingSnapshot, str | None]]],
+        ] = defaultdict(lambda: {"donors": [], "receivers": []})
+        # Map school_id -> prefecture_id (pour bonus same-prefecture).
+        pref_by_school: dict[str, str | None] = {}
+
+        for snapshot, region_id, prefecture_id in rows:
+            if region_id is None:
+                continue
+            pref_by_school[snapshot.schoolId] = prefecture_id
+            if snapshot.severity == StaffingSeverity.OVER_STAFFED:
+                by_region[region_id]["donors"].append(
+                    (snapshot, prefecture_id),
+                )
+            elif snapshot.severity in (
+                StaffingSeverity.UNDER_STAFFED,
+                StaffingSeverity.CRITICAL,
+            ):
+                by_region[region_id]["receivers"].append(
+                    (snapshot, prefecture_id),
+                )
+
+        # Wipe les recommandations PENDING de cette année (idempotence).
+        await self.session.execute(
+            delete(TeacherTransferRecommendation).where(
+                TeacherTransferRecommendation.schoolYearId == school_year_id,
+                TeacherTransferRecommendation.status
+                == RecommendationStatus.PENDING,
+            )
+        )
+
+        now = datetime.now(UTC)
+        recommendations_created = 0
+
+        for region_id, groups in by_region.items():
+            donors = sorted(
+                groups["donors"],
+                # |gap| : plus le donneur a de surplus, mieux il sert.
+                # gap est négatif pour OVER_STAFFED, donc on trie asc.
+                key=lambda x: x[0].gap,
+            )
+            # Receveurs : CRITICAL d'abord, puis UNDER_STAFFED.
+            # Au sein d'une sévérité, ratio décroissant.
+            def _sev_order(sev: StaffingSeverity) -> int:
+                return 0 if sev == StaffingSeverity.CRITICAL else 1
+            receivers = sorted(
+                groups["receivers"],
+                key=lambda x: (
+                    _sev_order(x[0].severity),
+                    -(float(x[0].ratio) if x[0].ratio is not None else 0.0),
+                ),
+            )
+
+            # Capacité disponible pour chaque donneur (en valeur absolue
+            # de leur gap négatif = surplus d'enseignants).
+            donor_surplus: dict[str, int] = {
+                snap.schoolId: max(-snap.gap, 0) for snap, _p in donors
+            }
+
+            for receiver_snap, receiver_pref in receivers:
+                need = max(receiver_snap.gap, 0)
+                if need <= 0:
+                    continue
+
+                # 1) Donneurs same-prefecture.
+                for donor_snap, donor_pref in donors:
+                    if donor_pref is None or donor_pref != receiver_pref:
+                        continue
+                    available = donor_surplus.get(donor_snap.schoolId, 0)
+                    if available <= 0:
+                        continue
+                    transfers = min(available, need)
+                    self._add_recommendation(
+                        school_year_id=school_year_id,
+                        donor_snap=donor_snap,
+                        receiver_snap=receiver_snap,
+                        prefecture_id=donor_pref,
+                        region_id=region_id,
+                        transfers=transfers,
+                        same_prefecture=True,
+                        created_at=now,
+                    )
+                    donor_surplus[donor_snap.schoolId] = (
+                        available - transfers
+                    )
+                    need -= transfers
+                    recommendations_created += 1
+                    if need <= 0:
+                        break
+
+                if need <= 0:
+                    continue
+
+                # 2) Donneurs same-region (préfecture différente).
+                for donor_snap, donor_pref in donors:
+                    if donor_pref is not None and donor_pref == receiver_pref:
+                        continue  # déjà épuisé à l'étape 1
+                    available = donor_surplus.get(donor_snap.schoolId, 0)
+                    if available <= 0:
+                        continue
+                    transfers = min(available, need)
+                    self._add_recommendation(
+                        school_year_id=school_year_id,
+                        donor_snap=donor_snap,
+                        receiver_snap=receiver_snap,
+                        # On garde la préfecture du donneur (audit) — non
+                        # utilisée pour le bonus puisque different.
+                        prefecture_id=donor_pref,
+                        region_id=region_id,
+                        transfers=transfers,
+                        same_prefecture=False,
+                        created_at=now,
+                    )
+                    donor_surplus[donor_snap.schoolId] = (
+                        available - transfers
+                    )
+                    need -= transfers
+                    recommendations_created += 1
+                    if need <= 0:
+                        break
+
+        await self.session.flush()
+
+        return ComputeStaffingResponse(
+            snapshots=len(rows),
+            recommendations=recommendations_created,
+        )
+
+    def _add_recommendation(
+        self,
+        *,
+        school_year_id: str,
+        donor_snap: TeacherStaffingSnapshot,
+        receiver_snap: TeacherStaffingSnapshot,
+        prefecture_id: str | None,
+        region_id: str,
+        transfers: int,
+        same_prefecture: bool,
+        created_at: datetime,
+    ) -> None:
+        """Construit + persiste une TeacherTransferRecommendation."""
+        score = compute_priority_score(
+            donor_ratio=donor_snap.ratio,
+            receiver_ratio=receiver_snap.ratio,
+            same_prefecture=same_prefecture,
+        )
+        donor_ratio_str = (
+            f"{donor_snap.ratio:.2f}"
+            if donor_snap.ratio is not None
+            else "N/A"
+        )
+        receiver_ratio_str = (
+            f"{receiver_snap.ratio:.2f}"
+            if receiver_snap.ratio is not None
+            else "N/A"
+        )
+        rationale = (
+            f"Donneur (ratio {donor_ratio_str}, sur-doté de "
+            f"{abs(donor_snap.gap)}) → Receveur (ratio {receiver_ratio_str}, "
+            f"manque {receiver_snap.gap}). "
+            + (
+                "Même préfecture (mobilité réduite, bonus +20)."
+                if same_prefecture
+                else "Préfectures différentes (mobilité élargie)."
+            )
+        )
+        self.session.add(TeacherTransferRecommendation(
+            schoolYearId=school_year_id,
+            fromSchoolId=donor_snap.schoolId,
+            toSchoolId=receiver_snap.schoolId,
+            prefectureId=prefecture_id if same_prefecture else None,
+            regionId=region_id,
+            transfersSuggested=transfers,
+            priorityScore=score,
+            rationale=rationale,
+            status=RecommendationStatus.PENDING,
+            createdAt=created_at,
+        ))
+
+    # ==================================================================
+    # list_staffing
+    # ==================================================================
+    async def list_staffing(
+        self,
+        filters: StaffingFilters,
+        scope_user: User,
+    ) -> list[TeacherStaffingSnapshotRead]:
+        """Liste les snapshots avec filtres + scope RBAC territorial."""
+        stmt = select(TeacherStaffingSnapshot)
+
+        if filters.schoolYearId is not None:
+            stmt = stmt.where(
+                TeacherStaffingSnapshot.schoolYearId == filters.schoolYearId,
+            )
+        if filters.schoolId is not None:
+            stmt = stmt.where(
+                TeacherStaffingSnapshot.schoolId == filters.schoolId,
+            )
+        if filters.severity is not None:
+            stmt = stmt.where(
+                TeacherStaffingSnapshot.severity == filters.severity,
+            )
+
+        stmt = self._apply_staffing_scope(stmt, scope_user)
+        stmt = stmt.order_by(
+            TeacherStaffingSnapshot.severity.desc(),
+            TeacherStaffingSnapshot.ratio.desc().nullsfirst(),
+        )
+        stmt = stmt.offset(filters.offset).limit(filters.limit)
+
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return [
+            TeacherStaffingSnapshotRead.model_validate(r) for r in rows
+        ]
+
+    # ==================================================================
+    # list_recommendations
+    # ==================================================================
+    async def list_recommendations(
+        self,
+        filters: StaffingFilters,
+        scope_user: User,
+    ) -> list[TeacherTransferRecommendationRead]:
+        """Liste les recommandations avec filtres + scope RBAC territorial."""
+        stmt = select(TeacherTransferRecommendation)
+
+        if filters.schoolYearId is not None:
+            stmt = stmt.where(
+                TeacherTransferRecommendation.schoolYearId
+                == filters.schoolYearId,
+            )
+        if filters.regionId is not None:
+            stmt = stmt.where(
+                TeacherTransferRecommendation.regionId == filters.regionId,
+            )
+        if filters.prefectureId is not None:
+            stmt = stmt.where(
+                TeacherTransferRecommendation.prefectureId
+                == filters.prefectureId,
+            )
+        if filters.status is not None:
+            stmt = stmt.where(
+                TeacherTransferRecommendation.status == filters.status,
+            )
+
+        stmt = self._apply_recommendation_scope(stmt, scope_user)
+        stmt = stmt.order_by(
+            TeacherTransferRecommendation.priorityScore.desc(),
+        )
+        stmt = stmt.offset(filters.offset).limit(filters.limit)
+
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return [
+            TeacherTransferRecommendationRead.model_validate(r)
+            for r in rows
+        ]
+
+    # ==================================================================
+    # review_recommendation
+    # ==================================================================
+    async def review_recommendation(
+        self,
+        recommendation_id: str,
+        dto: ReviewRecommendationRequest,
+        actor: User,
+    ) -> TeacherTransferRecommendationRead:
+        """Met à jour le statut d'une recommandation + audit log.
+
+        Restreint aux REGIONAL_ADMIN+ (NATIONAL_ADMIN, MINISTRY_ADMIN,
+        REGIONAL_ADMIN). Un REGIONAL_ADMIN ne peut reviewer que les
+        recommandations de sa région.
+
+        Ne permet pas de revenir à PENDING (workflow forward-only).
+        """
+        if actor.role not in RECOMMENDATION_REVIEW_ROLES:
+            raise ForbiddenError(
+                detail=(
+                    "Seul un REGIONAL_ADMIN ou supérieur peut reviewer une "
+                    "recommandation de transfert."
+                ),
+                extra={
+                    "required_any_of": sorted(
+                        r.value for r in RECOMMENDATION_REVIEW_ROLES
+                    )
+                },
+            )
+
+        if dto.status == RecommendationStatus.PENDING:
+            raise ConflictError(
+                detail=(
+                    "Workflow forward-only : impossible de revenir au "
+                    "statut PENDING."
+                ),
+            )
+
+        rec = (
+            await self.session.execute(
+                select(TeacherTransferRecommendation).where(
+                    TeacherTransferRecommendation.id == recommendation_id,
+                )
+            )
+        ).scalars().one_or_none()
+        if rec is None:
+            raise NotFoundError(
+                detail=(
+                    "Recommandation introuvable : "
+                    f"{recommendation_id}"
+                ),
+            )
+
+        # Scope : REGIONAL_ADMIN limité à sa région.
+        if (
+            actor.role == UserRole.REGIONAL_ADMIN
+            and actor.regionId is not None
+            and rec.regionId != actor.regionId
+        ):
+            raise ForbiddenError(
+                detail=(
+                    "Recommandation hors de votre région — revue refusée."
+                ),
+                extra={"actorRegionId": actor.regionId},
+            )
+
+        previous_status = rec.status
+        rec.status = dto.status
+        rec.reviewedById = actor.id
+        rec.reviewedAt = datetime.now(UTC)
+        rec.reviewNote = dto.reviewNote
+
+        # Audit log dans la table AuditLog (Module workflow).
+        from app.modules.workflow.models import AuditLog
+        self.session.add(AuditLog(
+            actorId=actor.id,
+            action="REVIEW_TEACHER_TRANSFER_RECOMMENDATION",
+            entity="TeacherTransferRecommendation",
+            entityId=rec.id,
+            metadata_={
+                "previousStatus": previous_status.value,
+                "newStatus": dto.status.value,
+                "fromSchoolId": rec.fromSchoolId,
+                "toSchoolId": rec.toSchoolId,
+                "transfersSuggested": rec.transfersSuggested,
+                "reviewNote": dto.reviewNote,
+            },
+        ))
+        await self.session.flush()
+        return TeacherTransferRecommendationRead.model_validate(rec)
+
+    # ==================================================================
+    # Private helpers
+    # ==================================================================
+    def _apply_staffing_scope(self, stmt, user: User):
+        """Restreint la lecture staffing au scope territorial du user.
+
+        * NATIONAL_SCOPE_ROLES → tout visible.
+        * REGIONAL_SCOPE_ROLES → écoles de la région du user (via join
+          implicite School.regionId).
+        * Sinon → seulement les écoles dont le user est rattaché
+          (SCHOOL_DIRECTOR / TEACHER : leur école).
+        """
+        if user.role in NATIONAL_SCOPE_ROLES:
+            return stmt
+        if user.role in REGIONAL_SCOPE_ROLES and user.regionId:
+            schools_in_region = select(School.id).where(
+                School.regionId == user.regionId,
+            )
+            return stmt.where(
+                TeacherStaffingSnapshot.schoolId.in_(schools_in_region),
+            )
+        if user.schoolId is not None:
+            return stmt.where(
+                TeacherStaffingSnapshot.schoolId == user.schoolId,
+            )
+        # Pas de scope → rien.
+        return stmt.where(TeacherStaffingSnapshot.id.is_(None))
+
+    def _apply_recommendation_scope(self, stmt, user: User):
+        """Restreint la lecture recommandations au scope territorial."""
+        if user.role in NATIONAL_SCOPE_ROLES:
+            return stmt
+        if user.role in REGIONAL_SCOPE_ROLES and user.regionId:
+            return stmt.where(
+                TeacherTransferRecommendation.regionId == user.regionId,
+            )
+        # School-scoped : les directeurs voient les recos impliquant
+        # leur école (donneur ou receveur).
+        if user.schoolId is not None:
+            return stmt.where(
+                (
+                    TeacherTransferRecommendation.fromSchoolId
+                    == user.schoolId
+                )
+                | (
+                    TeacherTransferRecommendation.toSchoolId
+                    == user.schoolId
+                )
+            )
+        return stmt.where(TeacherTransferRecommendation.id.is_(None))
+
+    async def _create_staffing_anomalies(
+        self,
+        critical_rows: list[TeacherStaffingSnapshot],
+    ) -> int:
+        """Hook Module 9 — matérialise les écoles CRITICAL en AnomalyDetection.
+
+        Idempotent : on supprime d'abord les anomalies PENDING
+        ``CRITICAL_TEACHER_SHORTAGE`` puis on rejoue le détecteur.
+        Severity = HIGH.
+        """
+        from app.modules.anomalies.detectors import (
+            detect_critical_teacher_shortage,
+        )
+        from app.modules.anomalies.enums import (
+            AnomalyStatus,
+            AnomalyType,
+        )
+        from app.modules.anomalies.models import AnomalyDetection
+
+        if not critical_rows:
+            return 0
+
+        # Purge anomalies PENDING existantes.
+        await self.session.execute(
+            delete(AnomalyDetection).where(
+                AnomalyDetection.type
+                == AnomalyType.CRITICAL_TEACHER_SHORTAGE,
+                AnomalyDetection.status == AnomalyStatus.PENDING,
+            )
+        )
+
+        new_anomalies = await detect_critical_teacher_shortage(
+            self.session, critical_rows=critical_rows,
+        )
+        for a in new_anomalies:
+            self.session.add(a)
+        await self.session.flush()
+        return len(new_anomalies)
+
+
 __all__ = [
     "CAPACITY_WRITE_ROLES",
     "COMPUTE_TRANSITIONS_ROLES",
     "PROJECTION_WRITE_ROLES",
+    "RECOMMENDATION_REVIEW_ROLES",
+    "STAFFING_WRITE_ROLES",
     "CapacityDemandService",
     "ProjectionService",
+    "TeacherStaffingService",
     "TransitionRateService",
 ]

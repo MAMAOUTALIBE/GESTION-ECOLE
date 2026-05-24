@@ -33,6 +33,11 @@ class KpiKey(StrEnum):
     # t+1 (saturation > 100 %). Indicateur clef pour le pilotage des
     # investissements infrastructure.
     PROJECTED_CRITICAL_SCHOOLS_COUNT = "PROJECTED_CRITICAL_SCHOOLS_COUNT"
+    # Module 2D — Nombre d'écoles en CRITICAL staffing (ratio
+    # élèves/enseignant > 70). Indicateur clef pour la répartition des
+    # enseignants (objectif gouv. "optimiser la répartition des
+    # enseignants").
+    SCHOOLS_CRITICAL_STAFFING_COUNT = "SCHOOLS_CRITICAL_STAFFING_COUNT"
 
 
 class CockpitScope(StrEnum):

@@ -30,6 +30,8 @@ from app.modules.enrollment.enums import EnrollmentClassLevel
 from app.modules.projections.enums import (
     CapacityScope,
     CapacitySeverity,
+    RecommendationStatus,
+    StaffingSeverity,
     TransitionScope,
 )
 from app.modules.projections.schemas import (
@@ -37,20 +39,27 @@ from app.modules.projections.schemas import (
     CapacityDemandRequest,
     CapacityDemandResponse,
     CapacityDemandRow,
+    ComputeStaffingRequest,
+    ComputeStaffingResponse,
     ComputeTransitionsRequest,
     ComputeTransitionsResponse,
     ProjectedEnrollmentRead,
     ProjectionFilters,
     ProjectionScenarioCreate,
     ProjectionScenarioRead,
+    ReviewRecommendationRequest,
     RunProjectionRequest,
     RunProjectionResponse,
+    StaffingFilters,
+    TeacherStaffingSnapshotRead,
+    TeacherTransferRecommendationRead,
     TransitionRateFilters,
     TransitionRateRead,
 )
 from app.modules.projections.service import (
     CapacityDemandService,
     ProjectionService,
+    TeacherStaffingService,
     TransitionRateService,
 )
 from app.shared.deps import DbSession, get_current_user
@@ -80,9 +89,14 @@ def _capacity_service(session: DbSession) -> CapacityDemandService:
     return CapacityDemandService(session)
 
 
+def _staffing_service(session: DbSession) -> TeacherStaffingService:
+    return TeacherStaffingService(session)
+
+
 TransitionSvc = Annotated[TransitionRateService, Depends(_service)]
 ProjectionSvc = Annotated[ProjectionService, Depends(_projection_service)]
 CapacitySvc = Annotated[CapacityDemandService, Depends(_capacity_service)]
+StaffingSvc = Annotated[TeacherStaffingService, Depends(_staffing_service)]
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(tags=["projections"])
@@ -294,9 +308,130 @@ async def list_critical_schools(
     )
 
 
+# ===========================================================================
+# Module 2D — Recommandation transferts enseignants
+# ===========================================================================
+STAFFING_WRITE_HTTP_ROLES = (
+    UserRole.NATIONAL_ADMIN,
+    UserRole.MINISTRY_ADMIN,
+)
+RECOMMENDATION_REVIEW_HTTP_ROLES = (
+    UserRole.NATIONAL_ADMIN,
+    UserRole.MINISTRY_ADMIN,
+    UserRole.REGIONAL_ADMIN,
+)
+
+
+@router.post(
+    "/staffing/compute",
+    response_model=ComputeStaffingResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_roles(*STAFFING_WRITE_HTTP_ROLES))],
+    summary="Calcule + persiste les snapshots staffing enseignants",
+)
+async def compute_staffing(
+    payload: ComputeStaffingRequest,
+    user: CurrentUserDep,
+    service: StaffingSvc,
+) -> ComputeStaffingResponse:
+    return await service.compute_staffing_snapshots(
+        payload.schoolYearId, user,
+    )
+
+
+@router.post(
+    "/recommendations/generate",
+    response_model=ComputeStaffingResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_roles(*STAFFING_WRITE_HTTP_ROLES))],
+    summary="Génère les recommandations de transferts enseignants",
+)
+async def generate_recommendations(
+    payload: ComputeStaffingRequest,
+    user: CurrentUserDep,
+    service: StaffingSvc,
+) -> ComputeStaffingResponse:
+    return await service.generate_recommendations(
+        payload.schoolYearId, user,
+    )
+
+
+@router.get(
+    "/staffing",
+    response_model=list[TeacherStaffingSnapshotRead],
+    summary="Liste les snapshots staffing (filtres + scope territorial)",
+)
+async def list_staffing(
+    user: CurrentUserDep,
+    service: StaffingSvc,
+    schoolYearId: Annotated[str | None, Query(max_length=30)] = None,
+    schoolId: Annotated[str | None, Query(max_length=30)] = None,
+    severity: StaffingSeverity | None = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[TeacherStaffingSnapshotRead]:
+    filters = StaffingFilters(
+        schoolYearId=schoolYearId,
+        schoolId=schoolId,
+        severity=severity,
+        limit=limit,
+        offset=offset,
+    )
+    return await service.list_staffing(filters, user)
+
+
+@router.get(
+    "/recommendations",
+    response_model=list[TeacherTransferRecommendationRead],
+    summary="Liste les recommandations transferts (filtres + scope)",
+)
+async def list_recommendations(
+    user: CurrentUserDep,
+    service: StaffingSvc,
+    schoolYearId: Annotated[str | None, Query(max_length=30)] = None,
+    regionId: Annotated[str | None, Query(max_length=30)] = None,
+    prefectureId: Annotated[str | None, Query(max_length=30)] = None,
+    status_: Annotated[
+        RecommendationStatus | None, Query(alias="status"),
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[TeacherTransferRecommendationRead]:
+    filters = StaffingFilters(
+        schoolYearId=schoolYearId,
+        regionId=regionId,
+        prefectureId=prefectureId,
+        status=status_,
+        limit=limit,
+        offset=offset,
+    )
+    return await service.list_recommendations(filters, user)
+
+
+@router.patch(
+    "/recommendations/{recommendation_id}/review",
+    response_model=TeacherTransferRecommendationRead,
+    dependencies=[
+        Depends(require_roles(*RECOMMENDATION_REVIEW_HTTP_ROLES)),
+    ],
+    summary="Revue d'une recommandation transferts (REGIONAL_ADMIN+)",
+)
+async def review_recommendation(
+    recommendation_id: str,
+    payload: ReviewRecommendationRequest,
+    user: CurrentUserDep,
+    service: StaffingSvc,
+) -> TeacherTransferRecommendationRead:
+    return await service.review_recommendation(
+        recommendation_id, payload, user,
+    )
+
+
 __all__ = [
     "CAPACITY_WRITE_HTTP_ROLES",
     "COMPUTE_TRANSITIONS_HTTP_ROLES",
     "PROJECTION_WRITE_HTTP_ROLES",
+    "RECOMMENDATION_REVIEW_HTTP_ROLES",
+    "STAFFING_WRITE_HTTP_ROLES",
     "router",
 ]
