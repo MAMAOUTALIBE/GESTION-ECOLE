@@ -1,0 +1,60 @@
+<div class="reorganisation-page">
+  <div class="row">
+    <div class="col-xl-12">
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div>
+          <p class="text-uppercase fw-semibold text-primary mb-1 fs-12">
+            Module 3A — Aide à la décision
+          </p>
+          <h3 class="fw-semibold mb-1">Réorganisation du réseau scolaire</h3>
+          <p class="text-muted mb-0">
+            Empilez les couches « équité GPI », « saturation projetée »,
+            « sous-effectif enseignants », « infrastructures » et
+            « zones blanches » pour repérer où agir.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          [disabled]="loading()"
+          (click)="refresh()"
+          aria-label="Actualiser les couches"
+        >
+          <i class="ri-refresh-line me-1"></i>
+          Actualiser
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (error(); as err) {
+    <div class="alert alert-warning" role="alert">{{ err }}</div>
+  }
+
+  <div class="row g-3">
+    <div class="col-xl-3">
+      <app-layer-toggle-panel
+        [layers]="layers()"
+        [active]="activeIds()"
+        [disabled]="loading()"
+        (toggle)="toggleLayer($event)"
+      />
+    </div>
+    <div class="col-xl-9 position-relative">
+      <div class="card">
+        <div class="card-body p-0 reorganisation-map-card-body">
+          <app-reorganisation-map [activeLayers]="activeLayers()" />
+          <app-reorganisation-legend
+            [layers]="layers()"
+            [active]="activeIds()"
+          />
+        </div>
+      </div>
+      @if (loading()) {
+        <div class="loading-overlay" aria-live="polite">
+          Chargement des couches…
+        </div>
+      }
+    </div>
+  </div>
+</div>

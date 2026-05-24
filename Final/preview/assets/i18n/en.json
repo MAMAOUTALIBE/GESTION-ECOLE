@@ -40,5 +40,59 @@
   "status": {
     "online": "Online",
     "offline": "Offline"
+  },
+  "equite": {
+    "title": "Equity dashboard (GPI & zone)",
+    "subtitle": "Girls/boys parity · urban-rural gap · at-risk schools (UNESCO/IIEP thresholds).",
+    "refresh": "Refresh",
+    "kpi": {
+      "national": "National GPI",
+      "girls": "Girls enrolled",
+      "boys": "Boys enrolled",
+      "gap": "Urban-rural gap"
+    },
+    "severity": {
+      "NORMAL": "Parity",
+      "WARNING_GIRLS": "Girls warning",
+      "CRITICAL_GIRLS": "Girls critical",
+      "WARNING_BOYS": "Boys warning"
+    },
+    "errors": {
+      "load": "Equity data unavailable — check backend or cache."
+    },
+    "tables": {
+      "criticalSchools": "Schools with critical GPI",
+      "noCritical": "No school with critical GPI."
+    },
+    "charts": {
+      "byRegion": "GPI by region",
+      "byZone": "Enrolment by zone",
+      "map": "Regional GPI map"
+    }
+  },
+  "reorganisation": {
+    "title": "School network reorganisation",
+    "subtitle": "Enriched GIS map to support reorganisation decisions (Module 3A).",
+    "refresh": "Refresh",
+    "loading": "Loading layers…",
+    "errorLoad": "Cartography layers unavailable — check backend or cache.",
+    "panelTitle": "Available layers",
+    "legendTitle": "Legend",
+    "layers": {
+      "gpiCritical": "Regions with critical GPI",
+      "capacityCritical": "Schools nearing saturation",
+      "staffingCritical": "Teacher shortage",
+      "infrastructureGaps": "Infrastructure gaps",
+      "zoneType": "Urban / rural / peri-urban",
+      "whiteZones": "Enriched white zones"
+    },
+    "descriptions": {
+      "gpiCritical": "GPI < 0.85 or girls warning (Module 1B).",
+      "capacityCritical": "Saturation > 100 % in year t+1 (Module 2C).",
+      "staffingCritical": "UNDER_STAFFED or CRITICAL (Module 2D).",
+      "infrastructureGaps": "Missing water, electricity, latrines or internet.",
+      "zoneType": "Zone type per sub-prefecture (Module 1C).",
+      "whiteZones": "Sub-prefectures > 5 km from any school."
+    }
   }
 }

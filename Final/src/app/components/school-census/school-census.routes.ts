@@ -16,6 +16,15 @@ const EQUITE_DASHBOARD_ROLES: UserRole[] = [
   ...REGIONAL_SCOPE_ROLES,
 ];
 
+// Module 3A — Réorganisation du réseau : NATIONAL / MINISTRY /
+// REGIONAL / INSPECTOR. Les rôles préfecture et école n'ouvrent pas
+// cette section — la décision de réorganisation se prend au minimum
+// au niveau régional (cabinet, inspecteur académique).
+const REORGANISATION_ROLES: UserRole[] = [
+  ...NATIONAL_SCOPE_ROLES,
+  ...REGIONAL_SCOPE_ROLES,
+];
+
 export const schoolCensusRoutingModule: Routes = [
   {
     path: 'school-census/equite',
@@ -38,6 +47,19 @@ export const schoolCensusRoutingModule: Routes = [
     canActivate: [roleGuard],
     data: { roles: CENSUS_READ_ROLES, parentTitle: 'Recensement', childTitle: 'Carte scolaire' },
     loadComponent: () => import('./school-map/school-map').then((m) => m.SchoolMap),
+  },
+  {
+    path: 'school-census/reorganisation',
+    canActivate: [roleGuard],
+    data: {
+      roles: REORGANISATION_ROLES,
+      parentTitle: 'Pilotage national',
+      childTitle: 'Réorganisation réseau',
+    },
+    loadComponent: () =>
+      import('./reorganisation/reorganisation-page').then(
+        (m) => m.ReorganisationPage,
+      ),
   },
   {
     path: 'school-census/schools',

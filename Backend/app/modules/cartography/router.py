@@ -22,6 +22,8 @@ from app.modules.cartography.schemas import (
 from app.modules.cartography.service import CartographyService
 from app.modules.cartography.tiles import MAX_ZOOM
 from app.shared.deps import DbSession, get_current_user
+from app.shared.enums import UserRole
+from app.shared.permissions import require_roles
 
 # MVT tile media type per the Mapbox Vector Tile spec.
 MVT_MEDIA_TYPE = "application/vnd.mapbox-vector-tile"
@@ -120,9 +122,11 @@ async def site_recommendations(
     Approche : pour chaque préfecture sans école dans `radiusKm`, calcule le
     centroïde géographique des écoles voisines manquantes et propose ce point.
     """
-    from sqlalchemy import func as sa_func, select  # noqa: PLC0415
-    from app.modules.territory.models import Prefecture, Region  # noqa: PLC0415
-    from app.modules.schools.models import School  # noqa: PLC0415
+    from sqlalchemy import func as sa_func
+    from sqlalchemy import select
+
+    from app.modules.schools.models import School
+    from app.modules.territory.models import Prefecture, Region
 
     # Préfectures avec leur centroïde géographique des écoles existantes
     stmt = (
@@ -170,7 +174,7 @@ async def site_recommendations(
 async def queue_geocode(
     dto: GeocodeRequest, user: CurrentUserDep
 ) -> GeocodeResponse:
-    from app.workers.geocoding_tasks import geocode_address  # noqa: PLC0415
+    from app.workers.geocoding_tasks import geocode_address
 
     task = geocode_address.delay(dto.address)
     _ = user  # auth still required, but the worker doesn't need scope context
@@ -259,3 +263,111 @@ async def distance_stats_regions(
 ) -> RegionDistanceResponse:
     """Average nearest-neighbour school distance for each region in scope."""
     return await service.get_region_distance_stats(user)
+
+
+# =====================================================================
+# Module 3A — Couches dynamiques pour la réorganisation du réseau
+# =====================================================================
+# RBAC : NATIONAL_ADMIN, MINISTRY_ADMIN, REGIONAL_ADMIN, INSPECTOR. Les
+# rôles préfecture / école n'ouvrent pas cette section (la décision de
+# réorganisation se prend au moins au niveau régional).
+LAYER_RBAC = require_roles(
+    UserRole.NATIONAL_ADMIN,
+    UserRole.MINISTRY_ADMIN,
+    UserRole.REGIONAL_ADMIN,
+    UserRole.INSPECTOR,
+)
+LayerUserDep = Annotated[User, Depends(LAYER_RBAC)]
+
+
+@router.get(
+    "/layers/gpi-critical-regions",
+    summary="Couche GPI critique par région (Module 1B → 3A)",
+)
+async def layer_gpi_critical_regions(
+    user: LayerUserDep,
+    service: CartoSvc,
+    schoolYearId: Annotated[str | None, Query(max_length=30)] = None,
+) -> dict[str, Any]:
+    """FeatureCollection des régions GPI < 0.85 ou en warning filles."""
+    return await service.get_layer(
+        "gpi-critical-regions",
+        {"schoolYearId": schoolYearId},
+        user,
+    )
+
+
+@router.get(
+    "/layers/capacity-critical-schools",
+    summary="Écoles en saturation projetée CRITICAL (Module 2C → 3A)",
+)
+async def layer_capacity_critical_schools(
+    user: LayerUserDep,
+    service: CartoSvc,
+    baseSchoolYearId: Annotated[str | None, Query(max_length=30)] = None,
+) -> dict[str, Any]:
+    """FeatureCollection des écoles dont la saturation > 100 %."""
+    return await service.get_layer(
+        "capacity-critical-schools",
+        {"baseSchoolYearId": baseSchoolYearId},
+        user,
+    )
+
+
+@router.get(
+    "/layers/staffing-critical-schools",
+    summary="Écoles en sous-dotation enseignants (Module 2D → 3A)",
+)
+async def layer_staffing_critical_schools(
+    user: LayerUserDep,
+    service: CartoSvc,
+    schoolYearId: Annotated[str | None, Query(max_length=30)] = None,
+) -> dict[str, Any]:
+    """FeatureCollection des écoles UNDER_STAFFED ou CRITICAL."""
+    return await service.get_layer(
+        "staffing-critical-schools",
+        {"schoolYearId": schoolYearId},
+        user,
+    )
+
+
+@router.get(
+    "/layers/infrastructure-gaps",
+    summary="Écoles à infrastructure incomplète (eau / élec / latrines / internet)",
+)
+async def layer_infrastructure_gaps(
+    user: LayerUserDep,
+    service: CartoSvc,
+) -> dict[str, Any]:
+    """FeatureCollection des écoles avec au moins une lacune infra."""
+    return await service.get_layer("infrastructure-gaps", {}, user)
+
+
+@router.get(
+    "/layers/zone-type",
+    summary="Couche urbain / rural / péri-urbain par sous-préfecture (Module 1C → 3A)",
+)
+async def layer_zone_type(
+    user: LayerUserDep,
+    service: CartoSvc,
+) -> dict[str, Any]:
+    """FeatureCollection des sous-préfectures avec leur defaultZoneType."""
+    return await service.get_layer("zone-type", {}, user)
+
+
+@router.get(
+    "/layers/white-zones-enriched",
+    summary="Zones non desservies (radius + estimation pop.) — extension Module 5",
+)
+async def layer_white_zones_enriched(
+    user: LayerUserDep,
+    service: CartoSvc,
+    radiusKm: Annotated[float, Query(gt=0, le=50)] = 5.0,
+    populationThreshold: Annotated[int, Query(ge=0, le=100_000)] = 500,
+) -> dict[str, Any]:
+    """FeatureCollection des sous-préf. > radius_km de toute école, pop > seuil."""
+    return await service.get_layer(
+        "white-zones-enriched",
+        {"radiusKm": radiusKm, "populationThreshold": populationThreshold},
+        user,
+    )

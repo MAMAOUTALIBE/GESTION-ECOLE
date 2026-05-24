@@ -1,0 +1,19 @@
+@if (visibleLayers().length > 0) {
+  <div class="reorganisation-legend card" aria-label="Légende des couches actives">
+    <div class="card-header py-2">
+      <span class="fw-semibold small">Légende</span>
+    </div>
+    <ul class="list-unstyled m-0 p-2 legend-list">
+      @for (layer of visibleLayers(); track layer.id) {
+        <li class="d-flex align-items-center gap-2 legend-item small">
+          <span
+            class="legend-dot"
+            [style.background-color]="layer.color"
+            aria-hidden="true"
+          ></span>
+          <span>{{ layer.label }}</span>
+        </li>
+      }
+    </ul>
+  </div>
+}

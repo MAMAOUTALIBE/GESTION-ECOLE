@@ -69,5 +69,30 @@
       "byZone": "Effectifs par zone",
       "map": "Carte GPI régional"
     }
+  },
+  "reorganisation": {
+    "title": "Réorganisation du réseau scolaire",
+    "subtitle": "Cartographie SIG enrichie pour aider à la décision (Module 3A).",
+    "refresh": "Actualiser",
+    "loading": "Chargement des couches…",
+    "errorLoad": "Couches cartographiques indisponibles — backend ou cache à vérifier.",
+    "panelTitle": "Couches disponibles",
+    "legendTitle": "Légende",
+    "layers": {
+      "gpiCritical": "Régions à GPI critique",
+      "capacityCritical": "Écoles en saturation projetée",
+      "staffingCritical": "Sous-effectif enseignants",
+      "infrastructureGaps": "Lacunes infrastructure",
+      "zoneType": "Urbain / rural / péri-urbain",
+      "whiteZones": "Zones blanches enrichies"
+    },
+    "descriptions": {
+      "gpiCritical": "GPI < 0.85 ou en alerte filles (Module 1B).",
+      "capacityCritical": "Saturation > 100 % en année t+1 (Module 2C).",
+      "staffingCritical": "UNDER_STAFFED ou CRITICAL (Module 2D).",
+      "infrastructureGaps": "Eau, électricité, latrines ou internet manquants.",
+      "zoneType": "Type de zone par sous-préfecture (Module 1C).",
+      "whiteZones": "Sous-préfectures > 5 km de toute école."
+    }
   }
 }

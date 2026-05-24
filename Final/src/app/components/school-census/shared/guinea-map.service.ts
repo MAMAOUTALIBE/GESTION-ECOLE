@@ -163,4 +163,49 @@ export class GuineaMapService {
       default: return 'green';
     }
   }
+
+  /**
+   * Module 3A — Helper d'ajout d'une couche GeoJSON à une carte Leaflet.
+   *
+   * Le composant `reorganisation-map` empile jusqu'à 6 couches togglables ;
+   * passer par ce helper standardise la création (style, tooltip, gestion
+   * des Points avec marqueurs cerclés) et évite à chaque composant de
+   * ré-implémenter le marshalling.
+   *
+   * @param map     instance Leaflet.Map déjà initialisée.
+   * @param geoJson FeatureCollection à afficher (GeoJSON RFC 7946).
+   * @param style   options de style (rayon, couleur, opacité).
+   * @param name    libellé interne (utile pour debugging / removeLayer).
+   *
+   * @returns       la couche Leaflet.GeoJSON créée et déjà ajoutée à la
+   *                carte. Le composant l'enregistre pour pouvoir la retirer
+   *                au toggle off.
+   */
+  addGeoJsonLayer(
+    map: L.Map,
+    geoJson: GeoJSON.FeatureCollection,
+    style: {
+      radius?: number;
+      color: string;
+      fillColor?: string;
+      fillOpacity?: number;
+      weight?: number;
+    },
+    name: string,
+  ): L.GeoJSON {
+    const layer = L.geoJSON(geoJson, {
+      pointToLayer: (_feature, latlng) =>
+        L.circleMarker(latlng, {
+          radius: style.radius ?? 8,
+          color: style.color,
+          fillColor: style.fillColor ?? style.color,
+          fillOpacity: style.fillOpacity ?? 0.6,
+          weight: style.weight ?? 1,
+        }),
+    });
+    // Stocke le nom dans la closure pour le debug Leaflet (devtools).
+    (layer as L.GeoJSON & { _layerName?: string })._layerName = name;
+    layer.addTo(map);
+    return layer;
+  }
 }

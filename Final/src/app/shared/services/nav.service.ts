@@ -159,6 +159,19 @@ export class NavService implements OnDestroy {
       nochild: true,
     },
     {
+      // Module 3A — Couches cartographiques de réorganisation. Visible
+      // pour NATIONAL/MINISTRY/REGIONAL/INSPECTOR. Le roleGuard sur la
+      // route filtre les autres rôles, mais on affiche l'entrée même
+      // pour les rôles non habilités (Spruko expose tout le menu —
+      // c'est la route qui bloque l'accès).
+      title: 'Réorganisation réseau',
+      icon: '<i class="ri-route-line side-menu__icon"></i>',
+      path: '/school-census/reorganisation',
+      type: 'link',
+      dirchange: false,
+      nochild: true,
+    },
+    {
       title: 'Classes',
       icon: `
         <svg xmlns="http://www.w3.org/2000/svg" class="side-menu__icon" width="24" height="24" viewBox="0 0 24 24"><path d="M4 4h16v2H4V4zm0 4h16v12H4V8zm2 2v8h12v-8H6zm2 2h8v2H8v-2zm0 3h5v2H8v-2z"/></svg>

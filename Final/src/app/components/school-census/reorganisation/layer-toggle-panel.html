@@ -1,0 +1,43 @@
+<div class="layer-toggle-panel card" role="region" aria-label="Sélection des couches cartographiques">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Couches disponibles</span>
+    <span class="badge bg-primary-transparent" aria-live="polite">
+      {{ totalActive() }} / {{ layers().length }}
+    </span>
+  </div>
+  <ul class="list-group list-group-flush layer-list">
+    @for (layer of layers(); track layer.id) {
+      <li class="list-group-item d-flex align-items-start gap-2 layer-item">
+        <span
+          class="layer-swatch"
+          [style.background-color]="layer.color"
+          aria-hidden="true"
+        ></span>
+        <div class="flex-grow-1">
+          <label class="form-check-label fw-semibold" [attr.for]="'toggle-' + layer.id">
+            {{ layer.label }}
+          </label>
+          <div class="text-muted small">{{ layer.description }}</div>
+          @if (layer.count > 0 && isActive(layer.id)) {
+            <div class="text-primary small mt-1">
+              {{ layer.count }} entité<span *ngIf="layer.count > 1">s</span>
+              affichée<span *ngIf="layer.count > 1">s</span>
+            </div>
+          }
+        </div>
+        <div class="form-check form-switch m-0">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            role="switch"
+            [id]="'toggle-' + layer.id"
+            [checked]="isActive(layer.id)"
+            [disabled]="disabled()"
+            (change)="onToggle(layer.id)"
+            [attr.aria-label]="'Activer la couche ' + layer.label"
+          />
+        </div>
+      </li>
+    }
+  </ul>
+</div>

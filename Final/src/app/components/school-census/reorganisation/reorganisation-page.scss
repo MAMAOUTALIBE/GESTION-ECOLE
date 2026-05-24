@@ -1,0 +1,21 @@
+.reorganisation-page {
+  padding: 0.5rem 0;
+
+  .reorganisation-map-card-body {
+    position: relative;
+    min-height: 600px;
+  }
+
+  .loading-overlay {
+    position: absolute;
+    top: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1100;
+    padding: 0.5rem 1rem;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border-radius: 0.4rem;
+    font-size: 0.85rem;
+  }
+}

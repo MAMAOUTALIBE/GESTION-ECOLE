@@ -69,5 +69,30 @@
       "byZone": "Effectifs par zone",
       "map": "Carte GPI régional"
     }
+  },
+  "reorganisation": {
+    "title": "Xaranɲii naatige rakelima",
+    "subtitle": "Karatɛ SIG bira maxɔdɔnyi rabama (Module 3A).",
+    "refresh": "A rafalama",
+    "loading": "Karatɛ na fa…",
+    "errorLoad": "Karatɛ mu sɔtɔ — backend xa cache to māxa.",
+    "panelTitle": "Karatɛ rawalima",
+    "legendTitle": "Kɔlɔn",
+    "layers": {
+      "gpiCritical": "Bɔxi GPI ɲaaxi",
+      "capacityCritical": "Xaranɲii daweni",
+      "staffingCritical": "Xarandeɛ dɔnxɔn",
+      "infrastructureGaps": "Hayifuyi xɔdɔnyi",
+      "zoneType": "Taa / yire / yiriwoxore",
+      "whiteZones": "Bɔxi gbe xɔdɔnyi"
+    },
+    "descriptions": {
+      "gpiCritical": "GPI < 0.85 xa girls alerte (Module 1B).",
+      "capacityCritical": "Dawenima > 100 % saare t+1 (Module 2C).",
+      "staffingCritical": "UNDER_STAFFED xa CRITICAL (Module 2D).",
+      "infrastructureGaps": "Yi, lampi, kɔnyi xa internet mu fa.",
+      "zoneType": "Bɔxi banxiyi sub-prefecture (Module 1C).",
+      "whiteZones": "Sub-prefecture > 5 km xaranɲii rakelima."
+    }
   }
 }

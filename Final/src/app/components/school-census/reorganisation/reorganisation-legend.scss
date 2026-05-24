@@ -1,0 +1,26 @@
+.reorganisation-legend {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 1000;
+  min-width: 220px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+
+  .legend-list {
+    margin-bottom: 0;
+  }
+
+  .legend-item {
+    padding: 0.15rem 0;
+  }
+
+  .legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+  }
+}

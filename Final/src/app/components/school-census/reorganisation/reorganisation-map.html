@@ -1,0 +1,6 @@
+<div class="reorganisation-map">
+  <div #mapContainer class="reorganisation-map__canvas" aria-label="Carte de réorganisation du réseau"></div>
+  <div class="map-overlay-counter" aria-live="polite">
+    {{ totalFeatures() }} entité<span *ngIf="totalFeatures() !== 1">s</span> affichée<span *ngIf="totalFeatures() !== 1">s</span>
+  </div>
+</div>

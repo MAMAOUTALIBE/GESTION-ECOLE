@@ -5,6 +5,8 @@ territorial scope filtering as the schools/census modules.
 """
 import base64
 import contextlib
+import hashlib
+import json
 from typing import Any
 
 from sqlalchemy import func, select, text
@@ -14,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError, PostgisUnavailableError
 from app.core.redis import get_redis
 from app.modules.auth.models import User
+from app.modules.cartography import layers as cartography_layers
 from app.modules.cartography.schemas import (
     CatchmentsQuery,
     CoverageGapsQuery,
@@ -47,6 +50,26 @@ from app.shared.permissions import (
 # `mvt:*` namespace manually after a bulk import.
 TILE_CACHE_TTL_SECONDS = 3600
 TILE_CACHE_PREFIX = "mvt"
+
+# Module 3A — Réorganisation réseau : couches GeoJSON.
+# Cache 5 min : les snapshots GPI / capacity / staffing sont recalculés
+# manuellement par les admins, donc une fraîcheur < 5 min est largement
+# suffisante pour limiter la charge SQL sur des dashboards très consultés.
+LAYER_CACHE_TTL_SECONDS = 300
+LAYER_CACHE_PREFIX = "cartography:layer"
+
+# Liste exhaustive des couches exposées par Module 3A. Permet au service
+# de rejeter immédiatement un nom de couche inconnu (HTTP 404).
+SUPPORTED_LAYERS: frozenset[str] = frozenset(
+    {
+        "gpi-critical-regions",
+        "capacity-critical-schools",
+        "staffing-critical-schools",
+        "infrastructure-gaps",
+        "zone-type",
+        "white-zones-enriched",
+    }
+)
 
 
 class CartographyService:
@@ -685,3 +708,190 @@ class CartographyService:
                 )
             )
         return RegionDistanceResponse(items=items)
+
+    # ==================================================================
+    # Module 3A — Couches dynamiques pour la réorganisation du réseau
+    # ==================================================================
+    @staticmethod
+    def _layer_cache_key(
+        name: str, params: dict[str, Any], scope_user: User
+    ) -> str:
+        """Dérive une clé Redis stable de (couche, params, scope user).
+
+        Le scope est inclus dans la clé pour éviter qu'un INSPECTOR voie
+        des features mises en cache par un MINISTRY_ADMIN (et inversement).
+        """
+        scope_token = (
+            f"{scope_user.role}:{scope_user.regionId or '-'}:"
+            f"{scope_user.prefectureId or '-'}"
+        )
+        # On stringify les params en JSON trié pour éviter qu'une permutation
+        # de clé ne crée un miss inutile.
+        serialised = json.dumps(params, sort_keys=True, default=str)
+        digest = hashlib.sha256(
+            f"{scope_token}|{serialised}".encode()
+        ).hexdigest()[:16]
+        return f"{LAYER_CACHE_PREFIX}:{name}:{digest}"
+
+    async def get_layer(
+        self,
+        name: str,
+        params: dict[str, Any],
+        scope_user: User,
+    ) -> dict[str, Any]:
+        """Dispatch + cache pour les 6 couches Module 3A.
+
+        - 404 si ``name`` n'est pas dans ``SUPPORTED_LAYERS``.
+        - Renvoie un FeatureCollection vide pour les utilisateurs sans
+          scope agrégé (école / pas de role national/régional).
+        - Cache Redis 5 min, sourd aux erreurs transitoires.
+        """
+        if name not in SUPPORTED_LAYERS:
+            raise NotFoundError(
+                detail=f"Unknown cartography layer: '{name}'.",
+                extra={"supported": sorted(SUPPORTED_LAYERS)},
+            )
+
+        cache_key = self._layer_cache_key(name, params, scope_user)
+        redis = get_redis()
+
+        # 1. Tentative cache.
+        cached: str | None = None
+        with contextlib.suppress(Exception):  # pragma: no cover
+            cached = await redis.get(cache_key)
+        if cached:
+            with contextlib.suppress(Exception):
+                payload = json.loads(cached)
+                payload.setdefault("meta", {})["cached"] = True
+                return payload
+
+        # 2. Calcul via la couche layers.py.
+        payload = await self._dispatch_layer(name, params, scope_user)
+
+        # 3. Mise en cache.
+        with contextlib.suppress(Exception):  # pragma: no cover
+            await redis.set(
+                cache_key,
+                json.dumps(payload, default=str),
+                ex=LAYER_CACHE_TTL_SECONDS,
+            )
+        payload.setdefault("meta", {})["cached"] = False
+        return payload
+
+    async def _dispatch_layer(
+        self,
+        name: str,
+        params: dict[str, Any],
+        scope_user: User,
+    ) -> dict[str, Any]:
+        """Aiguillage pur (sans cache) — testable directement."""
+        # Les utilisateurs SCHOOL n'ont pas de vue agrégée. On renvoie une
+        # collection vide pour ne pas leaker de données hors-périmètre.
+        from app.shared.permissions import SCHOOL_SCOPE_ROLES
+
+        if scope_user.role in SCHOOL_SCOPE_ROLES:
+            return {
+                "type": "FeatureCollection",
+                "features": [],
+                "meta": {
+                    "count": 0,
+                    "layer": name,
+                    "reason": "out_of_scope",
+                },
+            }
+
+        if name == "gpi-critical-regions":
+            fc = await cartography_layers.get_gpi_critical_regions(
+                self.session,
+                school_year_id=params.get("schoolYearId"),
+            )
+        elif name == "capacity-critical-schools":
+            fc = await cartography_layers.get_critical_capacity_schools_geo(
+                self.session,
+                base_school_year_id=params.get("baseSchoolYearId"),
+            )
+        elif name == "staffing-critical-schools":
+            fc = await cartography_layers.get_critical_staffing_schools_geo(
+                self.session,
+                school_year_id=params.get("schoolYearId"),
+            )
+        elif name == "infrastructure-gaps":
+            fc = await cartography_layers.get_infrastructure_gaps_geo(self.session)
+        elif name == "zone-type":
+            fc = await cartography_layers.get_zone_type_layer(self.session)
+        elif name == "white-zones-enriched":
+            fc = await cartography_layers.get_white_zones_enriched(
+                self.session,
+                radius_km=float(
+                    params.get(
+                        "radiusKm",
+                        cartography_layers.WHITE_ZONE_DEFAULT_RADIUS_KM,
+                    )
+                ),
+                population_threshold=int(
+                    params.get(
+                        "populationThreshold",
+                        cartography_layers.WHITE_ZONE_DEFAULT_POPULATION_THRESHOLD,
+                    )
+                ),
+            )
+        else:  # pragma: no cover - garde-fou défensif
+            raise NotFoundError(detail=f"Unknown cartography layer: '{name}'.")
+
+        # Filtrage scope régional appliqué APRÈS calcul (les couches sont
+        # nationales par défaut ; on coupe ici pour préserver le secret
+        # territorial sur les rôles non-nationaux).
+        return self._apply_layer_scope(fc, scope_user, name)
+
+    @staticmethod
+    def _apply_layer_scope(
+        fc: dict[str, Any], user: User, layer_name: str
+    ) -> dict[str, Any]:
+        """Si l'utilisateur est REGIONAL_*, filtre les features sur sa région.
+
+        On accepte plusieurs noms de propriétés (``regionId``,
+        ``parentRegionId``) pour rester souple selon la couche.
+        """
+        from app.shared.permissions import (
+            NATIONAL_SCOPE_ROLES,
+            PREFECTURE_SCOPE_ROLES,
+            REGIONAL_SCOPE_ROLES,
+        )
+
+        if user.role in NATIONAL_SCOPE_ROLES:
+            return fc
+
+        target_region = user.regionId if user.role in REGIONAL_SCOPE_ROLES else None
+        target_prefecture = (
+            user.prefectureId if user.role in PREFECTURE_SCOPE_ROLES else None
+        )
+
+        if not target_region and not target_prefecture:
+            return fc
+
+        kept: list[dict[str, Any]] = []
+        for feat in fc.get("features", []):
+            props = feat.get("properties", {}) or {}
+            keep = True
+            if target_region is not None:
+                # GPI critique régions utilise "regionId" ; les autres
+                # exposent un "regionId" hérité de l'école.
+                rid = props.get("regionId")
+                if rid is not None and rid != target_region:
+                    keep = False
+            if keep and target_prefecture is not None:
+                pid = props.get("prefectureId")
+                if pid is not None and pid != target_prefecture:
+                    keep = False
+            if keep:
+                kept.append(feat)
+
+        meta = dict(fc.get("meta", {}))
+        meta["count"] = len(kept)
+        meta["scopedTo"] = target_region or target_prefecture
+        meta["layer"] = layer_name
+        return {
+            "type": "FeatureCollection",
+            "features": kept,
+            "meta": meta,
+        }
