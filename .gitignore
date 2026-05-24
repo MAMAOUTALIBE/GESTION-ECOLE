@@ -65,3 +65,4 @@ logs/
 
 # Claude / agents
 .claude/local-state/
+.claude/worktrees/
