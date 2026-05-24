@@ -631,6 +631,101 @@ async def detect_urban_rural_gpi_gap(
 
 
 # ---------------------------------------------------------------------------
+# 9. Module 2A — Taux de transition aberrant (rate > 2 OU rate < 0.5)
+# ---------------------------------------------------------------------------
+async def detect_transition_rate_outliers(
+    session: AsyncSession,
+    *,
+    outlier_rows: list[Any] | None = None,
+    school_year_from_id: str | None = None,
+) -> list[AnomalyDetection]:
+    """Détecte les taux de transition aberrants par région.
+
+    Critère anomalie (plus strict que le ``isOutlier`` stocké en DB) :
+    ``rate > 2`` (redoublement de masse / erreur saisie) OU ``rate < 0.5``
+    (signal d'abandons massifs entre deux niveaux scolaires successifs).
+
+    Severity ``MEDIUM`` — signal à investiguer (pas un blocage métier).
+    ``entityType = "Region"``.
+
+    Deux modes d'appel :
+    * ``outlier_rows`` fourni — le service vient de calculer les rates,
+      on évite une 2e requête DB et on filtre directement la liste.
+    * Sinon, on requête ``TransitionRate`` filtré sur isOutlier OR
+      rate < 0.5 (optionnellement scopé sur une year_from précise).
+    """
+    # Import local pour éviter la dépendance cyclique au module projections.
+    from app.modules.projections.models import TransitionRate
+
+    if outlier_rows is None:
+        from decimal import Decimal as _Decimal
+
+        stmt = select(TransitionRate).where(
+            or_(
+                TransitionRate.isOutlier.is_(True),
+                TransitionRate.rate < _Decimal("0.5"),
+            )
+        )
+        if school_year_from_id is not None:
+            stmt = stmt.where(
+                TransitionRate.schoolYearFromId == school_year_from_id,
+            )
+        stmt = stmt.limit(PER_DETECTOR_LIMIT)
+        outlier_rows = list(
+            (await session.execute(stmt)).scalars().all(),
+        )
+
+    out: list[AnomalyDetection] = []
+    for r in outlier_rows:
+        # Critère anomalie : rate hors [0.5, 2.0] (NULL skip).
+        if r.rate is None:
+            continue
+        rate_float = float(r.rate)
+        if 0.5 <= rate_float <= 2.0:
+            continue
+
+        signal = (
+            "redoublement de masse / erreur saisie"
+            if rate_float > 2.0
+            else "abandons massifs"
+        )
+        # entityId : region pour REGIONAL, "NATIONAL" symbolique pour
+        # NATIONAL (l'anomalie reste rattachée à un agrégat — utile pour
+        # le triage cabinet).
+        entity_id = r.entityId or "NATIONAL"
+        out.append(_make(
+            a_type=AnomalyType.TRANSITION_RATE_OUTLIER,
+            severity=AnomalySeverity.MEDIUM,
+            entity_type="Region",
+            entity_id=entity_id,
+            description=(
+                f"Taux de transition {r.classLevelFrom.value}→"
+                f"{r.classLevelTo.value} ({r.gender.value}) = "
+                f"{rate_float:.4f} — {signal} "
+                f"(sample={r.sampleSize})."
+            ),
+            evidence={
+                "transitionRateId": r.id,
+                "scope": r.scope.value,
+                "regionId": r.entityId,
+                "schoolYearFromId": r.schoolYearFromId,
+                "schoolYearToId": r.schoolYearToId,
+                "classLevelFrom": r.classLevelFrom.value,
+                "classLevelTo": r.classLevelTo.value,
+                "gender": r.gender.value,
+                "rate": rate_float,
+                "sampleSize": int(r.sampleSize),
+                "thresholdMax": 2.0,
+                "thresholdMin": 0.5,
+            },
+            region_id=r.entityId if r.scope.value == "REGIONAL" else None,
+        ))
+        if len(out) >= PER_DETECTOR_LIMIT:
+            break
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Registry — exposé au service pour lancer un run complet
 # ---------------------------------------------------------------------------
 ALL_DETECTORS = (
@@ -655,5 +750,6 @@ __all__ = [
     "detect_impossible_grades",
     "detect_late_birthdate",
     "detect_suspicious_attendance_100",
+    "detect_transition_rate_outliers",
     "detect_urban_rural_gpi_gap",
 ]

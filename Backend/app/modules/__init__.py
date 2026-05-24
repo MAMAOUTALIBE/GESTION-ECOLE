@@ -19,6 +19,7 @@ from app.modules.notifications import models as _notifications_models  # noqa: F
 from app.modules.opendata import models as _opendata_models  # noqa: F401
 from app.modules.parent_portal import models as _parent_portal_models  # noqa: F401
 from app.modules.predictions import models as _predictions_models  # noqa: F401
+from app.modules.projections import models as _projections_models  # noqa: F401
 from app.modules.schoollife import models as _schoollife_models  # noqa: F401
 from app.modules.schools import models as _schools_models  # noqa: F401
 from app.modules.sms import models as _sms_models  # noqa: F401

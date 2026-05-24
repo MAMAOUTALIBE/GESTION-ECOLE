@@ -33,6 +33,11 @@ class AnomalyType(StrEnum):
     # Objectif gouv : corriger les disparités urbain vs rural. Détecteur
     # déclenché manuellement ou via un job CRON après chaque recalcul GPI.
     URBAN_RURAL_GPI_GAP = "URBAN_RURAL_GPI_GAP"
+    # Module 2A — taux de transition aberrant (rate > 2 ou rate < 0.5).
+    # Signal de redoublement de masse, erreur de saisie, ou abandon
+    # massif entre deux niveaux scolaires sur une région. Détecteur
+    # déclenché en hook post-``compute_transitions``.
+    TRANSITION_RATE_OUTLIER = "TRANSITION_RATE_OUTLIER"
 
 
 class AnomalySeverity(StrEnum):

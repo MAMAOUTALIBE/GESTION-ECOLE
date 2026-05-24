@@ -128,6 +128,7 @@ def create_app() -> FastAPI:
     from app.modules.opendata.router import router as opendata_router
     from app.modules.parent_portal.router import router as parent_portal_router
     from app.modules.predictions.router import router as predictions_router
+    from app.modules.projections.router import router as projections_router
     from app.modules.realtime.router import router as realtime_router
     from app.modules.reports.router import router as reports_router
     from app.modules.schoollife.router import router as schoollife_router
@@ -224,6 +225,10 @@ def create_app() -> FastAPI:
     # Module 1A — Enrollment désagrégé (fondation Phase 1 carte scolaire IIPE)
     app.include_router(
         enrollment_router, prefix=f"{settings.api_prefix}/enrollment"
+    )
+    # Module 2A — Projections IIPE-UNESCO (taux de transition par cohortes)
+    app.include_router(
+        projections_router, prefix=f"{settings.api_prefix}/projections"
     )
 
     return app
