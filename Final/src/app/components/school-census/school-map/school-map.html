@@ -125,7 +125,67 @@
         <span class="badge bg-primary-transparent">{{ formatNumber(geolocatedSchools.length) }} GPS</span>
       </div>
     </div>
-    <div id="school-census-map"></div>
+
+    <!-- Wrapper "centre de pilotage" néon : panneaux flottants par-dessus la carte. -->
+    <div class="cs-map-wrapper" [class.cs-loading]="loading">
+      <!-- Bloc titre top-left -->
+      <div class="cs-panel cs-panel-title">
+        <div class="cs-status-led" aria-label="En ligne"></div>
+        <h1 class="cs-title">CARTE SCOLAIRE</h1>
+        <p class="cs-subtitle">Centre de pilotage national · Guinée</p>
+        <div class="cs-kpi-row">
+          <div class="cs-kpi">
+            <span class="cs-kpi-value">{{ schools.length }}</span>
+            <span class="cs-kpi-label">Écoles</span>
+          </div>
+          <div class="cs-kpi">
+            <span class="cs-kpi-value">{{ formatNumber(censusTotals.students) }}</span>
+            <span class="cs-kpi-label">Élèves</span>
+          </div>
+          <div class="cs-kpi">
+            <span class="cs-kpi-value">{{ formatNumber(censusTotals.teachers) }}</span>
+            <span class="cs-kpi-label">Enseignants</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtres top-right (doublon ergonomique du filter-bar — agit sur la carte). -->
+      <div class="cs-panel cs-panel-filters">
+        <label class="cs-label" for="cs-filter-region">FILTRE</label>
+        <select
+          id="cs-filter-region"
+          class="cs-select"
+          [(ngModel)]="selectedRegionId"
+          (ngModelChange)="applyFilters()"
+        >
+          <option value="">Toutes régions</option>
+          @for (r of regions; track r.id) {
+            <option [value]="r.id">{{ r.name }}</option>
+          }
+        </select>
+        <select
+          class="cs-select"
+          [(ngModel)]="selectedType"
+          (ngModelChange)="applyFilters()"
+          aria-label="Type d'école"
+        >
+          <option value="">Tous types</option>
+          <option value="PUBLIC">Public</option>
+          <option value="PRIVATE">Privé</option>
+          <option value="COMMUNITY">Communautaire</option>
+        </select>
+      </div>
+
+      <!-- Légende bottom-left -->
+      <div class="cs-panel cs-panel-legend">
+        <div class="cs-legend-item"><span class="cs-dot cs-dot-green"></span> PUBLIC</div>
+        <div class="cs-legend-item"><span class="cs-dot cs-dot-red"></span> PRIVÉ</div>
+        <div class="cs-legend-item"><span class="cs-dot cs-dot-yellow"></span> COMMUNAUTAIRE</div>
+      </div>
+
+      <!-- Container Leaflet (id inchangé pour ne pas casser la logique TS) -->
+      <div id="school-census-map" class="cs-leaflet"></div>
+    </div>
   </div>
 
   <div class="col-xl-12">

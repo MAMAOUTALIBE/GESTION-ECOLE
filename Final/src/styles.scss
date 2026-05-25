@@ -63,6 +63,7 @@
 @forward'../node_modules/filepond/dist/filepond.min.css';
 @forward 'filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css';
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap');
 @import url("https://fonts.googleapis.com/icon?family=Material+Icons");
 
 .os-theme-dark {
@@ -1233,4 +1234,151 @@ button[ngx-colors-trigger] {
   &.color-transparent {
     border: 1px solid var(--bs-gradient) !important;
   }
+}
+
+// =====================================================================
+// Carte scolaire néon — overrides globaux Leaflet + marqueurs.
+// (Externalisés depuis school-map.scss pour rester sous le budget
+//  de style component de 8 kB. Variables locales définies en dur ici
+//  car appliquées sur des éléments hors-host Angular — popups, tooltip,
+//  marqueurs DivIcon générés par L.divIcon.)
+// =====================================================================
+
+// Frontière Guinée — glow néon vert.
+.guinea-border-glow {
+  filter: drop-shadow(0 0 8px #16e07a) drop-shadow(0 0 14px #16e07a);
+}
+
+// Conteneur Leaflet de la carte scolaire (dark).
+.leaflet-container {
+  &:has(#school-census-map),
+  &:has(.cs-leaflet) {
+    font-family: 'Rajdhani', 'Poppins', sans-serif;
+  }
+}
+
+#school-census-map.leaflet-container,
+.cs-leaflet.leaflet-container {
+  background: #05070a !important;
+}
+
+// Popups Leaflet (dark néon) appliqués globalement quand la carte scolaire
+// est montée. On utilise des sélecteurs spécifiques pour ne pas affecter
+// d'autres cartes du projet.
+.cs-map-wrapper {
+  .leaflet-popup-content-wrapper {
+    background: rgba(5, 7, 10, 0.92);
+    border: 1px solid #16e07a;
+    border-radius: 12px;
+    box-shadow: 0 0 24px rgba(22, 224, 122, 0.45);
+    color: #e6f5ec;
+    font-family: 'Rajdhani', 'Poppins', sans-serif;
+  }
+
+  .leaflet-popup-tip { background: rgba(5, 7, 10, 0.92); }
+  .leaflet-popup-close-button { color: #7d8a82 !important; }
+
+  .leaflet-control-zoom a {
+    background: rgba(5, 7, 10, 0.7);
+    border: 1px solid rgba(22, 224, 122, 0.45);
+    color: #e6f5ec;
+    &:hover { background: rgba(22, 224, 122, 0.15); color: #16e07a; }
+  }
+}
+
+// Marqueurs néon (cs-marker) — DivIcon Leaflet, donc hors :host.
+.cs-marker-wrapper { background: transparent; border: 0; }
+
+.cs-marker {
+  border-radius: 50%;
+  display: block;
+  height: var(--size, 16px);
+  position: relative;
+  width: var(--size, 16px);
+}
+
+.cs-marker::before {
+  animation: cs-pulse 2.4s ease-out infinite;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  content: '';
+  inset: -6px;
+  opacity: 0.6;
+  pointer-events: none;
+  position: absolute;
+}
+
+.cs-marker::after {
+  background: currentColor;
+  border-radius: 50%;
+  box-shadow: 0 0 14px currentColor;
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+// Perf : pas d'animation continue pour l'état normal.
+.cs-marker.cs-marker-calm::before { animation: none; opacity: 0.25; }
+.cs-marker-green { color: #16e07a; }
+.cs-marker-red { color: #ff2e57; }
+.cs-marker-yellow { color: #ffd60a; }
+
+@keyframes cs-pulse {
+  0% { opacity: 0.6; transform: scale(1); }
+  70% { opacity: 0; transform: scale(1.8); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-marker::before {
+    animation: none;
+    opacity: 0.4;
+    transform: scale(1.3);
+  }
+}
+
+// Légende Leaflet (bottom-left) — restylée dark néon pour cohérence.
+.cs-map-wrapper .map-legend {
+  background: rgba(5, 7, 10, 0.75);
+  border: 1px solid rgba(22, 224, 122, 0.45);
+  border-radius: 8px;
+  box-shadow: 0 0 14px rgba(22, 224, 122, 0.45);
+  color: #e6f5ec;
+  font-family: 'Rajdhani', 'Poppins', sans-serif;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  padding: 0.55rem 0.75rem;
+
+  .legend-title { font-weight: 700; letter-spacing: 0.08em; margin-block-end: 0.35rem; }
+  .legend-row { align-items: center; display: flex; gap: 0.55rem; }
+  .legend-row + .legend-row { margin-block-start: 0.2rem; }
+  .legend-dot { border-radius: 50%; display: inline-block; flex: 0 0 10px; height: 10px; width: 10px; }
+  .legend-dot.dot-red { background: #ff2e57; box-shadow: 0 0 6px rgba(255, 46, 87, 0.45); }
+  .legend-dot.dot-orange { background: #ffd60a; box-shadow: 0 0 6px rgba(255, 214, 10, 0.45); }
+  .legend-dot.dot-green { background: #16e07a; box-shadow: 0 0 6px rgba(22, 224, 122, 0.45); }
+}
+
+// Tooltip Leaflet (dark néon).
+.school-alert-tooltip.leaflet-tooltip {
+  background: rgba(5, 7, 10, 0.92);
+  border: 1px solid #16e07a;
+  border-radius: 8px;
+  box-shadow: 0 0 18px rgba(22, 224, 122, 0.45);
+  color: #e6f5ec;
+  font-family: 'Rajdhani', 'Poppins', sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  max-width: 280px;
+  opacity: 1;
+  padding: 0.65rem 0.8rem;
+  white-space: normal;
+
+  .tip-title { font-size: 0.85rem; font-weight: 700; margin-block-end: 0.25rem; }
+  .tip-meta { color: #7d8a82; font-size: 0.72rem; margin-block-end: 0.4rem; }
+  .tip-stats { display: grid; gap: 0.15rem 0.6rem; grid-template-columns: auto auto; }
+  .tip-stats dt { color: #7d8a82; font-weight: 500; margin: 0; }
+  .tip-stats dd { color: #e6f5ec; font-weight: 600; margin: 0; }
+  .tip-alert-critical { color: #ff2e57; font-weight: 700; margin-block-start: 0.45rem; }
+  .tip-alert-warning { color: #ffd60a; font-weight: 700; margin-block-start: 0.45rem; }
 }

@@ -51,15 +51,19 @@ export class GuineaMapService {
       [13.2, -7.1], // nord-est
     ],
     maxBoundsViscosity: 1.0,
-    tileUrl: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+    // Carto Dark Matter : fond sombre adapté à l'esthétique "centre de pilotage" néon.
+    tileUrl: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
     tileAttribution:
       '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>',
     borderStyle: {
-      color: '#1a3a6e',
-      weight: 2,
+      // Frontière néon vert phosphorescent. Le glow CSS est appliqué via
+      // la classe `.guinea-border-glow` (filter: drop-shadow).
+      color: '#16e07a',
+      weight: 3,
       opacity: 1,
       fillOpacity: 0,
       fillColor: 'transparent',
+      className: 'guinea-border-glow',
     },
   };
 
@@ -162,6 +166,59 @@ export class GuineaMapService {
       case 'warning': return 'orange';
       default: return 'green';
     }
+  }
+
+  /**
+   * Construit un marqueur "néon" pour la carte de pilotage.
+   *
+   * Couleur déterminée par le type d'école :
+   *   - PUBLIC      → vert  (#16e07a)
+   *   - PRIVATE     → rouge (#ff2e57)
+   *   - COMMUNITY   → jaune (#ffd60a)
+   *   - défaut      → vert
+   *
+   * Taille selon l'effectif élèves :
+   *   ≤ 50  → 12px ; ≤ 200 → 16px ; ≤ 500 → 22px ; > 500 → 28px
+   *
+   * L'animation de pulsation néon est désactivée pour les écoles en état
+   * `normal` lorsqu'il y a beaucoup de marqueurs (perf) — c'est l'appelant
+   * qui décide en ajoutant la classe `cs-marker-static`.
+   */
+  buildNeonMarkerIcon(
+    level: AlertLevel,
+    schoolType: 'PUBLIC' | 'PRIVATE' | 'COMMUNITY' | string,
+    studentsCount: number,
+  ): L.DivIcon {
+    const color = this.neonColorForType(schoolType);
+    const size = this.neonSizeForStudents(studentsCount);
+    // Le `level` ajuste l'intensité de l'animation : critical/warning gardent
+    // la pulsation, normal peut être atténuée.
+    const levelClass = level === 'normal' ? 'cs-marker-calm' : `cs-marker-alert-${level}`;
+    const html =
+      `<span class="cs-marker cs-marker-${color} ${levelClass}" ` +
+      `style="--size:${size}px" aria-hidden="true"></span>`;
+    return L.divIcon({
+      className: 'cs-marker-wrapper',
+      html,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -size / 2 - 2],
+      tooltipAnchor: [0, -size / 2 - 2],
+    });
+  }
+
+  private neonColorForType(schoolType: string): 'green' | 'red' | 'yellow' {
+    const type = (schoolType ?? '').toUpperCase();
+    if (type === 'PRIVATE') return 'red';
+    if (type === 'COMMUNITY') return 'yellow';
+    return 'green';
+  }
+
+  private neonSizeForStudents(students: number): number {
+    if (students <= 50) return 12;
+    if (students <= 200) return 16;
+    if (students <= 500) return 22;
+    return 28;
   }
 
   /**
