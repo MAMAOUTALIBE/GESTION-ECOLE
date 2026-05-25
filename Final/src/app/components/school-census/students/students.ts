@@ -7,10 +7,19 @@ import { ClassRoom, CensusPerson, School } from '../shared/school-census.models'
 import { CensusApiService } from '../shared/census-api.service';
 import { openPrintWindow, printPersonCards } from '../shared/card-print-utils';
 import { ExportColumn, downloadCsv, downloadExcel, printTable } from '../shared/export-utils';
+import { PrivacyService } from '../../../shared/privacy/privacy.service';
+import { RedactedNamePipe } from '../../../shared/privacy/redacted-name.pipe';
+import { PrivacyBannerComponent } from '../../../shared/privacy/privacy-banner.component';
 
 @Component({
   selector: 'app-students',
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterModule,
+    RedactedNamePipe,
+    PrivacyBannerComponent,
+  ],
   templateUrl: './students.html',
   styleUrl: './students.scss',
 })
@@ -18,6 +27,7 @@ export class Students {
   private api = inject(CensusApiService);
   private formBuilder = inject(FormBuilder);
   private sanitizer = inject(DomSanitizer);
+  protected privacy = inject(PrivacyService);
 
   students: CensusPerson[] = [];
   schools: School[] = [];
@@ -35,16 +45,40 @@ export class Students {
 
   private studentExportColumns: ExportColumn<CensusPerson>[] = [
     { header: 'Matricule', value: (student) => student.uniqueCode },
-    { header: 'Prénom', value: (student) => student.firstName },
-    { header: 'Nom', value: (student) => student.lastName },
+    { header: 'Prénom', value: (student) => this.privacyFirst(student) },
+    { header: 'Nom', value: (student) => this.privacyLast(student) },
     { header: 'Genre', value: (student) => this.genderLabel(student.gender) },
     { header: 'Date de naissance', value: (student) => this.dateLabel(student.birthDate) },
     { header: 'École', value: (student) => student.school.name },
     { header: 'Région', value: (student) => student.school.region?.name },
     { header: 'Classe', value: (student) => student.classRoom?.name ?? 'Non affecté' },
-    { header: 'Tuteur', value: (student) => student.guardianName },
-    { header: 'Téléphone tuteur', value: (student) => student.guardianPhone },
+    { header: 'Tuteur', value: (student) => this.privacyTutor(student) },
+    { header: 'Téléphone tuteur', value: (student) => this.privacyTutorPhone(student) },
   ];
+
+  private privacyTarget(student: CensusPerson) {
+    return { schoolId: student.school.id, regionId: student.school.region?.id };
+  }
+
+  private privacyFirst(student: CensusPerson): string {
+    return this.privacy.canSeeFullName(this.privacyTarget(student))
+      ? student.firstName
+      : (student.firstName ? `${student.firstName.charAt(0).toLocaleUpperCase('fr-FR')}.` : '');
+  }
+
+  private privacyLast(student: CensusPerson): string {
+    return this.privacy.canSeeFullName(this.privacyTarget(student))
+      ? student.lastName
+      : (student.lastName ? `${student.lastName.charAt(0).toLocaleUpperCase('fr-FR')}.` : '');
+  }
+
+  private privacyTutor(student: CensusPerson): string | undefined | null {
+    return this.privacy.canSeeFullName(this.privacyTarget(student)) ? student.guardianName : '';
+  }
+
+  private privacyTutorPhone(student: CensusPerson): string | undefined | null {
+    return this.privacy.canSeeFullName(this.privacyTarget(student)) ? student.guardianPhone : '';
+  }
 
   form = this.formBuilder.group({
     firstName: ['', [Validators.required, Validators.minLength(2)]],

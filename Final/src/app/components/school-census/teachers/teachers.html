@@ -84,7 +84,7 @@
         </div>
         <div class="card-body text-center">
           <div class="qr-preview mx-auto mb-3" [innerHTML]="selectedQr"></div>
-          <h6 class="mb-1">{{ selectedPerson.fullName }}</h6>
+          <h6 class="mb-1">{{ selectedPerson | redactedName: teacherTarget(selectedPerson) }}</h6>
           <p class="text-muted mb-0">{{ selectedPerson.uniqueCode }}</p>
           <a class="btn btn-sm btn-primary mt-3" [routerLink]="['/school-census/teachers', selectedPerson.id]">
             <i class="ri-printer-line me-1"></i>Carte enseignant
@@ -120,6 +120,7 @@
         </div>
       </div>
       <div class="card-body p-0">
+        <app-privacy-banner class="d-block px-3 pt-3"></app-privacy-banner>
         <div class="table-responsive">
           <table class="table table-hover mb-0">
             <thead>
@@ -136,8 +137,12 @@
                 <tr>
                   <td class="fw-semibold">{{ teacher.uniqueCode }}</td>
                   <td>
-                    <div class="fw-semibold">{{ teacher.fullName }}</div>
-                    <span class="text-muted fs-12">{{ teacher.phone || 'Téléphone non renseigné' }}</span>
+                    <div class="fw-semibold">{{ teacher | redactedName: teacherTarget(teacher) }}</div>
+                    @if (privacy.canSeeFullName(teacherTarget(teacher))) {
+                      <span class="text-muted fs-12">{{ teacher.phone || 'Téléphone non renseigné' }}</span>
+                    } @else {
+                      <span class="text-muted fs-12">—</span>
+                    }
                   </td>
                   <td>{{ teacher.school.name }}</td>
                   <td>

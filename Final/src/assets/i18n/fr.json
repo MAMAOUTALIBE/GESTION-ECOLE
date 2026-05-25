@@ -70,6 +70,15 @@
       "map": "Carte GPI régional"
     }
   },
+  "privacy": {
+    "banner": {
+      "title": "Affichage des noms restreint",
+      "message": "Certains noms sont anonymisés selon votre niveau d'habilitation (Loi 037/AN/2016 sur la protection des données personnelles)."
+    },
+    "redacted": {
+      "label": "Identité protégée"
+    }
+  },
   "reorganisation": {
     "title": "Réorganisation du réseau scolaire",
     "subtitle": "Cartographie SIG enrichie pour aider à la décision (Module 3A).",

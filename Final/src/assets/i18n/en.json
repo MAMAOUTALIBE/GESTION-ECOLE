@@ -70,6 +70,15 @@
       "map": "Regional GPI map"
     }
   },
+  "privacy": {
+    "banner": {
+      "title": "Restricted name display",
+      "message": "Some names are anonymised based on your access level (Law 037/AN/2016 on personal data protection)."
+    },
+    "redacted": {
+      "label": "Identity protected"
+    }
+  },
   "reorganisation": {
     "title": "School network reorganisation",
     "subtitle": "Enriched GIS map to support reorganisation decisions (Module 3A).",

@@ -1,0 +1,16 @@
+/* PrivacyBannerComponent — Module 5A
+ *
+ * Style additif, n'écrase pas les tokens Spruko. La bannière est volontairement
+ * discrète (info-level), non bloquante, pour informer l'utilisateur que la
+ * redaction des noms est légale et contextuelle.
+ */
+
+.privacy-banner {
+  border-left: 3px solid var(--bs-info, #0dcaf0);
+  border-radius: 0.375rem;
+
+  i {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+}

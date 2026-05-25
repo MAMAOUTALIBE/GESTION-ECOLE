@@ -70,6 +70,15 @@
       "map": "Carte GPI régional"
     }
   },
+  "privacy": {
+    "banner": {
+      "title": "Xili ratangima",
+      "message": "Xili ndee yi tangima i ya hakke saabui ra (Sariya 037/AN/2016 limaniyɛ ratangɛ xa)."
+    },
+    "redacted": {
+      "label": "Xili ratangima"
+    }
+  },
   "reorganisation": {
     "title": "Xaranɲii naatige rakelima",
     "subtitle": "Karatɛ SIG bira maxɔdɔnyi rabama (Module 3A).",
