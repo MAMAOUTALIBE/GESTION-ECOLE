@@ -165,6 +165,68 @@
       "whiteZones": "Sub-prefectures > 5 km from any school."
     }
   },
+  "simulateur": {
+    "title": "What-if simulator of the school network",
+    "subtitle": "Simulate opening, closing or merging schools and measure the impact (Module 3B).",
+    "year": "School year",
+    "newScenario": "New scenario",
+    "save": "Save",
+    "compute": "Compute impact",
+    "loading": "Loading…",
+    "modes": {
+      "view": "View",
+      "create": "Create",
+      "close": "Close",
+      "merge": "Merge"
+    },
+    "operations": {
+      "title": "Scenario operations",
+      "empty": "No operations yet.",
+      "remove": "Remove operation"
+    },
+    "impact": {
+      "title": "Scenario impact",
+      "empty": "Compute the impact to see the report.",
+      "coverage": "Coverage",
+      "saturation": "Saturation",
+      "distance": "Mean distance",
+      "redistributed": "Redistributed students"
+    },
+    "merge": {
+      "instruction": "Select ≥ 2 schools, then click Merge",
+      "confirm": "Merge",
+      "cancel": "Cancel"
+    },
+    "table": {
+      "title": "Saved scenarios",
+      "empty": "No scenarios yet.",
+      "name": "Name",
+      "status": "Status",
+      "operations": "Operations",
+      "createdAt": "Created at",
+      "computedAt": "Computed at",
+      "actions": "Actions",
+      "computeAction": "Compute",
+      "viewAction": "View",
+      "archiveAction": "Archive"
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "COMPUTED": "Computed",
+      "ARCHIVED": "Archived"
+    },
+    "toasts": {
+      "saved": "Scenario saved.",
+      "computed": "Impact computed.",
+      "archived": "Scenario archived."
+    },
+    "errors": {
+      "load": "Data unavailable — check the backend.",
+      "save": "Could not save the scenario.",
+      "compute": "Could not compute impact.",
+      "archive": "Could not archive the scenario."
+    }
+  },
   "transferts": {
     "title": "Teacher transfers",
     "subtitle": "Review over/under-staffed schools and validate suggested transfers (Module 2D).",

@@ -35,6 +35,16 @@ const TRANSFERTS_ROLES: UserRole[] = [
   'REGIONAL_ADMIN',
 ];
 
+// Module 3B UI — Simulateur what-if du réseau scolaire. Mêmes rôles que
+// le backend (`SIMULATOR_WRITE_HTTP_ROLES`) : NATIONAL/MINISTRY/REGIONAL_ADMIN.
+// Les autres rôles n'ont pas vocation à arbitrer la carte scolaire et
+// l'écran serait inutile en lecture seule (les boutons d'écriture sont déjà
+// désactivés côté frontend par `canEdit`).
+const SIMULATEUR_ROLES: UserRole[] = [
+  ...NATIONAL_SCOPE_ROLES,
+  'REGIONAL_ADMIN',
+];
+
 export const schoolCensusRoutingModule: Routes = [
   {
     path: 'school-census/equite',
@@ -81,6 +91,17 @@ export const schoolCensusRoutingModule: Routes = [
     },
     loadComponent: () =>
       import('./transferts/transferts-page').then((m) => m.TransfertsPage),
+  },
+  {
+    path: 'school-census/simulateur',
+    canActivate: [roleGuard],
+    data: {
+      roles: SIMULATEUR_ROLES,
+      parentTitle: 'Pilotage national',
+      childTitle: 'Simulateur what-if',
+    },
+    loadComponent: () =>
+      import('./simulateur/simulateur-page').then((m) => m.SimulateurPage),
   },
   {
     path: 'school-census/schools',

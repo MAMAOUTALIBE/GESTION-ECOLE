@@ -184,6 +184,17 @@ export class NavService implements OnDestroy {
       nochild: true,
     },
     {
+      // Module 3B UI — Simulateur what-if du réseau scolaire. Restreint
+      // aux mêmes rôles que /transferts (NATIONAL/MINISTRY/REGIONAL_ADMIN) ;
+      // le roleGuard bloque les autres profils si le menu reste affiché.
+      title: 'Simulateur what-if',
+      icon: '<i class="ri-flask-line side-menu__icon"></i>',
+      path: '/school-census/simulateur',
+      type: 'link',
+      dirchange: false,
+      nochild: true,
+    },
+    {
       title: 'Classes',
       icon: `
         <svg xmlns="http://www.w3.org/2000/svg" class="side-menu__icon" width="24" height="24" viewBox="0 0 24 24"><path d="M4 4h16v2H4V4zm0 4h16v12H4V8zm2 2v8h12v-8H6zm2 2h8v2H8v-2zm0 3h5v2H8v-2z"/></svg>

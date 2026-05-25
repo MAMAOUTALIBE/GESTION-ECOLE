@@ -165,6 +165,68 @@
       "whiteZones": "Sous-préfectures > 5 km de toute école."
     }
   },
+  "simulateur": {
+    "title": "Simulateur what-if du réseau scolaire",
+    "subtitle": "Simulez l'ouverture, la fermeture ou la fusion d'écoles et mesurez l'impact (Module 3B).",
+    "year": "Année scolaire",
+    "newScenario": "Nouveau scénario",
+    "save": "Sauvegarder",
+    "compute": "Calculer impact",
+    "loading": "Chargement…",
+    "modes": {
+      "view": "Visualiser",
+      "create": "Créer",
+      "close": "Fermer",
+      "merge": "Fusionner"
+    },
+    "operations": {
+      "title": "Opérations du scénario",
+      "empty": "Aucune opération pour le moment.",
+      "remove": "Retirer l'opération"
+    },
+    "impact": {
+      "title": "Impact du scénario",
+      "empty": "Lancez le calcul pour visualiser l'impact.",
+      "coverage": "Couverture",
+      "saturation": "Saturation",
+      "distance": "Distance moyenne",
+      "redistributed": "Élèves redistribués"
+    },
+    "merge": {
+      "instruction": "Sélectionnez ≥ 2 écoles puis cliquez sur Fusionner",
+      "confirm": "Fusionner",
+      "cancel": "Annuler"
+    },
+    "table": {
+      "title": "Scénarios enregistrés",
+      "empty": "Aucun scénario pour le moment.",
+      "name": "Nom",
+      "status": "Statut",
+      "operations": "Opérations",
+      "createdAt": "Créé le",
+      "computedAt": "Calculé le",
+      "actions": "Actions",
+      "computeAction": "Calculer",
+      "viewAction": "Voir",
+      "archiveAction": "Archiver"
+    },
+    "status": {
+      "DRAFT": "Brouillon",
+      "COMPUTED": "Calculé",
+      "ARCHIVED": "Archivé"
+    },
+    "toasts": {
+      "saved": "Scénario enregistré.",
+      "computed": "Impact calculé.",
+      "archived": "Scénario archivé."
+    },
+    "errors": {
+      "load": "Données indisponibles — backend à vérifier.",
+      "save": "Sauvegarde impossible.",
+      "compute": "Calcul d'impact impossible.",
+      "archive": "Archivage impossible."
+    }
+  },
   "transferts": {
     "title": "Transferts enseignants",
     "subtitle": "Visualisez les écoles sur/sous-dotées et validez les transferts proposés (Module 2D).",

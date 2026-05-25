@@ -1,0 +1,34 @@
+.scenarios-table {
+  border-radius: 0.75rem;
+
+  table {
+    margin-bottom: 0;
+  }
+
+  th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #4a5568;
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  td {
+    vertical-align: middle;
+    font-size: 0.88rem;
+  }
+
+  .badge {
+    font-size: 0.7rem;
+    padding: 0.3em 0.55em;
+  }
+}
+
+:host-context([data-theme='dark']) {
+  .scenarios-table {
+    th {
+      background: rgba(255, 255, 255, 0.04);
+      color: #cbd5e1;
+    }
+  }
+}

@@ -1,0 +1,116 @@
+<div class="simulateur-page">
+  <div class="row">
+    <div class="col-xl-12">
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div>
+          <p class="text-uppercase fw-semibold text-primary mb-1 fs-12">
+            Module 3B — Aide à la décision
+          </p>
+          <h3 class="fw-semibold mb-1">Simulateur what-if du réseau scolaire</h3>
+          <p class="text-muted mb-0">
+            Simulez l'ouverture, la fermeture ou la fusion d'écoles. Le moteur
+            calcule l'impact sur la couverture, la saturation et la distance
+            moyenne des élèves.
+          </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <label for="sim-year" class="form-label mb-0 me-1 fs-12 text-muted">
+            Année scolaire
+          </label>
+          <select
+            id="sim-year"
+            class="form-select form-select-sm"
+            [ngModel]="schoolYearId() ?? ''"
+            (ngModelChange)="onYearChange($event)"
+            [disabled]="loading() || busy()"
+            data-testid="year-select"
+            aria-label="Année scolaire de référence"
+          >
+            <option value="" disabled>—</option>
+            @for (sy of schoolYears(); track sy.id) {
+              <option [value]="sy.id">{{ sy.name }}</option>
+            }
+          </select>
+          <button
+            type="button"
+            class="btn btn-outline-secondary btn-sm"
+            [disabled]="busy()"
+            (click)="startNewScenario()"
+            data-testid="new-scenario-btn"
+          >
+            <i class="ri-add-line me-1"></i>Nouveau scénario
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @if (error(); as err) {
+    <div class="alert alert-warning" role="alert">{{ err }}</div>
+  }
+
+  @if (toast(); as t) {
+    <div
+      class="alert d-flex align-items-center justify-content-between"
+      [class.alert-success]="t.kind === 'success'"
+      [class.alert-danger]="t.kind === 'danger'"
+      role="status"
+      aria-live="polite"
+    >
+      <span>{{ t.message }}</span>
+      <button
+        type="button"
+        class="btn-close ms-2"
+        aria-label="Fermer"
+        (click)="dismissToast()"
+      ></button>
+    </div>
+  }
+
+  <div class="row g-3 mb-3">
+    <div class="col-xl-7 col-lg-12 position-relative">
+      <app-simulateur-map
+        [schools]="schools()"
+        [operations]="operations()"
+        [mode]="mode()"
+        (opAdded)="onOpAdded($event)"
+      />
+      @if (loading()) {
+        <div class="loading-overlay" aria-live="polite">Chargement…</div>
+      }
+    </div>
+    <div class="col-xl-5 col-lg-12">
+      <app-operations-panel
+        [operations]="operations()"
+        [schools]="schools()"
+        [mode]="mode()"
+        [busy]="busy()"
+        [canEdit]="canEdit()"
+        [scenarioId]="currentScenarioId()"
+        (modeChange)="setMode($event)"
+        (removeOperation)="onOpRemoved($event)"
+        (compute)="onCompute()"
+        (save)="onSave($event)"
+      />
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-xl-12">
+      <app-impact-report [report]="impact()" />
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-xl-12">
+      <app-scenarios-table
+        [scenarios]="scenarios()"
+        [canWrite]="canEdit()"
+        [busy]="busy()"
+        (compute)="computeScenarioFromTable($event)"
+        (view)="onView($event)"
+        (archive)="onArchive($event)"
+      />
+    </div>
+  </div>
+</div>

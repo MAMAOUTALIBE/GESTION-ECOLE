@@ -165,6 +165,68 @@
       "whiteZones": "Jeyngol > 5 km e duɗe."
     }
   },
+  "simulateur": {
+    "title": "Simulateer what-if lowre duɗe",
+    "subtitle": "Eɓɓito udditgol, uddugol walla dentungol duɗe e yiy impact ɗum (Module 3B).",
+    "year": "Hitaande jaŋde",
+    "newScenario": "Eɓɓo hesa",
+    "save": "Hisno",
+    "compute": "Hiisno impact",
+    "loading": "Loowi…",
+    "modes": {
+      "view": "Ƴeewndo",
+      "create": "Tag",
+      "close": "Uddu",
+      "merge": "Dental"
+    },
+    "operations": {
+      "title": "Golle eɓɓo",
+      "empty": "Alaa golle.",
+      "remove": "Ittu golle"
+    },
+    "impact": {
+      "title": "Impact eɓɓo",
+      "empty": "Hiisno ngam yiyde impact.",
+      "coverage": "Suddungol",
+      "saturation": "Daweede",
+      "distance": "Hakkille mum",
+      "redistributed": "Jannguɓe ɗe waylaa"
+    },
+    "merge": {
+      "instruction": "Suɓo duɗe ≥ 2 caggal ɗum daɓɓu Dental",
+      "confirm": "Dental",
+      "cancel": "Ittu"
+    },
+    "table": {
+      "title": "Eɓɓooji hisanaaɗi",
+      "empty": "Alaa eɓɓo.",
+      "name": "Innde",
+      "status": "Ngonka",
+      "operations": "Golle",
+      "createdAt": "Tagaa nde",
+      "computedAt": "Hiisaa nde",
+      "actions": "Golle",
+      "computeAction": "Hiisno",
+      "viewAction": "Ƴeewu",
+      "archiveAction": "Mooftu"
+    },
+    "status": {
+      "DRAFT": "Pooɗɗol",
+      "COMPUTED": "Hiisaa",
+      "ARCHIVED": "Mooftaaɗo"
+    },
+    "toasts": {
+      "saved": "Eɓɓo hisanaama.",
+      "computed": "Impact hiisaama.",
+      "archived": "Eɓɓo mooftaama."
+    },
+    "errors": {
+      "load": "Keɓe alaa — yiyto backend.",
+      "save": "Hisngol waawaa.",
+      "compute": "Hiisngol impact haɗii.",
+      "archive": "Mooftugol haɗii."
+    }
+  },
   "transferts": {
     "title": "Saatire jannguɓe",
     "subtitle": "Ƴeewu duɗe ɗe jannguɓe ɓuri walla famɗi, eɓɓito saatire ɓe (Module 2D).",
