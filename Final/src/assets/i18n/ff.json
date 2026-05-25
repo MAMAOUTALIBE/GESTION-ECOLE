@@ -70,6 +70,15 @@
       "map": "Carte GPI régional"
     }
   },
+  "privacy": {
+    "banner": {
+      "title": "Inɗe ko reenaa",
+      "message": "Inɗe goɗɗe ɗe suuɗaama hakkunde fawaade e darnde maa (Sariya 037/AN/2016 e reenugol limle keeriiɗe)."
+    },
+    "redacted": {
+      "label": "Inɗe reenaa"
+    }
+  },
   "reorganisation": {
     "title": "Hesnitde lowre duɗe",
     "subtitle": "Karta SIG ngam wallude e ƴeewndaade peeje (Module 3A).",

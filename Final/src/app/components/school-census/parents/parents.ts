@@ -10,10 +10,21 @@ import { AcademicsApiService, ParentPayload } from '../shared/academics-api.serv
 import { CensusApiService } from '../shared/census-api.service';
 import { CensusPerson, ParentContact, ParentRelationType } from '../shared/school-census.models';
 import { ExportColumn, downloadCsv, downloadExcel, printTable } from '../shared/export-utils';
+import { PrivacyService } from '../../../shared/privacy/privacy.service';
+import { RedactedNamePipe } from '../../../shared/privacy/redacted-name.pipe';
+import { PrivacyBannerComponent } from '../../../shared/privacy/privacy-banner.component';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-parents',
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    RedactedNamePipe,
+    PrivacyBannerComponent,
+    TranslateModule,
+  ],
   templateUrl: './parents.html',
   styleUrl: './parents.scss',
 })
@@ -22,6 +33,7 @@ export class Parents {
   private academicsApi = inject(AcademicsApiService);
   private censusApi = inject(CensusApiService);
   private formBuilder = inject(FormBuilder);
+  protected privacy = inject(PrivacyService);
 
   parents: ParentContact[] = [];
   students: CensusPerson[] = [];
@@ -41,14 +53,25 @@ export class Parents {
   ];
 
   private parentExportColumns: ExportColumn<ParentContact>[] = [
-    { header: 'Parent', value: (parent) => parent.fullName },
-    { header: 'Téléphone', value: (parent) => parent.phone },
-    { header: 'Email', value: (parent) => parent.email },
+    { header: 'Parent', value: (parent) => this.privacy.displayName(parent, this.parentTarget(parent)) },
+    { header: 'Téléphone', value: (parent) => this.privacy.canSeeFullName(this.parentTarget(parent)) ? parent.phone : '' },
+    { header: 'Email', value: (parent) => this.privacy.canSeeFullName(this.parentTarget(parent)) ? parent.email : '' },
     { header: 'Profession', value: (parent) => parent.profession },
     { header: 'Langue', value: (parent) => parent.preferredLanguage },
     { header: 'Élèves', value: (parent) => this.linkedStudents(parent) },
     { header: 'Relations', value: (parent) => parent.students.map((link) => this.relationLabel(link.relation)).join(', ') },
   ];
+
+  parentTarget(parent: ParentContact) {
+    // Pour un parent, le scope d'autorisation est défini par l'école/région
+    // du premier élève lié (au moins un élève dans le scope user = autorisation).
+    // v1 : on prend le premier lien comme target ; v2 itérera sur tous les liens.
+    const firstLink = parent.students[0];
+    return {
+      schoolId: firstLink?.student.school?.id,
+      regionId: firstLink?.student.school?.region?.id,
+    };
+  }
 
   form = this.formBuilder.group({
     firstName: ['', [Validators.required, Validators.minLength(2)]],
@@ -78,13 +101,14 @@ export class Parents {
     return this.parents.filter((parent) => {
       const matchesRelation =
         !this.selectedRelation || parent.students.some((link) => link.relation === this.selectedRelation);
+      const canSee = this.privacy.canSeeFullName(this.parentTarget(parent));
       const searchable = this.normalizeSearch(
         [
-          parent.fullName,
-          parent.phone,
-          parent.email,
+          canSee ? parent.fullName : this.privacy.displayName(parent, this.parentTarget(parent)),
+          canSee ? parent.phone : '',
+          canSee ? parent.email : '',
           parent.profession,
-          parent.address,
+          canSee ? parent.address : '',
           parent.preferredLanguage,
           this.linkedStudents(parent),
         ].join(' '),
@@ -197,7 +221,8 @@ export class Parents {
   }
 
   deleteParent(parent: ParentContact) {
-    if (!this.canDeleteParents || !window.confirm(`Supprimer ${parent.fullName} ?`)) {
+    const label = this.privacy.displayName(parent, this.parentTarget(parent)) || 'ce contact';
+    if (!this.canDeleteParents || !window.confirm(`Supprimer ${label} ?`)) {
       return;
     }
 
@@ -249,7 +274,14 @@ export class Parents {
   }
 
   linkedStudents(parent: ParentContact) {
-    return parent.students.map((link) => link.student.fullName).join(', ');
+    return parent.students
+      .map((link) =>
+        this.privacy.displayName(link.student, {
+          schoolId: link.student.school?.id,
+          regionId: link.student.school?.region?.id,
+        }),
+      )
+      .join(', ');
   }
 
   relationLabel(relation: ParentRelationType) {

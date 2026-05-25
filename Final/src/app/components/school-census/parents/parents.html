@@ -46,7 +46,7 @@
               <label class="form-label">Élève lié</label>
               <select class="form-select" formControlName="studentId" [disabled]="!canManageParents || !!editingId">
                 @for (student of students; track student.id) {
-                  <option [value]="student.id">{{ student.fullName }} · {{ student.school.name }}</option>
+                  <option [value]="student.id">{{ student | redactedName: { schoolId: student.school.id, regionId: student.school.region?.id } }} · {{ student.school.name }}</option>
                 }
               </select>
               @if (editingId) {
@@ -151,6 +151,7 @@
         </div>
       </div>
       <div class="card-body p-0">
+        <app-privacy-banner class="d-block px-3 pt-3"></app-privacy-banner>
         <div class="table-responsive">
           <table class="table table-hover mb-0">
             <thead>
@@ -166,12 +167,17 @@
               @for (parent of filteredParents; track parent.id) {
                 <tr>
                   <td>
-                    <div class="fw-semibold">{{ parent.fullName }}</div>
+                    <div class="fw-semibold">{{ parent | redactedName: parentTarget(parent) }}</div>
                     <span class="text-muted fs-12">{{ parent.profession || 'Profession non renseignée' }}</span>
                   </td>
                   <td>
-                    <div>{{ parent.phone }}</div>
-                    <span class="text-muted fs-12">{{ parent.email || parent.preferredLanguage || 'Email non renseigné' }}</span>
+                    @if (privacy.canSeeFullName(parentTarget(parent))) {
+                      <div>{{ parent.phone }}</div>
+                      <span class="text-muted fs-12">{{ parent.email || parent.preferredLanguage || 'Email non renseigné' }}</span>
+                    } @else {
+                      <div class="text-muted">—</div>
+                      <span class="text-muted fs-12">{{ 'privacy.redacted.label' | translate }}</span>
+                    }
                   </td>
                   <td>
                     <div>{{ linkedStudents(parent) || 'Aucun élève lié' }}</div>

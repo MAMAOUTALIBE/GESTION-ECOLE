@@ -81,7 +81,7 @@
         </div>
         <div class="card-body text-center">
           <div class="qr-preview mx-auto mb-3" [innerHTML]="selectedQr"></div>
-          <h6 class="mb-1">{{ selectedPerson.fullName }}</h6>
+          <h6 class="mb-1">{{ selectedPerson | redactedName: { schoolId: selectedPerson.school.id, regionId: selectedPerson.school.region?.id } }}</h6>
           <p class="text-muted mb-0">{{ selectedPerson.uniqueCode }}</p>
           <a class="btn btn-sm btn-primary mt-3" [routerLink]="['/school-census/students', selectedPerson.id]">
             <i class="ri-printer-line me-1"></i>Carte scolaire
@@ -96,7 +96,7 @@
           <h3 class="card-title mb-0">Transfert élève</h3>
         </div>
         <div class="card-body">
-          <div class="fw-semibold mb-2">{{ transferPerson.fullName }}</div>
+          <div class="fw-semibold mb-2">{{ transferPerson | redactedName: { schoolId: transferPerson.school.id, regionId: transferPerson.school.region?.id } }}</div>
           <form [formGroup]="transferForm" (ngSubmit)="transferStudent()">
             <div class="row gy-3">
               <div class="col-12">
@@ -162,6 +162,7 @@
         </div>
       </div>
       <div class="card-body p-0">
+        <app-privacy-banner class="d-block px-3 pt-3"></app-privacy-banner>
         <div class="table-responsive">
           <table class="table table-hover mb-0">
             <thead>
@@ -178,7 +179,7 @@
                 <tr>
                   <td class="fw-semibold">{{ student.uniqueCode }}</td>
                   <td>
-                    <div class="fw-semibold">{{ student.fullName }}</div>
+                    <div class="fw-semibold">{{ student | redactedName: { schoolId: student.school.id, regionId: student.school.region?.id } }}</div>
                     <span class="text-muted fs-12">{{ student.gender }}</span>
                   </td>
                   <td>{{ student.school.name }}</td>
