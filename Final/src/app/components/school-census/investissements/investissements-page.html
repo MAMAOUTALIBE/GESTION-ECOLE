@@ -1,0 +1,217 @@
+<div class="investissements-page">
+  <div class="row">
+    <div class="col-xl-12">
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div>
+          <p class="text-uppercase fw-semibold text-primary mb-1 fs-12">
+            Module 3C — Aide à la décision
+          </p>
+          <h3 class="fw-semibold mb-1">Priorités d'investissement</h3>
+          <p class="text-muted mb-0">
+            Classement national des écoles à investir en priorité — score
+            composite (Infrastructure 35 % · Saturation 25 % · Équité 25 % ·
+            Accessibilité 15 %).
+          </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <label class="text-muted fs-12 mb-0">Année</label>
+          <select
+            class="form-select form-select-sm"
+            style="min-width: 8rem"
+            [ngModel]="schoolYearId() ?? ''"
+            (ngModelChange)="onYearChange($event)"
+            [disabled]="loading() || busy()"
+            data-testid="year-select"
+          >
+            <option value="">—</option>
+            @for (y of schoolYears(); track y.id) {
+              <option [value]="y.id">{{ y.name }}</option>
+            }
+          </select>
+          @if (canCompute()) {
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="loading() || busy() || !schoolYearId()"
+              (click)="computeScores()"
+              data-testid="compute-btn"
+              aria-label="Recalculer les scores d'investissement"
+            >
+              <i class="ri-calculator-line me-1"></i>
+              Recalculer
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @if (error(); as err) {
+    <div class="alert alert-warning" role="alert">{{ err }}</div>
+  }
+
+  @if (toast(); as t) {
+    <div
+      class="alert d-flex align-items-center justify-content-between"
+      [class.alert-success]="t.kind === 'success'"
+      [class.alert-danger]="t.kind === 'danger'"
+      role="status"
+      aria-live="polite"
+    >
+      <span>{{ t.message }}</span>
+      <button
+        type="button"
+        class="btn-close ms-2"
+        aria-label="Fermer"
+        (click)="dismissToast()"
+      ></button>
+    </div>
+  }
+
+  <!-- KPIs hero (4 catégories) -->
+  <div class="row g-3 mb-3">
+    <div class="col-xl-3 col-md-6">
+      <app-investment-kpi-card
+        title="Très haute priorité"
+        [value]="tresHauteCount()"
+        category="TRES_HAUTE"
+        [selected]="selectedCategory() === 'TRES_HAUTE'"
+        subtitle="≥ 70 pts · action immédiate"
+        icon="ri-alarm-warning-line"
+        (select)="onCategoryToggle($event)"
+      />
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <app-investment-kpi-card
+        title="Haute priorité"
+        [value]="hauteCount()"
+        category="HAUTE"
+        [selected]="selectedCategory() === 'HAUTE'"
+        subtitle="50 — 69 pts · plan triennal"
+        icon="ri-error-warning-line"
+        (select)="onCategoryToggle($event)"
+      />
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <app-investment-kpi-card
+        title="Priorité moyenne"
+        [value]="moyenneCount()"
+        category="MOYENNE"
+        [selected]="selectedCategory() === 'MOYENNE'"
+        subtitle="30 — 49 pts · surveiller"
+        icon="ri-information-line"
+        (select)="onCategoryToggle($event)"
+      />
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <app-investment-kpi-card
+        title="Priorité basse"
+        [value]="basseCount()"
+        category="BASSE"
+        [selected]="selectedCategory() === 'BASSE'"
+        subtitle="< 30 pts · pas d'investissement"
+        icon="ri-checkbox-circle-line"
+        (select)="onCategoryToggle($event)"
+      />
+    </div>
+  </div>
+
+  <!-- Filtres -->
+  <div class="row g-3 mb-3">
+    <div class="col-12">
+      <div class="card custom-card">
+        <div class="card-body d-flex flex-wrap align-items-center gap-3">
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="text-muted fs-12 fw-semibold me-1">Catégorie :</span>
+            <button
+              type="button"
+              class="btn btn-sm"
+              [class.btn-primary]="selectedCategory() === null"
+              [class.btn-outline-secondary]="selectedCategory() !== null"
+              (click)="selectedCategory.set(null)"
+            >
+              Toutes
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              [class.active]="selectedCategory() === 'TRES_HAUTE'"
+              (click)="onCategoryToggle('TRES_HAUTE')"
+            >
+              Très haute
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-warning"
+              [class.active]="selectedCategory() === 'HAUTE'"
+              (click)="onCategoryToggle('HAUTE')"
+            >
+              Haute
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-info"
+              [class.active]="selectedCategory() === 'MOYENNE'"
+              (click)="onCategoryToggle('MOYENNE')"
+            >
+              Moyenne
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-success"
+              [class.active]="selectedCategory() === 'BASSE'"
+              (click)="onCategoryToggle('BASSE')"
+            >
+              Basse
+            </button>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <label class="text-muted fs-12 fw-semibold mb-0">Région :</label>
+            <select
+              class="form-select form-select-sm"
+              style="min-width: 12rem"
+              [ngModel]="selectedRegionId() ?? ''"
+              (ngModelChange)="onRegionChange($event)"
+              data-testid="region-select"
+            >
+              <option value="">Toutes</option>
+              @for (r of regions(); track r.id) {
+                <option [value]="r.id">{{ r.name }}</option>
+              }
+            </select>
+          </div>
+          @if (selectedCategory() || selectedRegionId()) {
+            <button
+              type="button"
+              class="btn btn-sm btn-link text-muted"
+              (click)="resetFilters()"
+            >
+              <i class="ri-close-line me-1"></i>
+              Réinitialiser
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table top 100 -->
+  <div class="row">
+    <div class="col-12 position-relative">
+      <app-investment-table
+        [scores]="filteredScores()"
+        [selectedSchoolId]="selectedSchoolId()"
+        (selectSchool)="onSelectSchool($event)"
+      />
+      @if (loading()) {
+        <div class="loading-overlay" aria-live="polite">Chargement…</div>
+      }
+    </div>
+  </div>
+
+  <!-- Panneau détail (slide-in droite) -->
+  <app-investment-detail-panel
+    [score]="selectedScore()"
+    (close)="onCloseDetail()"
+  />
+</div>

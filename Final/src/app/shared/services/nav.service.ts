@@ -195,6 +195,17 @@ export class NavService implements OnDestroy {
       nochild: true,
     },
     {
+      // Module 3C UI — Priorités d'investissement. Ouvert à
+      // NATIONAL/MINISTRY/REGIONAL/INSPECTOR (lecture seule pour
+      // l'inspecteur ; bouton "Recalculer" réservé NATIONAL/MINISTRY).
+      title: "Priorités investissements",
+      icon: '<i class="ri-medal-line side-menu__icon"></i>',
+      path: '/school-census/investissements',
+      type: 'link',
+      dirchange: false,
+      nochild: true,
+    },
+    {
       title: 'Classes',
       icon: `
         <svg xmlns="http://www.w3.org/2000/svg" class="side-menu__icon" width="24" height="24" viewBox="0 0 24 24"><path d="M4 4h16v2H4V4zm0 4h16v12H4V8zm2 2v8h12v-8H6zm2 2h8v2H8v-2zm0 3h5v2H8v-2z"/></svg>

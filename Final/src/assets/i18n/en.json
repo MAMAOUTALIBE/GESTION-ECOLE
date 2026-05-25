@@ -275,5 +275,57 @@
       "compute": "Staffing computation failed.",
       "generate": "Recommendation generation failed."
     }
+  },
+  "investissements": {
+    "title": "Investment priorities",
+    "subtitle": "National ranking of schools to invest in first (Module 3C).",
+    "year": "School year",
+    "compute": "Recompute",
+    "loading": "Loading…",
+    "filters": {
+      "category": "Category",
+      "region": "Region",
+      "all": "All",
+      "reset": "Reset"
+    },
+    "category": {
+      "TRES_HAUTE": "Very high",
+      "HAUTE": "High",
+      "MOYENNE": "Medium",
+      "BASSE": "Low"
+    },
+    "kpi": {
+      "tresHaute": "Very high priority",
+      "haute": "High priority",
+      "moyenne": "Medium priority",
+      "basse": "Low priority"
+    },
+    "table": {
+      "title": "Top 100 schools — priorities",
+      "rank": "Rank",
+      "school": "School",
+      "region": "Region",
+      "score": "Score",
+      "category": "Category",
+      "dimensions": "Dimensions",
+      "empty": "No schools to display."
+    },
+    "panel": {
+      "profile": "Profile by dimension",
+      "infrastructure": "Infrastructure",
+      "saturation": "Projected saturation",
+      "equity": "Equity (GPI)",
+      "accessibility": "Accessibility",
+      "recommendations": "Recommendations",
+      "viewOnMap": "View school on map",
+      "close": "Close"
+    },
+    "toasts": {
+      "computed": "Recomputation complete."
+    },
+    "errors": {
+      "load": "Data unavailable — check backend.",
+      "compute": "Recomputation failed."
+    }
   }
 }

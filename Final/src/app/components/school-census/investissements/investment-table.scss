@@ -1,0 +1,68 @@
+.investment-table {
+  border-radius: 0.75rem;
+
+  .investment-row {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    &:focus {
+      outline: 2px solid var(--primary-color, #1a3a6e);
+      outline-offset: -2px;
+    }
+
+    &--selected {
+      background-color: rgba(13, 110, 253, 0.08);
+    }
+  }
+
+  .sparkbars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .sparkbar {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr 2.5rem;
+    align-items: center;
+    gap: 0.5rem;
+
+    &__label {
+      font-size: 0.7rem;
+      color: var(--text-muted, #6c757d);
+      text-align: right;
+    }
+
+    &__track {
+      background: rgba(108, 117, 125, 0.18);
+      border-radius: 999px;
+      height: 0.45rem;
+      overflow: hidden;
+    }
+
+    &__fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+
+    &__value {
+      font-size: 0.7rem;
+      color: var(--text-muted, #6c757d);
+      text-align: left;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+}
+
+:host-context([data-theme='dark']) {
+  .investment-table {
+    .investment-row--selected {
+      background-color: rgba(13, 110, 253, 0.18);
+    }
+
+    .sparkbar__track {
+      background: rgba(255, 255, 255, 0.08);
+    }
+  }
+}

@@ -1,0 +1,142 @@
+@if (score(); as s) {
+  <aside
+    class="investment-panel"
+    [class.investment-panel--visible]="visible()"
+    role="complementary"
+    aria-label="Détail d'une école prioritaire"
+  >
+    <div class="investment-panel__inner card custom-card h-100">
+      <div class="card-header d-flex align-items-start justify-content-between gap-2">
+        <div class="flex-grow-1">
+          <p class="text-uppercase fw-semibold text-primary mb-1 fs-12">
+            {{ categoryLabel() }}
+          </p>
+          <h5 class="fw-semibold mb-1">{{ s.schoolName ?? s.schoolId }}</h5>
+          <p class="text-muted mb-0 fs-12">
+            {{ s.regionName ?? '—' }}
+          </p>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+          <span class="badge fs-13" [ngClass]="badgeClass()">
+            {{ s.totalScore }} / 100
+          </span>
+          <button
+            type="button"
+            class="btn-close"
+            aria-label="Fermer"
+            (click)="onClose()"
+            data-testid="close-btn"
+          ></button>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <!-- Radar chart -->
+        <section class="mb-3" aria-label="Profil radar du score">
+          <h6 class="fw-semibold fs-13 mb-2">Profil par dimension</h6>
+          <spk-apexcharts
+            apxClass="investment-panel__radar"
+            [chartOptions]="radarOptions()"
+            data-testid="radar-chart"
+          />
+        </section>
+
+        <!-- Breakdown texte -->
+        <section class="mb-3" aria-label="Détail infrastructure">
+          <h6 class="fw-semibold fs-13 mb-2">
+            <i class="ri-building-line me-1"></i>
+            Infrastructure ·
+            <span class="text-muted">{{ s.infrastructureScore }} / 35</span>
+          </h6>
+          <ul class="investment-panel__list fs-13 mb-0">
+            <li>Eau potable : {{ hasResource(infra().missingWater) }}</li>
+            <li>Électricité : {{ hasResource(infra().missingElectricity) }}</li>
+            <li>Latrines : {{ hasResource(infra().missingToilets) }}</li>
+            <li>
+              État bâtiment :
+              <span class="fw-semibold">{{ infra().buildingCondition ?? '—' }}</span>
+            </li>
+            <li>
+              Salles utilisables :
+              {{ formatRatio(infra().classroomsRatio) }}
+              ({{ infra().classroomsRatioCritical ? 'critique' : 'OK' }})
+            </li>
+            <li>Internet : {{ hasResource(infra().missingInternet) }}</li>
+          </ul>
+        </section>
+
+        <section class="mb-3" aria-label="Détail saturation">
+          <h6 class="fw-semibold fs-13 mb-2">
+            <i class="ri-stack-line me-1"></i>
+            Saturation projetée ·
+            <span class="text-muted">{{ s.saturationScore }} / 25</span>
+          </h6>
+          <ul class="investment-panel__list fs-13 mb-0">
+            <li>
+              Sévérité :
+              <span class="fw-semibold">{{ sat().severity ?? '—' }}</span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="mb-3" aria-label="Détail équité">
+          <h6 class="fw-semibold fs-13 mb-2">
+            <i class="ri-scales-3-line me-1"></i>
+            Équité (GPI) ·
+            <span class="text-muted">{{ s.equityScore }} / 25</span>
+          </h6>
+          <ul class="investment-panel__list fs-13 mb-0">
+            <li>GPI école : {{ formatGpi(eq().gpi) }}</li>
+            <li>
+              Sévérité :
+              <span class="fw-semibold">{{ eq().severity ?? '—' }}</span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="mb-3" aria-label="Détail accessibilité">
+          <h6 class="fw-semibold fs-13 mb-2">
+            <i class="ri-route-line me-1"></i>
+            Accessibilité ·
+            <span class="text-muted">{{ s.accessibilityScore }} / 20</span>
+          </h6>
+          <ul class="investment-panel__list fs-13 mb-0">
+            <li>
+              Zone :
+              <span class="fw-semibold">{{ acc().zoneType ?? '—' }}</span>
+            </li>
+            <li>
+              Distance moyenne :
+              {{ formatDistance(acc().avgDistanceKm) }}
+            </li>
+          </ul>
+        </section>
+
+        <!-- Recommandations -->
+        <section aria-label="Recommandations d'investissement">
+          <h6 class="fw-semibold fs-13 mb-2">
+            <i class="ri-lightbulb-line me-1"></i>
+            Recommandations
+          </h6>
+          <ul class="investment-panel__reco fs-13 mb-0">
+            @for (r of recommendations(); track r) {
+              <li>{{ r }}</li>
+            }
+          </ul>
+        </section>
+      </div>
+
+      <div class="card-footer d-flex justify-content-end gap-2">
+        <button
+          type="button"
+          class="btn btn-outline-primary btn-sm"
+          (click)="onViewOnMap()"
+          data-testid="view-on-map-btn"
+        >
+          <i class="ri-map-pin-line me-1"></i>
+          Voir école dans la carte
+        </button>
+      </div>
+    </div>
+  </aside>
+}

@@ -275,5 +275,57 @@
       "compute": "Hiiseede tagginnde haɗii.",
       "generate": "Jaɓɓorgol saatire haɗii."
     }
+  },
+  "investissements": {
+    "title": "Adadiiji ñoƴƴude jokkere",
+    "subtitle": "Ɗoogol ngenndi jokkooje to ñoƴƴa-tude tafee (Module 3C).",
+    "year": "Hitaande jaŋde",
+    "compute": "Hisaba kadi",
+    "loading": "Jaɓɓorgol…",
+    "filters": {
+      "category": "Sifaa",
+      "region": "Diiwaan",
+      "all": "Fof",
+      "reset": "Hesnit"
+    },
+    "category": {
+      "TRES_HAUTE": "Toowɗo no feewi",
+      "HAUTE": "Toowɗo",
+      "MOYENNE": "Hakkundeejo",
+      "BASSE": "Lesɗo"
+    },
+    "kpi": {
+      "tresHaute": "Adadi toowɗo no feewi",
+      "haute": "Adadi toowɗo",
+      "moyenne": "Adadi hakkundeejo",
+      "basse": "Adadi lesɗo"
+    },
+    "table": {
+      "title": "Top 100 jokkooje — adadiiji",
+      "rank": "Ɗoogol",
+      "school": "Jokkere",
+      "region": "Diiwaan",
+      "score": "Lakkitol",
+      "category": "Sifaa",
+      "dimensions": "Mboɗodi",
+      "empty": "Alaa jokkere ñoƴƴude."
+    },
+    "panel": {
+      "profile": "Sifaa per mboɗodi",
+      "infrastructure": "Infrastructure",
+      "saturation": "Heewdugol ñalde",
+      "equity": "Ngootondiral (GPI)",
+      "accessibility": "Yettoyaade",
+      "recommendations": "Saatireeji",
+      "viewOnMap": "Yi'u jokkere ka karte",
+      "close": "Uddu"
+    },
+    "toasts": {
+      "computed": "Hiisaade gasii."
+    },
+    "errors": {
+      "load": "Keɓe alaa — yiyto backend.",
+      "compute": "Hiisaade haɗii."
+    }
   }
 }
