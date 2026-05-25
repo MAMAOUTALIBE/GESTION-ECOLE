@@ -12,6 +12,7 @@ from app.modules.census import models as _census_models  # noqa: F401
 from app.modules.cockpit import models as _cockpit_models  # noqa: F401
 from app.modules.diplomas import models as _diplomas_models  # noqa: F401
 from app.modules.enrollment import models as _enrollment_models  # noqa: F401
+from app.modules.erasure import models as _erasure_models  # noqa: F401
 from app.modules.finance import models as _finance_models  # noqa: F401
 from app.modules.inspections import models as _inspections_models  # noqa: F401
 from app.modules.investment import models as _investment_models  # noqa: F401
