@@ -21,12 +21,15 @@ import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideSweetAlert2 } from '@sweetalert2/ngx-sweetalert2';
 import { QuillModule } from 'ngx-quill'
 import { authInterceptor } from './shared/interceptors/auth.interceptor';
+import { refreshInterceptor } from './shared/interceptors/refresh.interceptor';
 import { provideI18n } from './shared/i18n/i18n.providers';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    // L'ordre est critique : `authInterceptor` ajoute d'abord le Bearer,
+    // puis `refreshInterceptor` intercepte les 401 pour silent-refresh JWT.
+    provideHttpClient(withInterceptors([authInterceptor, refreshInterceptor])),
     // Module 20 — i18n (ngx-translate, fr par défaut, 4 langues).
     provideI18n(),
     provideCharts(withDefaultRegisterables()),
