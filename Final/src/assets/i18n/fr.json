@@ -79,6 +79,67 @@
       "label": "Identité protégée"
     }
   },
+  "consent": {
+    "title": "Politique de confidentialité",
+    "intro": "Bienvenue. Avant d'utiliser la plateforme GESTION-EE, veuillez lire le résumé ci-dessous et confirmer votre consentement.",
+    "bullets": {
+      "data": "Données collectées : identité de l'élève, scolarité, présence, résultats, contact des parents.",
+      "purpose": "Finalité : piloter le système éducatif national et améliorer l'équité (filles, zones rurales).",
+      "retention": "Durée de conservation : durée de scolarité + 5 ans (logs d'audit : 3 ans).",
+      "access": "Droit d'accès à vos logs : section \"Mes accès\" du menu utilisateur (Module 5C).",
+      "erasure": "Droit à l'oubli : contactez le DPO du ministère (Module 5D, anonymisation sous 30 jours).",
+      "minors": "Pour les élèves mineurs, le consentement des parents est représenté par l'inscription scolaire signée.",
+      "legal": "Conformité : Loi 037/AN/2016 (Guinée) + RGPD (UE).",
+      "contact": "Contact DPO : dpo@education.gouv.gn — Ministère de l'Éducation Nationale."
+    },
+    "readFull": "Lire la politique de confidentialité complète",
+    "versionLabel": "Version",
+    "accept": "J'accepte",
+    "decline": "Se déconnecter"
+  },
+  "legal": {
+    "title": "Politique de confidentialité GESTION-EE",
+    "subtitle": "Loi 037/AN/2016 (Guinée) + RGPD — version applicable au 1er mai 2026.",
+    "sections": {
+      "mentions": {
+        "title": "Mentions légales",
+        "body": "GESTION-EE est édité par le Ministère de l'Éducation Nationale de la République de Guinée. L'hébergement est assuré sur des serveurs souverains. Directeur de publication : Secrétaire général du MENA."
+      },
+      "data": {
+        "title": "Données collectées",
+        "body": "Les catégories de données traitées sont strictement nécessaires aux missions de service public :",
+        "itemIdentity": "Identité de l'élève (nom, prénom, date de naissance, sexe, photo le cas échéant).",
+        "itemSchool": "Données scolaires (école, classe, présence, notes, bulletins).",
+        "itemHealth": "Données de santé scolaire (allergies, vaccinations, visites infirmières) — accès restreint.",
+        "itemContact": "Contact parental (nom, téléphone) pour la communication école-famille."
+      },
+      "purpose": {
+        "title": "Finalités",
+        "body": "Pilotage du système éducatif national, optimisation de la répartition des enseignants et des infrastructures, correction des disparités territoriales, amélioration de la scolarisation des filles, lutte contre le décrochage."
+      },
+      "legalBasis": {
+        "title": "Bases légales",
+        "body": "Loi 037/AN/2016 de la République de Guinée portant protection des données à caractère personnel. RGPD (UE) pour les utilisateurs résidant dans l'Union européenne. Mission d'intérêt public (article 6.1.e du RGPD)."
+      },
+      "retention": {
+        "title": "Durées de conservation",
+        "body": "Données scolaires nominatives : durée de scolarité + 5 ans. Bulletins et diplômes : indéfini (archive nationale). Logs d'audit : 3 ans. Données anonymisées : conservées pour les statistiques publiques."
+      },
+      "rights": {
+        "title": "Vos droits",
+        "body": "Conformément à la loi 037/AN/2016 et au RGPD, vous disposez des droits suivants :",
+        "itemAccess": "Droit d'accès : consultation de vos données et des logs d'accès vous concernant.",
+        "itemRectification": "Droit de rectification : correction des données inexactes via votre école.",
+        "itemErasure": "Droit à l'oubli : anonymisation des données nominatives (Module 5D).",
+        "itemPortability": "Droit à la portabilité : export de vos données dans un format ouvert.",
+        "itemObjection": "Droit d'opposition : refus de traitements non strictement nécessaires."
+      },
+      "contact": {
+        "title": "Contact DPO",
+        "body": "Pour toute question ou exercice de vos droits, contactez le Délégué à la Protection des Données du Ministère de l'Éducation Nationale : dpo@education.gouv.gn — adresse postale : Ministère de l'Éducation Nationale, Boulevard du Commerce, Conakry, Guinée."
+      }
+    }
+  },
   "reorganisation": {
     "title": "Réorganisation du réseau scolaire",
     "subtitle": "Cartographie SIG enrichie pour aider à la décision (Module 3A).",

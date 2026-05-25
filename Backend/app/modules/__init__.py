@@ -10,6 +10,7 @@ from app.modules.attendance import models as _attendance_models  # noqa: F401
 from app.modules.auth import models as _auth_models  # noqa: F401
 from app.modules.census import models as _census_models  # noqa: F401
 from app.modules.cockpit import models as _cockpit_models  # noqa: F401
+from app.modules.consent import models as _consent_models  # noqa: F401
 from app.modules.diplomas import models as _diplomas_models  # noqa: F401
 from app.modules.enrollment import models as _enrollment_models  # noqa: F401
 from app.modules.erasure import models as _erasure_models  # noqa: F401

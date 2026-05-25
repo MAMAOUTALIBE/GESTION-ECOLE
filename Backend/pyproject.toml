@@ -199,6 +199,13 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
     "N801", "N803", "N815", "UP037",
     "RUF001", "RUF002", "RUF003",
 ]
+# Module 5B — consent (consentement utilisateur) : colonnes camelCase ORM
+# (userId, consentVersion, acceptedAt, userAgent...) + forward-refs "User"
+# + commentaires FR.
+"app/modules/consent/*" = [
+    "N801", "N803", "N815", "UP037",
+    "RUF001", "RUF002", "RUF003",
+]
 "app/core/maintenance.py" = ["RUF002", "RUF003"]
 # Les factories et fixtures de tests refletent les noms de colonnes Prisma
 # (camelCase) — on tolere donc N803/N815/N801 dans tests/. Et `from app.modules

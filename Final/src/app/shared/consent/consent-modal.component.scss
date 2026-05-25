@@ -1,0 +1,129 @@
+// Module 5B — modal de consentement (additif, ne touche pas le design Spruko).
+// On reste sur des couleurs neutres et le z-index au-dessus de la sidebar.
+
+.ge-consent-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 1050;
+}
+
+.ge-consent-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1060;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.ge-consent-card {
+  background: #fff;
+  border-radius: 0.75rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  width: min(640px, 100%);
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ge-consent-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #111827;
+  }
+}
+
+.ge-consent-body {
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  color: #1f2937;
+  font-size: 0.93rem;
+  line-height: 1.5;
+
+  .ge-consent-intro {
+    margin-bottom: 0.75rem;
+  }
+
+  .ge-consent-bullets {
+    margin: 0 0 1rem;
+    padding-left: 1.25rem;
+
+    li {
+      margin-bottom: 0.35rem;
+    }
+  }
+
+  .ge-consent-link a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+
+  .ge-consent-version {
+    margin-top: 0.75rem;
+    color: #6b7280;
+    font-size: 0.85rem;
+
+    code {
+      background: #f3f4f6;
+      padding: 0.1rem 0.4rem;
+      border-radius: 0.25rem;
+    }
+  }
+
+  .ge-consent-error {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.85rem;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    border-radius: 0.4rem;
+    font-size: 0.85rem;
+  }
+}
+
+.ge-consent-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+
+  button {
+    min-width: 8rem;
+  }
+}
+
+// Mode sombre (cohérent avec le design system Spruko).
+:host-context([data-theme-mode='dark']) {
+  .ge-consent-card {
+    background: #1f2937;
+    color: #f9fafb;
+  }
+
+  .ge-consent-header,
+  .ge-consent-footer {
+    border-color: #374151;
+  }
+
+  .ge-consent-footer {
+    background: #111827;
+  }
+
+  .ge-consent-body {
+    color: #f3f4f6;
+
+    .ge-consent-version code {
+      background: #374151;
+    }
+  }
+}

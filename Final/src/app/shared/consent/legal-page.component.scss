@@ -1,0 +1,70 @@
+// Module 5B — page mentions légales / politique de confidentialité.
+
+.ge-legal {
+  max-width: 820px;
+  margin: 2.5rem auto;
+  padding: 2rem;
+  background: #fff;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.ge-legal-header {
+  margin-bottom: 1.5rem;
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
+  }
+
+  .ge-legal-subtitle {
+    margin-top: 0.4rem;
+    color: #6b7280;
+  }
+}
+
+.ge-legal-body {
+  color: #1f2937;
+  line-height: 1.65;
+  font-size: 0.95rem;
+
+  h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.5rem;
+    color: #1f2937;
+  }
+
+  ul {
+    margin: 0 0 1rem 1.25rem;
+
+    li {
+      margin-bottom: 0.3rem;
+    }
+  }
+}
+
+.ge-legal-footer {
+  margin-top: 2rem;
+  text-align: right;
+
+  a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+}
+
+:host-context([data-theme-mode='dark']) {
+  .ge-legal {
+    background: #1f2937;
+    color: #f9fafb;
+  }
+
+  .ge-legal-body,
+  .ge-legal-header h1,
+  .ge-legal-body h2 {
+    color: #f3f4f6;
+  }
+}
