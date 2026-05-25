@@ -79,6 +79,67 @@
       "label": "Identity protected"
     }
   },
+  "consent": {
+    "title": "Privacy policy",
+    "intro": "Welcome. Before using the GESTION-EE platform, please read the summary below and confirm your consent.",
+    "bullets": {
+      "data": "Data collected: student identity, schooling, attendance, results, parent contact.",
+      "purpose": "Purpose: steer the national education system and improve equity (girls, rural areas).",
+      "retention": "Retention: schooling period + 5 years (audit logs: 3 years).",
+      "access": "Right to access your logs: \"My access\" section of the user menu (Module 5C).",
+      "erasure": "Right to be forgotten: contact the ministry DPO (Module 5D, anonymisation within 30 days).",
+      "minors": "For minor pupils, parental consent is represented by the signed school registration.",
+      "legal": "Compliance: Law 037/AN/2016 (Guinea) + GDPR (EU).",
+      "contact": "DPO contact: dpo@education.gouv.gn — Ministry of National Education."
+    },
+    "readFull": "Read the full privacy policy",
+    "versionLabel": "Version",
+    "accept": "I accept",
+    "decline": "Sign out"
+  },
+  "legal": {
+    "title": "GESTION-EE privacy policy",
+    "subtitle": "Law 037/AN/2016 (Guinea) + GDPR — version effective 1 May 2026.",
+    "sections": {
+      "mentions": {
+        "title": "Legal notice",
+        "body": "GESTION-EE is published by the Ministry of National Education of the Republic of Guinea. Hosting is provided on sovereign servers. Publication director: Secretary General of the Ministry."
+      },
+      "data": {
+        "title": "Data collected",
+        "body": "The categories of data processed are strictly necessary for public service missions:",
+        "itemIdentity": "Student identity (last name, first name, date of birth, sex, photo where applicable).",
+        "itemSchool": "School data (school, class, attendance, grades, report cards).",
+        "itemHealth": "School health data (allergies, vaccinations, nurse visits) — restricted access.",
+        "itemContact": "Parental contact (name, phone) for school-family communication."
+      },
+      "purpose": {
+        "title": "Purposes",
+        "body": "Steering the national education system, optimising the allocation of teachers and infrastructure, correcting territorial disparities, improving girls' schooling, fighting dropouts."
+      },
+      "legalBasis": {
+        "title": "Legal bases",
+        "body": "Law 037/AN/2016 of the Republic of Guinea on personal data protection. GDPR (EU) for users residing in the European Union. Public interest mission (art. 6.1.e GDPR)."
+      },
+      "retention": {
+        "title": "Retention periods",
+        "body": "Identifying school data: schooling period + 5 years. Report cards and diplomas: indefinite (national archive). Audit logs: 3 years. Anonymised data: kept for public statistics."
+      },
+      "rights": {
+        "title": "Your rights",
+        "body": "Under Law 037/AN/2016 and the GDPR, you have the following rights:",
+        "itemAccess": "Right of access: view your data and access logs concerning you.",
+        "itemRectification": "Right to rectification: correction of inaccurate data via your school.",
+        "itemErasure": "Right to be forgotten: anonymisation of identifying data (Module 5D).",
+        "itemPortability": "Right to portability: export of your data in an open format.",
+        "itemObjection": "Right to object: refusal of non-essential processing."
+      },
+      "contact": {
+        "title": "DPO contact",
+        "body": "For any question or to exercise your rights, contact the Data Protection Officer of the Ministry: dpo@education.gouv.gn — postal address: Ministry of National Education, Boulevard du Commerce, Conakry, Guinea."
+      }
+    }
+  },
   "reorganisation": {
     "title": "School network reorganisation",
     "subtitle": "Enriched GIS map to support reorganisation decisions (Module 3A).",

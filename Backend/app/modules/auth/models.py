@@ -71,6 +71,13 @@ class User(Base, TimestampMixin):
         String(8), default="fr", server_default="fr", nullable=False
     )
 
+    # --- Module 5B consent column ---
+    # Dernière version acceptée de la politique de confidentialité.
+    # NULL = l'utilisateur n'a jamais consenti (1ère connexion).
+    consentVersion: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )
+
     # --- Relationships ---
     region: Mapped["Region | None"] = relationship(back_populates="users", lazy="raise")
     prefecture: Mapped["Prefecture | None"] = relationship(back_populates="users", lazy="raise")

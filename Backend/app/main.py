@@ -118,6 +118,7 @@ def create_app() -> FastAPI:
     from app.modules.cartography.router import router as cartography_router
     from app.modules.census.router import router as census_router
     from app.modules.cockpit.router import router as cockpit_router
+    from app.modules.consent.router import router as consent_router
     from app.modules.diplomas.router import router as diplomas_router
     from app.modules.enrollment.router import router as enrollment_router
     from app.modules.erasure.router import router as erasure_router
@@ -249,6 +250,10 @@ def create_app() -> FastAPI:
     # Module 5D — Droit à l'oubli (loi 037/AN/2016 Guinée + RGPD Art. 17)
     app.include_router(
         erasure_router, prefix=f"{settings.api_prefix}/erasure"
+    )
+    # Module 5B — Consentement utilisateur (loi 037/AN/2016 Guinée + RGPD)
+    app.include_router(
+        consent_router, prefix=f"{settings.api_prefix}/consent"
     )
 
     return app

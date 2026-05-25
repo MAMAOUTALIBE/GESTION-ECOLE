@@ -79,6 +79,67 @@
       "label": "Inɗe reenaa"
     }
   },
+  "consent": {
+    "title": "Sariya reenugol limle",
+    "intro": "Bisimillaa. Ado huutoraade GESTION-EE, taraa konngol ngol kanngol e tabbintinaa jaɓugol maa.",
+    "bullets": {
+      "data": "Limle ɗe yiitaa: inɗe ɓinngel, jaŋde, hawritaa, peeje, kontaktu mawɓe.",
+      "purpose": "Faandaare: hooynude lowre jaŋde ngool e ɓeydude potal (rewɓe, gure ladde).",
+      "retention": "Saanga marirde: tuma jaŋde + duuɓi 5 (njuumri kontoroli: duuɓi 3).",
+      "access": "Hakke yiɗde njuumri maa: \"Naatirɗe am\" e dosaaru huutorɗo (Doosɗe 5C).",
+      "erasure": "Hakke yejjital: heɓo DPO Wuuro Jaŋde (Doosɗe 5D, suuɗugol e nder ñalɗi 30).",
+      "minors": "Wonande sukaaɓe, jaɓugol mawɓe ɓe seedaa e winndannde jaŋde nde siifaa.",
+      "legal": "Yamiroore: Sariya 037/AN/2016 (Gine) + RGPD (Yuropa).",
+      "contact": "Kontaktu DPO: dpo@education.gouv.gn — Wuuro Nguurndam Jaŋde."
+    },
+    "readFull": "Taro sariya reenugol limle on fof",
+    "versionLabel": "Ñaarawol",
+    "accept": "Mi jaɓi",
+    "decline": "Yaltu"
+  },
+  "legal": {
+    "title": "Sariya reenugol limle GESTION-EE",
+    "subtitle": "Sariya 037/AN/2016 (Gine) + RGPD — ñaarawol gollotooɗo ñalnde 1 lewru duuɓi 2026.",
+    "sections": {
+      "mentions": {
+        "title": "Limle yamiraaɗe",
+        "body": "GESTION-EE yaltinaa e Wuuro Nguurndam Jaŋde, Dowla Gine. Hostinngu wonande lesdi koyɗol. Hooreejo bayyinaali: Sekereteer Heeriɗo Wuuro."
+      },
+      "data": {
+        "title": "Limle ɗe yiitaa",
+        "body": "Tinndi limle ɗe golliraa ɗe haaniraa tan e kuule golle pamuyhaɗe:",
+        "itemIdentity": "Inɗe ɓinngel (yettoode, inde, ñalnde jibinaa, ɗiɗɗol, fotoo so woni).",
+        "itemSchool": "Limle jaŋde (jaŋde, kalaas, hawrital, peeje, biloo).",
+        "itemHealth": "Limle cellal jaŋde (alergiyaaji, vaksɛnaaji, yaadu nurusi) — naatirɗe haaɗɗe.",
+        "itemContact": "Kontaktu mawɓe (inde, simasin) wonande haalannde jaŋde-galle."
+      },
+      "purpose": {
+        "title": "Faandaareeji",
+        "body": "Hooynugol lowre jaŋde ngool, ɓeydugol njuɓɓudi jannginooɓe e jeeyngal, ƴeewtannde fenoore, ɓeydugol jaŋde rewɓe, haɓugol e nattugol jaŋde."
+      },
+      "legalBasis": {
+        "title": "Doosɗe yamiraaɗe",
+        "body": "Sariya 037/AN/2016 Dowla Gine. RGPD (Yuropa) wonande huutorɓe e Yuropa. Mooɓal lowre golle (artikel 6.1.e RGPD)."
+      },
+      "retention": {
+        "title": "Saanga marirde",
+        "body": "Limle jaŋde maantinɗe: saanga jaŋde + duuɓi 5. Biloo e diplomeeji: tuma fof (manngu lesdi). Njuumri kontoroli: duuɓi 3. Limle suuɗaaɗe: marraa wonande estatistik dowla."
+      },
+      "rights": {
+        "title": "Hakkeeji maa",
+        "body": "Hakke Sariya 037/AN/2016 e RGPD, ko maa marɗo hakkeeji:",
+        "itemAccess": "Hakke naatugol: yiide limle maa e njuumri kontoroli ɓettiɗe e maa.",
+        "itemRectification": "Hakke ƴeewtannde: kosirgol limle bonɗe e nokku jaŋde maa.",
+        "itemErasure": "Hakke yejjital: suuɗugol limle inɗe (Doosɗe 5D).",
+        "itemPortability": "Hakke yaadu: yaltinde limle maa e fasaade udditiinde.",
+        "itemObjection": "Hakke salaade: salaade gollanɗe ɗe haaniraa."
+      },
+      "contact": {
+        "title": "Kontaktu DPO",
+        "body": "Wonande naamnde wallaa huutoraade hakkeeji maa, heɓo Joom Reenugol Limle Wuuro Jaŋde: dpo@education.gouv.gn — adres: Wuuro Nguurndam Jaŋde, Boulevard du Commerce, Konakri, Gine."
+      }
+    }
+  },
   "reorganisation": {
     "title": "Hesnitde lowre duɗe",
     "subtitle": "Karta SIG ngam wallude e ƴeewndaade peeje (Module 3A).",

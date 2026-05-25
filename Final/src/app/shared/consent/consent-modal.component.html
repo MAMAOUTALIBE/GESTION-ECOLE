@@ -1,0 +1,68 @@
+<ng-container *ngIf="visible">
+  <div class="ge-consent-backdrop" aria-hidden="true"></div>
+  <div
+    class="ge-consent-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="ge-consent-title"
+    aria-describedby="ge-consent-desc"
+  >
+    <div class="ge-consent-card">
+      <header class="ge-consent-header">
+        <h2 id="ge-consent-title">{{ 'consent.title' | translate }}</h2>
+      </header>
+
+      <section class="ge-consent-body" id="ge-consent-desc">
+        <p class="ge-consent-intro">{{ 'consent.intro' | translate }}</p>
+
+        <ul class="ge-consent-bullets">
+          <li>{{ 'consent.bullets.data' | translate }}</li>
+          <li>{{ 'consent.bullets.purpose' | translate }}</li>
+          <li>{{ 'consent.bullets.retention' | translate }}</li>
+          <li>{{ 'consent.bullets.access' | translate }}</li>
+          <li>{{ 'consent.bullets.erasure' | translate }}</li>
+          <li>{{ 'consent.bullets.minors' | translate }}</li>
+          <li>{{ 'consent.bullets.legal' | translate }}</li>
+          <li>{{ 'consent.bullets.contact' | translate }}</li>
+        </ul>
+
+        <p class="ge-consent-link">
+          <a
+            [routerLink]="['/legal/privacy-policy']"
+            target="_blank"
+            rel="noopener"
+            >{{ 'consent.readFull' | translate }}</a
+          >
+        </p>
+
+        <p class="ge-consent-version">
+          {{ 'consent.versionLabel' | translate }}: <code>{{ version }}</code>
+        </p>
+
+        <div class="ge-consent-error" *ngIf="errorMessage()" role="alert">
+          {{ errorMessage() }}
+        </div>
+      </section>
+
+      <footer class="ge-consent-footer">
+        <button
+          type="button"
+          class="btn btn-light"
+          (click)="decline()"
+          [disabled]="submitting()"
+        >
+          {{ 'consent.decline' | translate }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="accept()"
+          [disabled]="submitting()"
+        >
+          <span *ngIf="!submitting()">{{ 'consent.accept' | translate }}</span>
+          <span *ngIf="submitting()">{{ 'common.loading' | translate }}</span>
+        </button>
+      </footer>
+    </div>
+  </div>
+</ng-container>

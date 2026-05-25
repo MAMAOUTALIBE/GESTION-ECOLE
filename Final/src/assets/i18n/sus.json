@@ -79,6 +79,67 @@
       "label": "Xili ratangima"
     }
   },
+  "consent": {
+    "title": "Sariya limaniyɛ ratangɛ xa",
+    "intro": "Inu tantu. I ya GESTION-EE rabama singe, i sa karan masenyi nde, i sa i mali tin.",
+    "bullets": {
+      "data": "Limaniyɛ tongoma: xaranɲii xili, xaranyi, kɛli, danxalama, kuntigi sɛbɛli.",
+      "purpose": "Wanxe: xaranɲii naatige kanteyi rakeli a fanyi nɛ (ginɛ, dɔnxɔnyi).",
+      "retention": "Bun ratangɛ waxati: xaranyi waxati + sanyi 5 (kontoroli sɛbɛli: sanyi 3).",
+      "access": "Hakke i ya kontoroli sɛbɛli to: \"N ya sɔtɔdɛ\" menu kui (Sɔrɔnye 5C).",
+      "erasure": "Hakke ɲinge: DPO kɛli (Sɔrɔnye 5D, ratangɛ tɛmui 30 kui).",
+      "minors": "Diidiye xa, kuntigi tinya nɔ a yi a wuya xaranyi sɛbɛ kui.",
+      "legal": "Sariya luxurɛ: Sariya 037/AN/2016 (Ginɛ) + RGPD (Ɔrɔpu).",
+      "contact": "DPO kɛli: dpo@education.gouv.gn — Xaranɲii Banxi Mangɛ."
+    },
+    "readFull": "Sariya limaniyɛ ratangɛ xa karan birin",
+    "versionLabel": "Sɔrɔnye",
+    "accept": "N tinma",
+    "decline": "Mini"
+  },
+  "legal": {
+    "title": "GESTION-EE sariya limaniyɛ ratangɛ xa",
+    "subtitle": "Sariya 037/AN/2016 (Ginɛ) + RGPD — sɔrɔnye nɛn yi rabama mai 1, 2026.",
+    "sections": {
+      "mentions": {
+        "title": "Sariya masenyi",
+        "body": "GESTION-EE Xaranɲii Banxi Mangɛ Ginɛ Republiki xa. Hostinngɛ wo bɔxi tan kanke. Yɛbafala kuntigi: Banxi Sekereteer Mangɛ."
+      },
+      "data": {
+        "title": "Limaniyɛ tongoma",
+        "body": "Limaniyɛ tongoma yi ratimema wali fundamɛni nɛ:",
+        "itemIdentity": "Xaranɲii xili (suye xili, xili, bara waxati, lannye, fɔto).",
+        "itemSchool": "Xaranyi limaniyɛ (xaranɲii, kalasi, kɛli, danxalama, biloo).",
+        "itemHealth": "Xaranyi sɔnɔnma limaniyɛ (alɛrɛji, vaksini, infirmiɛri kɛli) — sɔtɔdɛ ratangɛ.",
+        "itemContact": "Kuntigi sɛbɛli (xili, simasin) xaranɲii nun banxi tagi xa."
+      },
+      "purpose": {
+        "title": "Wanxe",
+        "body": "Xaranɲii naatige rakeli, karandiye nun bun ratimɛ, dɔnxɔnyi rakeli, ginɛ xaranyi sɔnyɛ, xaranyi rabe."
+      },
+      "legalBasis": {
+        "title": "Sariya luxurɛ",
+        "body": "Sariya 037/AN/2016 Ginɛ Republiki xa. RGPD (Ɔrɔpu) Ɔrɔpu kuntigi xa. Wali fundamɛni (artikɛli 6.1.e RGPD)."
+      },
+      "retention": {
+        "title": "Bun ratangɛ waxati",
+        "body": "Xaranyi limaniyɛ xili kanke: xaranyi waxati + sanyi 5. Biloo nun diplomɛ: kɛnɛ waxati (manngu bɔxi). Kontoroli sɛbɛli: sanyi 3. Limaniyɛ ratangima: tongoma estatistiki xa."
+      },
+      "rights": {
+        "title": "I ya hakkeyi",
+        "body": "Sariya 037/AN/2016 nun RGPD saabui ra, i sa hakkeyi nde sɔtɔ:",
+        "itemAccess": "Hakke sɔtɔdɛ: i ya limaniyɛ nun kontoroli sɛbɛli to.",
+        "itemRectification": "Hakke yɛbafala: limaniyɛ wuya rabolon i ya xaranɲii bɔxi.",
+        "itemErasure": "Hakke ɲinge: xili limaniyɛ ratangɛ (Sɔrɔnye 5D).",
+        "itemPortability": "Hakke xanin: i ya limaniyɛ rabe fasaade udditi kui.",
+        "itemObjection": "Hakke ɲɔxɔnma: wali ɲɔxɔnma fundamɛni mu na."
+      },
+      "contact": {
+        "title": "DPO kɛli",
+        "body": "Maxadi xa ma i ya hakkeyi wali xa, Xaranɲii Banxi Mangɛ DPO ti kɛli: dpo@education.gouv.gn — adɛrɛsi: Xaranɲii Banxi Mangɛ, Boulevard du Commerce, Konakri, Ginɛ."
+      }
+    }
+  },
   "reorganisation": {
     "title": "Xaranɲii naatige rakelima",
     "subtitle": "Karatɛ SIG bira maxɔdɔnyi rabama (Module 3A).",
