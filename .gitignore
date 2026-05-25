@@ -48,6 +48,7 @@ yarn-error.log*
 *.egg-info/
 build/
 *.tgz
+Final/preview/
 
 # Environment files (SECRETS — never commit)
 .env
