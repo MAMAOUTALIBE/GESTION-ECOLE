@@ -1,0 +1,21 @@
+<div class="staffing-kpi card custom-card h-100">
+  <div class="card-body d-flex align-items-start gap-3">
+    <span class="staffing-kpi__icon" [ngClass]="severityClass()">
+      <i [class]="icon()"></i>
+    </span>
+    <div class="flex-grow-1">
+      <p class="text-muted fs-12 mb-1">{{ title() }}</p>
+      <div class="d-flex align-items-baseline gap-2 flex-wrap">
+        <h4 class="fw-semibold mb-0">{{ value() }}</h4>
+        @if (badgeLabel()) {
+          <span class="badge fs-11" [ngClass]="severityClass()">
+            {{ badgeLabel() }}
+          </span>
+        }
+      </div>
+      @if (subtitle()) {
+        <p class="text-muted fs-12 mb-0 mt-1">{{ subtitle() }}</p>
+      }
+    </div>
+  </div>
+</div>

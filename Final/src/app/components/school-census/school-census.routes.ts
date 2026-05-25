@@ -25,6 +25,16 @@ const REORGANISATION_ROLES: UserRole[] = [
   ...REGIONAL_SCOPE_ROLES,
 ];
 
+// Module 2D UI — Dashboard transferts enseignants. Volontairement plus
+// restrictif que la réorganisation : seuls NATIONAL, MINISTRY et
+// REGIONAL_ADMIN ouvrent cette page (l'INSPECTOR consulte les
+// statistiques mais n'a pas vocation à arbitrer les transferts ; le
+// roleGuard backend filtre déjà côté API).
+const TRANSFERTS_ROLES: UserRole[] = [
+  ...NATIONAL_SCOPE_ROLES,
+  'REGIONAL_ADMIN',
+];
+
 export const schoolCensusRoutingModule: Routes = [
   {
     path: 'school-census/equite',
@@ -60,6 +70,17 @@ export const schoolCensusRoutingModule: Routes = [
       import('./reorganisation/reorganisation-page').then(
         (m) => m.ReorganisationPage,
       ),
+  },
+  {
+    path: 'school-census/transferts',
+    canActivate: [roleGuard],
+    data: {
+      roles: TRANSFERTS_ROLES,
+      parentTitle: 'Pilotage national',
+      childTitle: 'Transferts enseignants',
+    },
+    loadComponent: () =>
+      import('./transferts/transferts-page').then((m) => m.TransfertsPage),
   },
   {
     path: 'school-census/schools',

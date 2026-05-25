@@ -164,5 +164,54 @@
       "zoneType": "Type de zone par sous-préfecture (Module 1C).",
       "whiteZones": "Sous-préfectures > 5 km de toute école."
     }
+  },
+  "transferts": {
+    "title": "Transferts enseignants",
+    "subtitle": "Visualisez les écoles sur/sous-dotées et validez les transferts proposés (Module 2D).",
+    "refresh": "Actualiser",
+    "compute": "Calculer staffing",
+    "generate": "Générer recommandations",
+    "loading": "Chargement…",
+    "kpi": {
+      "critical": "Écoles en sous-effectif critique",
+      "overStaffed": "Écoles sur-dotées",
+      "pending": "Recommandations en attente",
+      "executed": "Recommandations exécutées"
+    },
+    "severity": {
+      "CRITICAL": "Critique",
+      "UNDER_STAFFED": "Sous-doté",
+      "ADEQUATE": "Adéquat",
+      "OVER_STAFFED": "Sur-doté"
+    },
+    "status": {
+      "PENDING": "En attente",
+      "REVIEWED": "En revue",
+      "ACCEPTED": "Acceptée",
+      "REJECTED": "Rejetée",
+      "EXECUTED": "Exécutée"
+    },
+    "actions": {
+      "review": "Marquer revue",
+      "accept": "Accepter",
+      "reject": "Rejeter",
+      "execute": "Marquer exécutée",
+      "cancel": "Annuler",
+      "confirm": "Confirmer"
+    },
+    "filters": {
+      "all": "Tous",
+      "underStaffed": "Sous-dotés",
+      "overStaffed": "Sur-dotés",
+      "critical": "Critiques"
+    },
+    "reviewNote": "Note de revue (optionnel)",
+    "noRecommendations": "Aucune recommandation pour le moment.",
+    "errors": {
+      "load": "Données indisponibles — backend à vérifier.",
+      "review": "Mise à jour impossible.",
+      "compute": "Échec du recalcul staffing.",
+      "generate": "Échec de génération des recommandations."
+    }
   }
 }

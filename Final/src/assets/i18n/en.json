@@ -164,5 +164,54 @@
       "zoneType": "Zone type per sub-prefecture (Module 1C).",
       "whiteZones": "Sub-prefectures > 5 km from any school."
     }
+  },
+  "transferts": {
+    "title": "Teacher transfers",
+    "subtitle": "Review over/under-staffed schools and validate suggested transfers (Module 2D).",
+    "refresh": "Refresh",
+    "compute": "Compute staffing",
+    "generate": "Generate recommendations",
+    "loading": "Loading…",
+    "kpi": {
+      "critical": "Critically understaffed schools",
+      "overStaffed": "Over-staffed schools",
+      "pending": "Pending recommendations",
+      "executed": "Executed recommendations"
+    },
+    "severity": {
+      "CRITICAL": "Critical",
+      "UNDER_STAFFED": "Under-staffed",
+      "ADEQUATE": "Adequate",
+      "OVER_STAFFED": "Over-staffed"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "REVIEWED": "Under review",
+      "ACCEPTED": "Accepted",
+      "REJECTED": "Rejected",
+      "EXECUTED": "Executed"
+    },
+    "actions": {
+      "review": "Mark reviewed",
+      "accept": "Accept",
+      "reject": "Reject",
+      "execute": "Mark executed",
+      "cancel": "Cancel",
+      "confirm": "Confirm"
+    },
+    "filters": {
+      "all": "All",
+      "underStaffed": "Under-staffed",
+      "overStaffed": "Over-staffed",
+      "critical": "Critical"
+    },
+    "reviewNote": "Review note (optional)",
+    "noRecommendations": "No recommendations yet.",
+    "errors": {
+      "load": "Data unavailable — check the backend.",
+      "review": "Could not update the recommendation.",
+      "compute": "Staffing computation failed.",
+      "generate": "Recommendation generation failed."
+    }
   }
 }

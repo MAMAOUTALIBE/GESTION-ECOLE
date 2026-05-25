@@ -1,0 +1,17 @@
+.staffing-table {
+  border-radius: 0.75rem;
+
+  .staffing-row {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    &:focus {
+      outline: 2px solid var(--primary-color, #1a3a6e);
+      outline-offset: -2px;
+    }
+
+    &--selected {
+      background-color: rgba(13, 110, 253, 0.08);
+    }
+  }
+}

@@ -1,0 +1,157 @@
+<div class="transferts-page">
+  <div class="row">
+    <div class="col-xl-12">
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div>
+          <p class="text-uppercase fw-semibold text-primary mb-1 fs-12">
+            Module 2D — Aide à la décision
+          </p>
+          <h3 class="fw-semibold mb-1">Transferts enseignants</h3>
+          <p class="text-muted mb-0">
+            Recensez les écoles sous-dotées et sur-dotées en enseignants, et
+            validez les recommandations de transferts générées
+            automatiquement (workflow REVIEWED → ACCEPTED → EXECUTED).
+          </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            [disabled]="loading() || busy()"
+            (click)="refresh()"
+            aria-label="Actualiser les données"
+            data-testid="refresh-btn"
+          >
+            <i class="ri-refresh-line me-1"></i>
+            Actualiser
+          </button>
+          @if (canTriggerJobs()) {
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="loading() || busy() || !schoolYearId()"
+              (click)="computeStaffing()"
+              data-testid="compute-btn"
+            >
+              <i class="ri-calculator-line me-1"></i>
+              Calculer staffing
+            </button>
+            <button
+              type="button"
+              class="btn btn-success"
+              [disabled]="loading() || busy() || !schoolYearId()"
+              (click)="generateRecommendations()"
+              data-testid="generate-btn"
+            >
+              <i class="ri-magic-line me-1"></i>
+              Générer recommandations
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @if (error(); as err) {
+    <div class="alert alert-warning" role="alert">{{ err }}</div>
+  }
+
+  @if (toast(); as t) {
+    <div
+      class="alert d-flex align-items-center justify-content-between"
+      [class.alert-success]="t.kind === 'success'"
+      [class.alert-danger]="t.kind === 'danger'"
+      role="status"
+      aria-live="polite"
+    >
+      <span>{{ t.message }}</span>
+      <button
+        type="button"
+        class="btn-close ms-2"
+        aria-label="Fermer"
+        (click)="dismissToast()"
+      ></button>
+    </div>
+  }
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-3">
+    <div class="col-xl-3 col-md-6">
+      <app-staffing-kpi-card
+        title="Écoles en sous-effectif critique"
+        [value]="criticalCount()"
+        severity="CRITICAL"
+        badgeLabel="Critique"
+        icon="ri-error-warning-line"
+        subtitle="Ratio > 70 ou aucun enseignant"
+      />
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <app-staffing-kpi-card
+        title="Écoles sur-dotées"
+        [value]="overStaffedCount()"
+        severity="OVER_STAFFED"
+        badgeLabel="Sur-doté"
+        icon="ri-team-line"
+        subtitle="Ratio < 25"
+      />
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <app-staffing-kpi-card
+        title="Recommandations en attente"
+        [value]="pendingRecoCount()"
+        status="PENDING"
+        badgeLabel="À revoir"
+        icon="ri-hourglass-line"
+        subtitle="À examiner par les agents régionaux"
+      />
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <app-staffing-kpi-card
+        title="Recommandations exécutées"
+        [value]="executedRecoCount()"
+        status="EXECUTED"
+        badgeLabel="Exécutées"
+        icon="ri-check-double-line"
+        subtitle="Mutations effectives dans le SIRH"
+      />
+    </div>
+  </div>
+
+  <!-- Carte + table top 20 -->
+  <div class="row g-3 mb-3">
+    <div class="col-xl-6 position-relative">
+      <app-staffing-map
+        [snapshots]="snapshots()"
+        [schools]="schools()"
+        [selectedSchoolId]="selectedSchoolId()"
+        (selectSchool)="onSelectSchool($event)"
+      />
+      @if (loading()) {
+        <div class="loading-overlay" aria-live="polite">
+          Chargement…
+        </div>
+      }
+    </div>
+    <div class="col-xl-6">
+      <app-staffing-table
+        [snapshots]="snapshots()"
+        [schools]="schools()"
+        [selectedSchoolId]="selectedSchoolId()"
+        (selectSchool)="onSelectSchool($event)"
+      />
+    </div>
+  </div>
+
+  <!-- Recommandations -->
+  <div class="row">
+    <div class="col-xl-12">
+      <app-recommendations-table
+        [recommendations]="recommendations()"
+        [schools]="schools()"
+        [canReview]="canReview()"
+        (review)="onReview($event)"
+      />
+    </div>
+  </div>
+</div>

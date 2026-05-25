@@ -164,5 +164,54 @@
       "zoneType": "Sifaa diiwal e jeyngol hakkunde (Module 1C).",
       "whiteZones": "Jeyngol > 5 km e duɗe."
     }
+  },
+  "transferts": {
+    "title": "Saatire jannguɓe",
+    "subtitle": "Ƴeewu duɗe ɗe jannguɓe ɓuri walla famɗi, eɓɓito saatire ɓe (Module 2D).",
+    "refresh": "Hesnitin",
+    "compute": "Hiisno tagginnde",
+    "generate": "Jaɓɓori saatire",
+    "loading": "Loowi…",
+    "kpi": {
+      "critical": "Duɗe famɗuɗe jannguɓe (kritik)",
+      "overStaffed": "Duɗe ɓuruɗe jannguɓe",
+      "pending": "Saatire reentaaɗe",
+      "executed": "Saatire huutoraaɗe"
+    },
+    "severity": {
+      "CRITICAL": "Kritik",
+      "UNDER_STAFFED": "Famɗudo",
+      "ADEQUATE": "Yamiraado",
+      "OVER_STAFFED": "Ɓuruɗo"
+    },
+    "status": {
+      "PENDING": "Habbaade",
+      "REVIEWED": "Yiyaade",
+      "ACCEPTED": "Jaɓaande",
+      "REJECTED": "Salaande",
+      "EXECUTED": "Huutoraande"
+    },
+    "actions": {
+      "review": "Maandin yiyaade",
+      "accept": "Jaɓ",
+      "reject": "Sal",
+      "execute": "Maandin huutoraande",
+      "cancel": "Ittu",
+      "confirm": "Teeɗtin"
+    },
+    "filters": {
+      "all": "Fof",
+      "underStaffed": "Famɗuɗe",
+      "overStaffed": "Ɓuruɗe",
+      "critical": "Kritik"
+    },
+    "reviewNote": "Binndol yiyaade (suɓagol)",
+    "noRecommendations": "Alaa saatire jooni.",
+    "errors": {
+      "load": "Keɓe alaa — yiyto backend.",
+      "review": "Hesnitingol waawaa.",
+      "compute": "Hiiseede tagginnde haɗii.",
+      "generate": "Jaɓɓorgol saatire haɗii."
+    }
   }
 }

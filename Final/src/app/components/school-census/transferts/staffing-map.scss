@@ -1,0 +1,68 @@
+.staffing-map {
+  border-radius: 0.75rem;
+
+  &__canvas {
+    width: 100%;
+    height: 100%;
+    min-height: 480px;
+    background: #f4f6fa;
+  }
+
+  &__counter {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 1000;
+    padding: 0.35rem 0.65rem;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1a3a6e;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  }
+
+  &__legend {
+    position: absolute;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    z-index: 1000;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 0.4rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: #2d3748;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 0.75rem;
+      height: 0.75rem;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+    }
+  }
+}
+
+:host-context([data-theme='dark']) {
+  .staffing-map {
+    &__counter,
+    &__legend {
+      background: rgba(20, 24, 36, 0.92);
+      color: #e2e8f0;
+
+      .legend-item {
+        color: #cbd5e1;
+      }
+    }
+  }
+}
