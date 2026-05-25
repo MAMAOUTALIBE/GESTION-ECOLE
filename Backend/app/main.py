@@ -120,6 +120,7 @@ def create_app() -> FastAPI:
     from app.modules.cockpit.router import router as cockpit_router
     from app.modules.diplomas.router import router as diplomas_router
     from app.modules.enrollment.router import router as enrollment_router
+    from app.modules.erasure.router import router as erasure_router
     from app.modules.finance.router import router as finance_router
     from app.modules.imports.router import router as imports_router
     from app.modules.inspections.router import router as inspections_router
@@ -244,6 +245,10 @@ def create_app() -> FastAPI:
     # Module 5C — Audit des accès PII (loi 037/AN/2016 Guinée + RGPD)
     app.include_router(
         pii_audit_router, prefix=f"{settings.api_prefix}/pii-audit"
+    )
+    # Module 5D — Droit à l'oubli (loi 037/AN/2016 Guinée + RGPD Art. 17)
+    app.include_router(
+        erasure_router, prefix=f"{settings.api_prefix}/erasure"
     )
 
     return app
