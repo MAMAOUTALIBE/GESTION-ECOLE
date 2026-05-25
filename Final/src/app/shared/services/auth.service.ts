@@ -71,6 +71,11 @@ export interface AuthUser {
 
 export interface AuthSession {
   accessToken: string;
+  /**
+   * Refresh token JWT (optionnel pour compatibilité avec les anciens tests/mocks).
+   * Émis par `/api/auth/login` et `/api/auth/refresh` (Module 1.1 — rotation à chaque appel).
+   */
+  refreshToken?: string;
   user: AuthUser;
 }
 
@@ -103,6 +108,11 @@ export class AuthService {
 
   get token(): string | null {
     return this.session?.accessToken ?? null;
+  }
+
+  /** Refresh token courant (null si pas connecté ou pas de refresh émis). */
+  get refreshToken(): string | null {
+    return this.session?.refreshToken ?? null;
   }
 
   get currentUser(): AuthUser | null {
@@ -154,6 +164,32 @@ export class AuthService {
     localStorage.removeItem(this.storageKey);
     this.sessionSubject.next(null);
     this.router.navigate(['/auth/login']);
+  }
+
+  /**
+   * Met à jour les tokens (access + refresh) après un silent-refresh JWT, sans
+   * toucher au `user` ni recréer la session : on conserve les claims utilisateur
+   * et on remplace uniquement les jetons. Persiste en localStorage pour survivre
+   * au reload.
+   */
+  updateTokens(accessToken: string, refreshToken: string): void {
+    const current = this.sessionSubject.value;
+    if (!current) {
+      return;
+    }
+    const next: AuthSession = {
+      ...current,
+      accessToken,
+      refreshToken,
+    };
+    localStorage.setItem(this.storageKey, JSON.stringify(next));
+    this.sessionSubject.next(next);
+  }
+
+  /** Efface la session en mémoire + localStorage SANS naviguer. */
+  clearSession(): void {
+    localStorage.removeItem(this.storageKey);
+    this.sessionSubject.next(null);
   }
 
   singout(): void {
