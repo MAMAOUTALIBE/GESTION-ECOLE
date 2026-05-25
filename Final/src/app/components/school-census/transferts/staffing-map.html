@@ -1,0 +1,25 @@
+<div class="staffing-map card custom-card h-100">
+  <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div class="card-title fw-semibold">
+      Carte staffing
+    </div>
+    <div class="btn-group" role="group" aria-label="Filtre sévérité">
+      <button type="button" [class]="filterButtonClass('ALL')" (click)="setFilter('ALL')">Tous</button>
+      <button type="button" [class]="filterButtonClass('UNDER_STAFFED')" (click)="setFilter('UNDER_STAFFED')">Sous-dotés</button>
+      <button type="button" [class]="filterButtonClass('OVER_STAFFED')" (click)="setFilter('OVER_STAFFED')">Sur-dotés</button>
+      <button type="button" [class]="filterButtonClass('CRITICAL')" (click)="setFilter('CRITICAL')">Critiques</button>
+    </div>
+  </div>
+  <div class="card-body p-0 position-relative">
+    <div #mapContainer class="staffing-map__canvas" aria-label="Carte des dotations enseignants"></div>
+    <div class="staffing-map__counter" aria-live="polite">
+      {{ visibleCount() }} école<span *ngIf="visibleCount() !== 1">s</span>
+    </div>
+    <div class="staffing-map__legend">
+      <span class="legend-item"><span class="dot" style="background:#d63031"></span>Critique</span>
+      <span class="legend-item"><span class="dot" style="background:#fdcb6e"></span>Sous-doté</span>
+      <span class="legend-item"><span class="dot" style="background:#16e07a"></span>Adéquat</span>
+      <span class="legend-item"><span class="dot" style="background:#0984e3"></span>Sur-doté</span>
+    </div>
+  </div>
+</div>

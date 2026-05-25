@@ -164,5 +164,54 @@
       "zoneType": "Bɔxi banxiyi sub-prefecture (Module 1C).",
       "whiteZones": "Sub-prefecture > 5 km xaranɲii rakelima."
     }
+  },
+  "transferts": {
+    "title": "Karamɔxɔyi tinkanyi",
+    "subtitle": "Bara xaranɲiisɛnyi karamɔxɔyi gbe xa nɛnɛ, tinkanyi raba (Module 2D).",
+    "refresh": "Maɲɔnxɔn",
+    "compute": "Karamɔxɔyi hisabu",
+    "generate": "Tinkanyi sa",
+    "loading": "Sa…",
+    "kpi": {
+      "critical": "Xaranɲii karamɔxɔ nɛnɛ (kritiki)",
+      "overStaffed": "Xaranɲii karamɔxɔ gbe",
+      "pending": "Tinkanyi mato",
+      "executed": "Tinkanyi rabaxi"
+    },
+    "severity": {
+      "CRITICAL": "Kritiki",
+      "UNDER_STAFFED": "Nɛnɛ",
+      "ADEQUATE": "Yati",
+      "OVER_STAFFED": "Gbe"
+    },
+    "status": {
+      "PENDING": "Mato",
+      "REVIEWED": "Matoxi",
+      "ACCEPTED": "Suxuxi",
+      "REJECTED": "Bali",
+      "EXECUTED": "Rabaxi"
+    },
+    "actions": {
+      "review": "Mato fala",
+      "accept": "Suxu",
+      "reject": "Bali",
+      "execute": "Rabaxi fala",
+      "cancel": "Lu",
+      "confirm": "Yatima"
+    },
+    "filters": {
+      "all": "Birin",
+      "underStaffed": "Nɛnɛyi",
+      "overStaffed": "Gbeyi",
+      "critical": "Kritikiyi"
+    },
+    "reviewNote": "Mato sɛbɛli (mu nafa)",
+    "noRecommendations": "Tinkanyi mu na.",
+    "errors": {
+      "load": "Donsenyi mu na — backend mato.",
+      "review": "Maɲɔnxɔn mu nɔ.",
+      "compute": "Karamɔxɔ hisabu bali.",
+      "generate": "Tinkanyi sa bali."
+    }
   }
 }

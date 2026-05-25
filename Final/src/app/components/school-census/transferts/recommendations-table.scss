@@ -1,0 +1,15 @@
+.recommendations-table {
+  border-radius: 0.75rem;
+
+  &__modal {
+    background: transparent;
+    z-index: 1055;
+  }
+
+  &__backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1050;
+  }
+}
