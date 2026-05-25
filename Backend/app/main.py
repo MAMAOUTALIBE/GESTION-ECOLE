@@ -128,6 +128,7 @@ def create_app() -> FastAPI:
     from app.modules.notifications.router import router as notifications_router
     from app.modules.opendata.router import router as opendata_router
     from app.modules.parent_portal.router import router as parent_portal_router
+    from app.modules.pii_audit.router import router as pii_audit_router
     from app.modules.predictions.router import router as predictions_router
     from app.modules.projections.router import router as projections_router
     from app.modules.realtime.router import router as realtime_router
@@ -239,6 +240,10 @@ def create_app() -> FastAPI:
     # Module 3C — Score composite de priorité d'investissement par école
     app.include_router(
         investment_router, prefix=f"{settings.api_prefix}/investment"
+    )
+    # Module 5C — Audit des accès PII (loi 037/AN/2016 Guinée + RGPD)
+    app.include_router(
+        pii_audit_router, prefix=f"{settings.api_prefix}/pii-audit"
     )
 
     return app

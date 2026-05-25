@@ -178,13 +178,23 @@ ignore = ["E501", "B008"]  # B008 = needed for FastAPI Depends()
     "N801", "N803", "N815", "UP037",
     "RUF001", "RUF002", "RUF003",
 ]
+# Module 5C — pii_audit : colonnes camelCase ORM (entityType, accessType,
+# requestId, metadataJson...) + commentaires FR + forward-refs "User".
+"app/modules/pii_audit/*" = [
+    "N801", "N803", "N815", "UP037",
+    "RUF001", "RUF002", "RUF003",
+]
+"app/workers/pii_audit_tasks.py" = [
+    "N801", "N803", "N815", "UP037",
+    "RUF001", "RUF002", "RUF003",
+]
 "app/core/maintenance.py" = ["RUF002", "RUF003"]
 # Les factories et fixtures de tests refletent les noms de colonnes Prisma
 # (camelCase) — on tolere donc N803/N815/N801 dans tests/. Et `from app.modules
 # import *` est intentionnel pour declencher l'enregistrement des modeles
 # sur Base.metadata avant create_all().
 "tests/integration/*" = [
-    "N801", "N803", "N806", "N815", "F401", "F403", "RUF100", "UP037",
+    "N801", "N802", "N803", "N806", "N815", "F401", "F403", "RUF100", "UP037",
     "RUF001", "RUF002", "RUF003",
 ]
 "tests/load/*" = ["N801", "N803", "N815"]

@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.modules.auth.models import User
 from app.modules.census.schemas import (
@@ -23,6 +23,9 @@ from app.modules.census.schemas import (
     TransferStudentRequest,
 )
 from app.modules.census.service import MERGE_STUDENTS_ROLES, CensusService
+from app.modules.pii_audit.decorators import audit_pii_access
+from app.modules.pii_audit.enums import PiiAccessType, PiiEntityType
+from app.modules.pii_audit.service import PiiAuditService
 from app.shared.deps import DbSession, get_current_user
 from app.shared.enums import UserRole
 from app.shared.permissions import require_roles
@@ -68,10 +71,28 @@ async def metadata(user: CurrentUserDep, service: CensusSvc) -> MetadataResponse
 async def list_students(
     user: CurrentUserDep,
     service: CensusSvc,
+    request: Request,
     limit: Annotated[int, Query(ge=1, le=2000)] = 500,
 ) -> list[StudentRead]:
-    """Cap par défaut 500 — à 3M élèves national, jamais retourner toute la liste."""
-    return await service.list_students(user, limit=limit)
+    """Cap par défaut 500 — à 3M élèves national, jamais retourner toute la liste.
+
+    Module 5C — audit PII : on consigne les ids retournés (≤50 lignes
+    fines, >50 ligne agrégée — voir ``PiiAuditService.log_bulk_list``).
+    """
+    students = await service.list_students(user, limit=limit)
+    # Best-effort audit. Aucune exception ne doit remonter.
+    try:
+        audit = PiiAuditService(service.session)
+        await audit.log_bulk_list(
+            actor=user,
+            entity_type=PiiEntityType.STUDENT,
+            entity_ids=[s.id for s in students],
+            endpoint=request.url.path,
+            request=request,
+        )
+    except Exception:
+        pass
+    return students
 
 
 @router.get("/students/cards", response_model=list[StudentRead])
@@ -82,8 +103,17 @@ async def list_student_cards(
 
 
 @router.get("/students/{student_id}", response_model=StudentRead)
+@audit_pii_access(
+    entity_type=PiiEntityType.STUDENT,
+    access_type=PiiAccessType.VIEW,
+    get_entity_id=lambda kwargs: kwargs["student_id"],
+    await_audit=True,
+)
 async def get_student(
-    student_id: str, user: CurrentUserDep, service: CensusSvc
+    student_id: str,
+    user: CurrentUserDep,
+    service: CensusSvc,
+    request: Request,
 ) -> StudentRead:
     return await service.get_student(user, student_id)
 

@@ -16,9 +16,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.modules.auth.models import User
+from app.modules.pii_audit.enums import PiiEntityType
+from app.modules.pii_audit.service import PiiAuditService
 from app.modules.schoollife.schemas import (
     AllergyRead,
     CreateAllergyRequest,
@@ -73,10 +75,25 @@ async def create_visit(
 )
 async def list_visits(
     user: CurrentUserDep, service: Svc,
+    request: Request,
     schoolId: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=2000)] = 500,
 ) -> list[HealthVisitRead]:
-    return await service.list_visits(user, schoolId, limit)
+    visits = await service.list_visits(user, schoolId, limit)
+    # Module 5C — audit PII : consulter des visites médicales d'enfants
+    # est sensible. On consigne ids (≤50) ou agrégat (>50).
+    try:
+        audit = PiiAuditService(service.session)
+        await audit.log_bulk_list(
+            actor=user,
+            entity_type=PiiEntityType.HEALTH_VISIT,
+            entity_ids=[v.id for v in visits],
+            endpoint=request.url.path,
+            request=request,
+        )
+    except Exception:
+        pass
+    return visits
 
 
 # ----- Vaccinations -----
