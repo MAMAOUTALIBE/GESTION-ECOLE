@@ -358,7 +358,13 @@ export class SchoolMap implements OnInit, AfterViewInit, OnDestroy {
         );
 
       const marker = L.marker([school.latitude ?? 0, school.longitude ?? 0], {
-        icon: this.guineaMap.buildPulseIcon(alert.level),
+        // Marqueur "néon" : couleur = type d'école, taille = effectif élèves,
+        // intensité d'animation = niveau d'alerte.
+        icon: this.guineaMap.buildNeonMarkerIcon(
+          alert.level,
+          school.type ?? '',
+          school.counts?.students ?? 0,
+        ),
         // Place les marqueurs critiques au-dessus des autres dans la pile Z
         zIndexOffset: alert.level === 'critical' ? 1000 : alert.level === 'warning' ? 500 : 0,
         riseOnHover: true,

@@ -1,3 +1,21 @@
+// Palette néon "centre de pilotage".
+// Les overrides Leaflet (popups, marqueurs, tooltip, légende) sont
+// déclarés en global dans `src/styles.scss` (block "carte scolaire néon")
+// pour rester sous le budget de 8 kB par composant.
+:host {
+  --cs-bg-deep: #05070a;
+  --cs-bg-panel: rgba(5, 7, 10, 0.65);
+  --cs-neon-green: #16e07a;
+  --cs-neon-red: #ff2e57;
+  --cs-neon-yellow: #ffd60a;
+  --cs-glow-green: rgba(22, 224, 122, 0.45);
+  --cs-glow-red: rgba(255, 46, 87, 0.45);
+  --cs-glow-yellow: rgba(255, 214, 10, 0.45);
+  --cs-text-main: #e6f5ec;
+  --cs-text-dim: #7d8a82;
+  --cs-border-neon: rgba(22, 224, 122, 0.45);
+}
+
 .map-header,
 .filter-bar,
 .map-stat {
@@ -15,7 +33,6 @@
   padding: 1.25rem;
 }
 
-// Bandeau compact au-dessus de la carte plein écran
 .map-overhead {
   align-items: center;
   background: var(--custom-white);
@@ -32,9 +49,7 @@
   padding: 0.75rem 1rem;
 }
 
-.filter-bar {
-  padding: 1rem;
-}
+.filter-bar { padding: 1rem; }
 
 .map-stat {
   align-items: center;
@@ -54,24 +69,169 @@
   width: 46px;
 }
 
-.map-stat-icon i {
-  font-size: 1.25rem;
-}
+.map-stat-icon i { font-size: 1.25rem; }
 
-#school-census-map {
-  border: 1px solid var(--default-border);
+// Wrapper néon + conteneur Leaflet (id inchangé).
+.cs-map-wrapper {
+  background: var(--cs-bg-deep);
+  border: 1px solid var(--cs-border-neon);
+  border-block-start: 0;
   border-end-end-radius: 8px;
   border-end-start-radius: 8px;
-  border-block-start: 0;
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.6);
   height: 590px;
   min-height: 460px;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  &.cs-loading { cursor: progress; }
+}
+
+#school-census-map,
+.cs-leaflet {
+  background: #05070a;
+  height: 100%;
   width: 100%;
 }
 
-.school-list {
-  max-height: 590px;
-  overflow: auto;
+// Panneaux flottants glass néon.
+.cs-panel {
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  background: var(--cs-bg-panel);
+  border: 1px solid var(--cs-border-neon);
+  border-radius: 14px;
+  box-shadow: 0 0 30px var(--cs-glow-green);
+  color: var(--cs-text-main);
+  padding: 16px 20px;
+  pointer-events: auto;
+  position: absolute;
+  z-index: 500;
 }
+
+.cs-panel-title {
+  inset-block-start: 16px;
+  inset-inline-start: 16px;
+  max-width: 320px;
+}
+
+.cs-panel-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  inset-block-start: 16px;
+  inset-inline-end: 16px;
+  min-width: 220px;
+}
+
+.cs-panel-legend {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Rajdhani', 'Poppins', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 6px;
+  inset-block-end: 16px;
+  inset-inline-start: 16px;
+  letter-spacing: 0.08em;
+}
+
+.cs-status-led {
+  animation: cs-led-blink 2s ease-in-out infinite;
+  background: var(--cs-neon-green);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--cs-neon-green);
+  display: inline-block;
+  height: 8px;
+  margin-block-end: 4px;
+  width: 8px;
+}
+
+@keyframes cs-led-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.cs-title {
+  color: var(--cs-text-main);
+  font-family: 'Orbitron', 'Poppins', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  margin: 0;
+  text-shadow: 0 0 12px var(--cs-glow-green);
+}
+
+.cs-subtitle {
+  color: var(--cs-text-dim);
+  font-family: 'Rajdhani', 'Poppins', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  margin: 4px 0 12px;
+}
+
+.cs-kpi-row { display: flex; gap: 16px; }
+.cs-kpi { display: flex; flex-direction: column; gap: 2px; }
+
+.cs-kpi-value {
+  color: var(--cs-neon-green);
+  font-family: 'Orbitron', 'Poppins', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  text-shadow: 0 0 10px var(--cs-glow-green);
+}
+
+.cs-kpi-label {
+  color: var(--cs-text-dim);
+  font-family: 'Rajdhani', 'Poppins', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.cs-label {
+  color: var(--cs-text-dim);
+  font-family: 'Rajdhani', 'Poppins', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.cs-select {
+  background: rgba(5, 7, 10, 0.7);
+  border: 1px solid var(--cs-border-neon);
+  border-radius: 6px;
+  color: var(--cs-text-main);
+  cursor: pointer;
+  font-family: 'Rajdhani', 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  padding: 6px 10px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  width: 100%;
+  &:focus {
+    border-color: var(--cs-neon-green);
+    box-shadow: 0 0 10px var(--cs-glow-green);
+  }
+  option { background: #05070a; color: var(--cs-text-main); }
+}
+
+.cs-legend-item { align-items: center; display: flex; gap: 8px; }
+
+.cs-dot {
+  border-radius: 50%;
+  display: inline-block;
+  height: 10px;
+  width: 10px;
+}
+
+.cs-dot-green { background: var(--cs-neon-green); box-shadow: 0 0 8px var(--cs-glow-green); }
+.cs-dot-red { background: var(--cs-neon-red); box-shadow: 0 0 8px var(--cs-glow-red); }
+.cs-dot-yellow { background: var(--cs-neon-yellow); box-shadow: 0 0 8px var(--cs-glow-yellow); }
+
+.school-list { max-height: 590px; overflow: auto; }
 
 .school-list-item {
   align-items: center;
@@ -87,9 +247,7 @@
   width: 100%;
 }
 
-.school-list-item:hover {
-  background: var(--default-background);
-}
+.school-list-item:hover { background: var(--default-background); }
 
 .missing-gps-row {
   align-items: center;
@@ -99,188 +257,18 @@
   padding: 0.75rem 0;
 }
 
-.missing-gps-row + .missing-gps-row {
-  border-block-start: 1px solid var(--default-border);
-}
+.missing-gps-row + .missing-gps-row { border-block-start: 1px solid var(--default-border); }
+
+.alert-counters { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 
 @media (max-width: 767.98px) {
   .map-header,
-  .map-overhead {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  #school-census-map {
-    height: 460px;
-  }
-}
-
-// =====================================================================
-// Marqueurs animés (alertes) + légende + tooltip
-// =====================================================================
-.alert-counters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.pulse-marker-wrapper {
-  background: transparent;
-  border: 0;
-}
-
-.pulse-marker {
-  display: inline-block;
-  height: 18px;
-  position: relative;
-  width: 18px;
-}
-
-.pulse-marker .pulse-dot {
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px #fff, 0 1px 2px rgba(0, 0, 0, 0.35);
-  height: 12px;
-  inset-block-start: 3px;
-  inset-inline-start: 3px;
-  position: absolute;
-  width: 12px;
-}
-
-.pulse-marker .pulse-ring {
-  border-radius: 50%;
-  height: 18px;
-  inset: 0;
-  position: absolute;
-  width: 18px;
-}
-
-.pulse-red .pulse-dot { background: #dc3545; }
-.pulse-red .pulse-ring {
-  background: rgba(220, 53, 69, 0.55);
-  animation: school-pulse 1.5s ease-out infinite;
-}
-
-.pulse-orange .pulse-dot { background: #fd7e14; }
-.pulse-orange .pulse-ring {
-  background: rgba(253, 126, 20, 0.55);
-  animation: school-pulse 1.8s ease-out infinite;
-}
-
-// Vert = état normal — pastille fixe, pas de halo
-.pulse-green .pulse-dot { background: #198754; }
-.pulse-green .pulse-ring { display: none; }
-
-@keyframes school-pulse {
-  0% {
-    opacity: 0.85;
-    transform: scale(0.6);
-  }
-  80% {
-    opacity: 0;
-    transform: scale(2.6);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(2.6);
-  }
+  .map-overhead { align-items: flex-start; flex-direction: column; }
+  .cs-map-wrapper { height: 460px; }
+  .cs-panel-title { max-width: calc(100% - 32px); }
+  .cs-panel-filters { min-width: 180px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse-red .pulse-ring,
-  .pulse-orange .pulse-ring {
-    animation: none;
-    opacity: 0.5;
-    transform: scale(1.4);
-  }
-}
-
-// Légende Leaflet (bottom-left)
-:host ::ng-deep .map-legend {
-  background: var(--custom-white, #fff);
-  border: 1px solid var(--default-border, rgba(0, 0, 0, 0.1));
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-  font-size: 0.75rem;
-  line-height: 1.35;
-  padding: 0.55rem 0.75rem;
-}
-
-:host ::ng-deep .map-legend .legend-title {
-  font-weight: 600;
-  margin-block-end: 0.35rem;
-}
-
-:host ::ng-deep .map-legend .legend-row {
-  align-items: center;
-  display: flex;
-  gap: 0.55rem;
-}
-
-:host ::ng-deep .map-legend .legend-row + .legend-row {
-  margin-block-start: 0.2rem;
-}
-
-:host ::ng-deep .map-legend .legend-dot {
-  border-radius: 50%;
-  display: inline-block;
-  flex: 0 0 10px;
-  height: 10px;
-  width: 10px;
-}
-
-:host ::ng-deep .map-legend .legend-dot.dot-red { background: #dc3545; }
-:host ::ng-deep .map-legend .legend-dot.dot-orange { background: #fd7e14; }
-:host ::ng-deep .map-legend .legend-dot.dot-green { background: #198754; }
-
-// Tooltip de survol — version riche, style "popup"
-:host ::ng-deep .school-alert-tooltip.leaflet-tooltip {
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
-  color: inherit;
-  font-size: 0.78rem;
-  line-height: 1.4;
-  max-width: 280px;
-  opacity: 1;
-  padding: 0.65rem 0.8rem;
-  white-space: normal;
-}
-
-:host ::ng-deep .school-alert-tooltip .tip-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-block-end: 0.25rem;
-}
-
-:host ::ng-deep .school-alert-tooltip .tip-meta {
-  color: rgba(0, 0, 0, 0.55);
-  font-size: 0.72rem;
-  margin-block-end: 0.4rem;
-}
-
-:host ::ng-deep .school-alert-tooltip .tip-stats {
-  display: grid;
-  gap: 0.15rem 0.6rem;
-  grid-template-columns: auto auto;
-}
-
-:host ::ng-deep .school-alert-tooltip .tip-stats dt {
-  color: rgba(0, 0, 0, 0.55);
-  font-weight: 500;
-  margin: 0;
-}
-
-:host ::ng-deep .school-alert-tooltip .tip-stats dd { font-weight: 600; margin: 0; }
-
-:host ::ng-deep .school-alert-tooltip .tip-alert-critical {
-  color: #dc3545;
-  font-weight: 600;
-  margin-block-start: 0.45rem;
-}
-
-:host ::ng-deep .school-alert-tooltip .tip-alert-warning {
-  color: #fd7e14;
-  font-weight: 600;
-  margin-block-start: 0.45rem;
+  .cs-status-led { animation: none; }
 }
