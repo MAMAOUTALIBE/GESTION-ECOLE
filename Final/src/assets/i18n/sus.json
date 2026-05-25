@@ -165,6 +165,68 @@
       "whiteZones": "Sub-prefecture > 5 km xaranɲii rakelima."
     }
   },
+  "simulateur": {
+    "title": "Simulateur what-if xaranɲii naatige",
+    "subtitle": "Maxɔdɔn xaranɲii rabidemɔxɔnyi, kanaxa, xa dɔnxɔnyi tomatode impact (Module 3B).",
+    "year": "Saare xaranɲa",
+    "newScenario": "Kɛnɛn nɛrɛ",
+    "save": "A ratangama",
+    "compute": "Impact hisabu",
+    "loading": "Sa…",
+    "modes": {
+      "view": "Mato",
+      "create": "Da",
+      "close": "Kana",
+      "merge": "A bira"
+    },
+    "operations": {
+      "title": "Kɛnɛnyi walikɛ",
+      "empty": "Walikɛ mu na.",
+      "remove": "Walikɛ ba"
+    },
+    "impact": {
+      "title": "Kɛnɛn impact",
+      "empty": "Impact hisabu na xa a maso.",
+      "coverage": "Kantarali",
+      "saturation": "Dawenima",
+      "distance": "Yamamani",
+      "redistributed": "Xaransɛnyi rakelima"
+    },
+    "merge": {
+      "instruction": "Xaranɲii ≥ 2 sugandi, na A bira xɔn",
+      "confirm": "A bira",
+      "cancel": "Lu"
+    },
+    "table": {
+      "title": "Kɛnɛnyi sɛbɛli",
+      "empty": "Kɛnɛn mu na.",
+      "name": "Xili",
+      "status": "Ngonka",
+      "operations": "Walikɛ",
+      "createdAt": "Dafanma",
+      "computedAt": "Hisabuma",
+      "actions": "Walikɛ",
+      "computeAction": "Hisabu",
+      "viewAction": "Mato",
+      "archiveAction": "A maxiri"
+    },
+    "status": {
+      "DRAFT": "Sɛbɛli",
+      "COMPUTED": "Hisabuxi",
+      "ARCHIVED": "Maxirixi"
+    },
+    "toasts": {
+      "saved": "Kɛnɛn sɛbɛlixi.",
+      "computed": "Impact hisabuxi.",
+      "archived": "Kɛnɛn maxirixi."
+    },
+    "errors": {
+      "load": "Donsenyi mu na — backend mato.",
+      "save": "Sɛbɛli mu nɔ.",
+      "compute": "Impact hisabu bali.",
+      "archive": "A maxirima bali."
+    }
+  },
   "transferts": {
     "title": "Karamɔxɔyi tinkanyi",
     "subtitle": "Bara xaranɲiisɛnyi karamɔxɔyi gbe xa nɛnɛ, tinkanyi raba (Module 2D).",

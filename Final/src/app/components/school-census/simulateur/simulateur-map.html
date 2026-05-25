@@ -1,0 +1,57 @@
+<div class="simulateur-map card custom-card h-100">
+  <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div class="card-title fw-semibold">Carte simulateur</div>
+    <div class="text-muted fs-12">
+      Mode : <strong>{{ mode() }}</strong>
+    </div>
+  </div>
+  <div class="card-body p-0 position-relative">
+    <div
+      #mapContainer
+      class="simulateur-map__canvas"
+      [class.sim-cursor-view]="cursorClass() === 'sim-cursor-view'"
+      [class.sim-cursor-create]="cursorClass() === 'sim-cursor-create'"
+      [class.sim-cursor-close]="cursorClass() === 'sim-cursor-close'"
+      [class.sim-cursor-merge]="cursorClass() === 'sim-cursor-merge'"
+      aria-label="Carte interactive du simulateur what-if"
+    ></div>
+
+    @if (mode() === 'merge') {
+      <div class="simulateur-map__merge-banner" aria-live="polite">
+        <span>Sélectionnez ≥ 2 écoles puis cliquez sur Fusionner</span>
+        <span class="badge bg-info">{{ mergeCount() }} sélectionnées</span>
+        <button
+          type="button"
+          class="btn btn-sm btn-success"
+          [disabled]="mergeCount() < 2"
+          (click)="confirmMerge()"
+          data-testid="confirm-merge-btn"
+        >
+          Fusionner
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          (click)="cancelMerge()"
+        >
+          Annuler
+        </button>
+      </div>
+    }
+
+    <div class="simulateur-map__legend">
+      <span class="legend-item">
+        <span class="dot" style="background:#1a3a6e"></span>École existante
+      </span>
+      <span class="legend-item">
+        <span class="dot" style="background:#16e07a"></span>Nouvelle / Fusion
+      </span>
+      <span class="legend-item">
+        <span class="dot" style="background:#888"></span>Fermée par scénario
+      </span>
+      <span class="legend-item">
+        <span class="dot" style="background:#0984e3"></span>Sélectionnée
+      </span>
+    </div>
+  </div>
+</div>

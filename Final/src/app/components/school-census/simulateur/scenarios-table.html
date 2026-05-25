@@ -1,0 +1,76 @@
+<div class="scenarios-table card custom-card">
+  <div class="card-header">
+    <div class="card-title fw-semibold">Scénarios enregistrés</div>
+  </div>
+  <div class="card-body p-0">
+    @if (rows().length === 0) {
+      <p class="text-muted text-center py-3 mb-0">
+        Aucun scénario pour le moment.
+      </p>
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0" aria-label="Scénarios">
+          <thead>
+            <tr>
+              <th scope="col">Nom</th>
+              <th scope="col">Statut</th>
+              <th scope="col" class="text-end">Opérations</th>
+              <th scope="col">Créé le</th>
+              <th scope="col">Calculé le</th>
+              <th scope="col" class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.id) {
+              <tr data-testid="scenario-row">
+                <td class="fw-semibold">{{ row.name }}</td>
+                <td>
+                  <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                </td>
+                <td class="text-end">{{ row.operationsCount }}</td>
+                <td>{{ formatDate(row.createdAt) }}</td>
+                <td>{{ formatDate(row.computedAt) }}</td>
+                <td class="text-end">
+                  <div class="btn-group btn-group-sm" role="group">
+                    @if (row.canCompute) {
+                      <button
+                        type="button"
+                        class="btn btn-outline-success"
+                        [disabled]="busy()"
+                        (click)="onCompute(row.id)"
+                        data-testid="row-compute-btn"
+                      >
+                        Calculer
+                      </button>
+                    }
+                    @if (row.canView) {
+                      <button
+                        type="button"
+                        class="btn btn-outline-primary"
+                        (click)="onView(row.id)"
+                        data-testid="row-view-btn"
+                      >
+                        Voir
+                      </button>
+                    }
+                    @if (row.canArchive) {
+                      <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        [disabled]="busy()"
+                        (click)="onArchive(row.id)"
+                        data-testid="row-archive-btn"
+                      >
+                        Archiver
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

@@ -1,0 +1,151 @@
+<div class="operations-panel card custom-card h-100">
+  <div class="card-header">
+    <div class="card-title fw-semibold">Opérations du scénario</div>
+    <p class="text-muted fs-12 mb-0">
+      Sélectionnez un mode puis cliquez sur la carte (créer / fermer / fusionner).
+    </p>
+  </div>
+  <div class="card-body">
+    <div class="btn-group flex-wrap mb-3" role="group" aria-label="Mode opération">
+      <button
+        type="button"
+        [class]="modeBtnClass('view')"
+        (click)="setMode('view')"
+        data-testid="mode-view"
+      >
+        <i class="ri-eye-line me-1"></i>Visualiser
+      </button>
+      <button
+        type="button"
+        [class]="modeBtnClass('create')"
+        [disabled]="!canEdit()"
+        (click)="setMode('create')"
+        data-testid="mode-create"
+      >
+        <i class="ri-add-circle-line me-1"></i>Créer
+      </button>
+      <button
+        type="button"
+        [class]="modeBtnClass('close')"
+        [disabled]="!canEdit()"
+        (click)="setMode('close')"
+        data-testid="mode-close"
+      >
+        <i class="ri-close-circle-line me-1"></i>Fermer
+      </button>
+      <button
+        type="button"
+        [class]="modeBtnClass('merge')"
+        [disabled]="!canEdit()"
+        (click)="setMode('merge')"
+        data-testid="mode-merge"
+      >
+        <i class="ri-git-merge-line me-1"></i>Fusionner
+      </button>
+    </div>
+
+    <div class="ops-list mb-3" aria-live="polite">
+      @if (!hasOperations()) {
+        <p class="text-muted fs-12 fst-italic mb-0">
+          Aucune opération pour le moment.
+        </p>
+      }
+      @for (op of operations(); let i = $index; track i) {
+        <span [class]="classFor(op)" data-testid="op-chip">
+          <span class="op-chip__label">{{ labelFor(op) }}</span>
+          <button
+            type="button"
+            class="op-chip__remove"
+            [disabled]="busy()"
+            aria-label="Retirer l'opération"
+            (click)="onRemove(i)"
+          >
+            ×
+          </button>
+        </span>
+      }
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+      <button
+        type="button"
+        class="btn btn-success"
+        [disabled]="!canCompute()"
+        (click)="onCompute()"
+        data-testid="compute-impact-btn"
+      >
+        <i class="ri-calculator-line me-1"></i>Calculer impact
+      </button>
+      <button
+        type="button"
+        class="btn btn-primary"
+        [disabled]="!canSave()"
+        (click)="openSaveDialog()"
+        data-testid="open-save-btn"
+      >
+        <i class="ri-save-line me-1"></i>Sauvegarder
+      </button>
+    </div>
+  </div>
+</div>
+
+@if (showSaveDialog()) {
+  <div
+    class="save-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="save-modal-title"
+  >
+    <div class="save-modal__backdrop" (click)="closeSaveDialog()" aria-hidden="true"></div>
+    <div class="save-modal__panel card custom-card">
+      <div class="card-header">
+        <h5 id="save-modal-title" class="mb-0">Sauvegarder le scénario</h5>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label for="scn-name" class="form-label">Nom du scénario</label>
+          <input
+            id="scn-name"
+            type="text"
+            class="form-control"
+            maxlength="120"
+            [ngModel]="draftName()"
+            (ngModelChange)="setDraftName($event)"
+            data-testid="save-name-input"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label for="scn-desc" class="form-label">Description (optionnel)</label>
+          <textarea
+            id="scn-desc"
+            class="form-control"
+            maxlength="500"
+            rows="3"
+            [ngModel]="draftDescription()"
+            (ngModelChange)="setDraftDescription($event)"
+            data-testid="save-desc-input"
+          ></textarea>
+        </div>
+      </div>
+      <div class="card-footer d-flex justify-content-end gap-2">
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          (click)="closeSaveDialog()"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="!draftName().trim()"
+          (click)="confirmSave()"
+          data-testid="save-confirm-btn"
+        >
+          Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+}

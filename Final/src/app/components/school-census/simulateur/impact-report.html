@@ -1,0 +1,35 @@
+<div class="impact-report card custom-card">
+  <div class="card-header">
+    <div class="card-title fw-semibold">Impact du scénario</div>
+    @if (!hasReport()) {
+      <span class="text-muted fs-12">
+        Lancez le calcul pour visualiser l'impact.
+      </span>
+    }
+  </div>
+  <div class="card-body">
+    <div class="row g-3 impact-grid">
+      @for (block of [
+        coverageBlock(),
+        saturationBlock(),
+        distanceBlock(),
+        redistributionBlock()
+      ]; track block.title) {
+        <div class="col-xl-3 col-md-6">
+          <div class="impact-card" data-testid="impact-kpi">
+            <div class="impact-card__title">{{ block.title }}</div>
+            <div class="impact-card__row">
+              <span class="impact-card__before">{{ block.beforeLabel }}</span>
+              <span class="impact-card__arrow" aria-hidden="true">→</span>
+              <span class="impact-card__after">{{ block.afterLabel }}</span>
+            </div>
+            <div [class]="deltaClass(block)" data-testid="impact-delta">
+              <span aria-hidden="true">{{ arrowFor(block) }}</span>
+              <span>{{ block.deltaLabel }}</span>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</div>
