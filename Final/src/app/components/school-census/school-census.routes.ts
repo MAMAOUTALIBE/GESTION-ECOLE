@@ -45,6 +45,16 @@ const SIMULATEUR_ROLES: UserRole[] = [
   'REGIONAL_ADMIN',
 ];
 
+// Module 3C UI — Priorités d'investissement (top 100 écoles). Ouvert à
+// NATIONAL/MINISTRY/REGIONAL_ADMIN/INSPECTOR : l'inspecteur d'académie
+// consulte la liste pour préparer ses tournées de terrain (lecture seule
+// côté UI ; le bouton "Recalculer" reste réservé à NATIONAL/MINISTRY via
+// le computed signal `canCompute`).
+const INVESTISSEMENTS_ROLES: UserRole[] = [
+  ...NATIONAL_SCOPE_ROLES,
+  ...REGIONAL_SCOPE_ROLES,
+];
+
 export const schoolCensusRoutingModule: Routes = [
   {
     path: 'school-census/equite',
@@ -102,6 +112,19 @@ export const schoolCensusRoutingModule: Routes = [
     },
     loadComponent: () =>
       import('./simulateur/simulateur-page').then((m) => m.SimulateurPage),
+  },
+  {
+    path: 'school-census/investissements',
+    canActivate: [roleGuard],
+    data: {
+      roles: INVESTISSEMENTS_ROLES,
+      parentTitle: 'Pilotage national',
+      childTitle: "Priorités d'investissement",
+    },
+    loadComponent: () =>
+      import('./investissements/investissements-page').then(
+        (m) => m.InvestissementsPage,
+      ),
   },
   {
     path: 'school-census/schools',

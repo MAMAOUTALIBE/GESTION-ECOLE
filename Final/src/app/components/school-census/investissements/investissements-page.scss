@@ -1,0 +1,30 @@
+.investissements-page {
+  position: relative;
+
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1a3a6e;
+    font-weight: 600;
+    z-index: 5;
+    border-radius: 0.75rem;
+  }
+
+  .btn-outline-danger.active,
+  .btn-outline-warning.active,
+  .btn-outline-info.active,
+  .btn-outline-success.active {
+    color: #fff;
+  }
+}
+
+:host-context([data-theme='dark']) {
+  .investissements-page .loading-overlay {
+    background: rgba(15, 18, 30, 0.75);
+    color: #e2e8f0;
+  }
+}

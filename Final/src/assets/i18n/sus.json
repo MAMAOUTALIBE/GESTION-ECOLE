@@ -275,5 +275,57 @@
       "compute": "Karamɔxɔ hisabu bali.",
       "generate": "Tinkanyi sa bali."
     }
+  },
+  "investissements": {
+    "title": "Karamɔxɔyi kandɛ fala",
+    "subtitle": "Bɔxiwala karamɔxɔyi yati kandɛ kɛli (Module 3C).",
+    "year": "Karamɔxɔ sanyi",
+    "compute": "Hisabu sɔgɔ",
+    "loading": "Tobiti…",
+    "filters": {
+      "category": "Sifa",
+      "region": "Diiwan",
+      "all": "Birin",
+      "reset": "Sɔtɔ"
+    },
+    "category": {
+      "TRES_HAUTE": "Bɛlɛ bɛlɛ",
+      "HAUTE": "Bɛlɛ",
+      "MOYENNE": "Tagi",
+      "BASSE": "Dɔxɔ"
+    },
+    "kpi": {
+      "tresHaute": "Fala bɛlɛ bɛlɛ",
+      "haute": "Fala bɛlɛ",
+      "moyenne": "Fala tagi",
+      "basse": "Fala dɔxɔ"
+    },
+    "table": {
+      "title": "Top 100 karamɔxɔyi — fala",
+      "rank": "Lɔnyi",
+      "school": "Karamɔxɔ",
+      "region": "Diiwan",
+      "score": "Hisabu",
+      "category": "Sifa",
+      "dimensions": "Bode",
+      "empty": "Karamɔxɔ mu na yati."
+    },
+    "panel": {
+      "profile": "Sifa bode kɛli",
+      "infrastructure": "Infrastructure",
+      "saturation": "Faxan tobitiyɛ",
+      "equity": "Maɲɔnxɔn (GPI)",
+      "accessibility": "Sa lifa",
+      "recommendations": "Tinkanyi",
+      "viewOnMap": "Karamɔxɔ tobiti karte ma",
+      "close": "Lu"
+    },
+    "toasts": {
+      "computed": "Hisabu nan bara."
+    },
+    "errors": {
+      "load": "Donsenyi mu na — backend mato.",
+      "compute": "Hisabu bali."
+    }
   }
 }

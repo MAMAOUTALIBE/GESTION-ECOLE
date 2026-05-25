@@ -1,0 +1,45 @@
+.investment-kpi {
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease,
+    outline-color 0.15s ease;
+  outline: 2px solid transparent;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+  }
+
+  &:focus {
+    outline: 2px solid var(--primary-color, #1a3a6e);
+    outline-offset: 2px;
+  }
+
+  &--selected {
+    outline: 2px solid var(--primary-color, #1a3a6e);
+    box-shadow: 0 0.5rem 1rem rgba(26, 58, 110, 0.18);
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.5rem;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+}
+
+:host-context([data-theme='dark']) {
+  .investment-kpi {
+    &:hover {
+      box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
+    }
+
+    &--selected {
+      box-shadow: 0 0.5rem 1rem rgba(255, 255, 255, 0.08);
+    }
+  }
+}

@@ -275,5 +275,57 @@
       "compute": "Échec du recalcul staffing.",
       "generate": "Échec de génération des recommandations."
     }
+  },
+  "investissements": {
+    "title": "Priorités d'investissement",
+    "subtitle": "Classement national des écoles à investir en priorité (Module 3C).",
+    "year": "Année scolaire",
+    "compute": "Recalculer",
+    "loading": "Chargement…",
+    "filters": {
+      "category": "Catégorie",
+      "region": "Région",
+      "all": "Toutes",
+      "reset": "Réinitialiser"
+    },
+    "category": {
+      "TRES_HAUTE": "Très haute",
+      "HAUTE": "Haute",
+      "MOYENNE": "Moyenne",
+      "BASSE": "Basse"
+    },
+    "kpi": {
+      "tresHaute": "Très haute priorité",
+      "haute": "Haute priorité",
+      "moyenne": "Priorité moyenne",
+      "basse": "Priorité basse"
+    },
+    "table": {
+      "title": "Top 100 écoles — priorités",
+      "rank": "Rang",
+      "school": "École",
+      "region": "Région",
+      "score": "Score",
+      "category": "Catégorie",
+      "dimensions": "Dimensions",
+      "empty": "Aucune école à afficher."
+    },
+    "panel": {
+      "profile": "Profil par dimension",
+      "infrastructure": "Infrastructure",
+      "saturation": "Saturation projetée",
+      "equity": "Équité (GPI)",
+      "accessibility": "Accessibilité",
+      "recommendations": "Recommandations",
+      "viewOnMap": "Voir école dans la carte",
+      "close": "Fermer"
+    },
+    "toasts": {
+      "computed": "Recalcul terminé."
+    },
+    "errors": {
+      "load": "Données indisponibles — backend à vérifier.",
+      "compute": "Échec du recalcul."
+    }
   }
 }
